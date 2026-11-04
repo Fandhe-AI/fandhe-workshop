@@ -45,7 +45,7 @@ base 自身の `7dbc58a1`（#2010）は `docs/` の測定の記録だけを変�
 
 1. 固定した commit の記録: 上の表
 2. `git diff --numstat --no-renames <base> <head> -- crates Cargo.toml Cargo.lock` の行数。移動も差分に数え、バイナリは 1 件の変更として数える
-3. ファイルの SHA-256 の一覧の照合: `engine-manifest.sha256`（base の時点の 1,628 件。形は `sha256sum -c` と同じ `<sha256>  <path>`）。blob から作り、作業ツリーの改行の変換に左右されない。手で編集しない。作り直すときは `--write-manifest`
+3. ファイルの SHA-256 の一覧の照合: `engine-manifest.sha256`（base の時点の 1,628 件。形は `sha256sum -c` と同じ `<sha256>  <path>`）。blob から作り、作業ツリーの改行の変換に左右されない。手で編集しない。作り直すときは `scripts/check-engine-zero-diff.sh --base 7dbc58a161a62faeef6a1aad221f8c947a1521a5 --manifest docs/engine-zero-diff/task-breakdown/engine-manifest.sha256 --write-manifest`
 
 手の照合として、`git ls-tree -r --name-only 7dbc58a1 -- crates Cargo.toml Cargo.lock | wc -l` も 1,628 でした。
 

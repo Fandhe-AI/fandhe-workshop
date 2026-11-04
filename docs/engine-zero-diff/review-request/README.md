@@ -50,7 +50,7 @@
 
 1. 固定した commit の記録: 上の表
 2. `git diff --numstat --no-renames <base> <head> -- crates Cargo.toml Cargo.lock` の行数。移動も差分に数え、バイナリは 1 件の変更として数える
-3. ファイルの SHA-256 の一覧の照合: `engine-manifest.sha256`（base の時点の 1,628 件。形は `sha256sum -c` と同じ `<sha256>  <path>`）。git の blob から作り、作業ツリーの改行の変換に左右されない。手で編集しない。作り直すときは `scripts/check-engine-zero-diff.sh --write-manifest`
+3. ファイルの SHA-256 の一覧の照合: `engine-manifest.sha256`（base の時点の 1,628 件。形は `sha256sum -c` と同じ `<sha256>  <path>`）。git の blob から作り、作業ツリーの改行の変換に左右されない。手で編集しない。作り直すときは `scripts/check-engine-zero-diff.sh --base 505fef25de073875d814500e76a9e597e4513639 --manifest docs/engine-zero-diff/review-request/engine-manifest.sha256 --write-manifest`（個別の指定モードなので `--base` と `--manifest` が必須）
 
 手の照合として、`git ls-tree -r --name-only 505fef25 -- crates Cargo.toml Cargo.lock | wc -l` も 1,628 でした。
 
