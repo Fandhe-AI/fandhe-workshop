@@ -169,13 +169,14 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-measure-wasm-size` | 測定の様式の検証と実ビルドの回帰テスト（遅く、CI・フックには入れない） |
 | `make check-generic-words` | エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査（`tools/check-generic-words.mjs`。CI の `browser-test` が回帰テストとともに流す。#2034） |
 | `make test-check-generic-words` | 教材固有の語の検査自体の回帰テスト |
+| `make test-browser-durations` | ブラウザ試験の所要時間の集計（`tools/browser-durations.mjs`。junit から試験ファイルごとの合計を出す。CI の `browser-test` が流す。#2037）の回帰テスト |
 | `make check-second-pack` | 第 2 教材の骨格（`template-workshop/examples/review-request/`）の設定値・文書のビューの 5 行・Step 8 つと模範解答 2 通りの行の変化・誤答の 8 場面の規則・誤入力と文面の確認（TASK-746 2/2）・IR のバイト一致・形式 B・学習目標（TASK-747）（TASK-746）・使った拡張点の照合と掲示板教材の写しとの比較（TASK-753。`docs/testing.md` 5.453）・基準値・AR-12 の読みの記録と設定値の一致・AR-8 の読みの記録と属性の形のままであること（ar8-reading。TASK-755）・診断の試験（`scripts/check-second-pack.sh`。TASK-745・TASK-756。`E-PROFILE-NO-INPUT` は compile で確かめる。CI の `rust-test` が流す。TASK-102。cargo が要る。TASK-743） |
 | `make test-check-second-pack` | 上の試験自体の回帰テスト（変異を入れた写し。やや遅い。診断コードつきの変異 4 件。CI の `rust-test` が流す） |
 | `make check-second-pack-repro` | 公開の資料だけで別の作者が書いた第 2 教材の写し（`docs/second-pack-repro/`）の validate・test・設定値・件数の検査（`scripts/check-second-pack-repro.sh`。TASK-413 1/2。記録は `docs/testing.md` 5.449・5.451・5.464。CI の `rust-test` が回帰テストとともに流す（#2034）。cargo が要る） |
 | `make test-check-second-pack-repro` | 上の検査自体の回帰テスト（変異を入れた写し。やや遅い） |
 | `make check-third-pack` | 3 本目の教材（`template-workshop/examples/task-breakdown/`）の validate の診断 0 件・test の全件合格・R-22／R-21 の 0 の検査（`scripts/check-third-pack.sh`。TASK-797・D-98。CI の `rust-test` が流す。cargo が要る。記録は `docs/testing.md` 5.460） |
 | `make test-check-third-pack` | 上の検査自体の回帰テスト（壊した写し 6 通り。CI の `rust-test` が流す） |
-| `make check-engine-zero-diff` | 第 2・第 3 教材の追加でエンジン（`crates/`・`Cargo.toml`・`Cargo.lock`）の差分が 0 行であることを、`docs/engine-zero-diff/*/record.txt`（`base`・`head`・`pack`）の再現で確かめる（`scripts/check-engine-zero-diff.sh`。既定の head は記録の測った HEAD。`--head <rev>` でいまの rev を測る。`--record <dir>` で 1 件に絞る。README の表との食い違いは `record-readme` が FAIL。cargo・通信なし。CI 未組み込み。記録は `docs/engine-zero-diff/review-request/`・`task-breakdown/`、`docs/testing.md` 5.450・5.459・5.465。TASK-752・#2038） |
+| `make check-engine-zero-diff` | 第 2・第 3 教材の追加でエンジン（`crates/`・`Cargo.toml`・`Cargo.lock`）の差分が 0 行であることを、`docs/engine-zero-diff/*/record.txt`（`base`・`head`・`pack`）の再現で確かめる（`scripts/check-engine-zero-diff.sh`。既定の head は記録の測った HEAD。`--head <rev>` でいまの rev を測る。`--record <dir>` で 1 件に絞る。README の表との食い違いは `record-readme` が FAIL。cargo・通信なし。CI 未組み込み。記録は `docs/engine-zero-diff/review-request/`・`task-breakdown/`、`docs/testing.md` 5.450・5.459・5.466。TASK-752・#2038） |
 | `make test-check-engine-zero-diff` | 上の検査自体の回帰テスト（見本の repo。CI の `check` ジョブが流す） |
 | `make check-internal-info WORDS=<一覧のパス>` | 社内固有の語（private の spec repo の一覧。`tools/check-internal-info.mjs`）と認証情報の形の公開前の照合（CI 未組み込み。語の一覧は本 repo に置かない。記録は `docs/publish-checks.md`） |
 | `make check-internal-info-secrets` | 認証情報の形だけの照合（語の照合は行わない。CI 未組み込み） |

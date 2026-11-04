@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # ブラウザ試験（Playwright の共通ヘルパ）を流す（`make test-browser` から呼ばれる）。
 #
+# 任意: FANDHE_TEST_TAP_OUT（TAP の出し先。件数の照合）・FANDHE_TEST_JUNIT_OUT（junit の出し先。ファイルごとの所要時間の集計。#2037）。
+#
 # 配信設定の web（TEST_HOOKS なし）と試験の設定の web（TEST_HOOKS=1）を一時ディレクトリへビルドし、
 # tools/browser/*.test.mjs を node:test で実行する。配信設定は FANDHE_WEB_DIR、試験の設定は FANDHE_WEB_TEST_DIR で渡す。
 # 1 周目の終わりの履歴を読み込み欄から開き、次の章へ進むの実クリックで 2 周目を新しい根で始め、書き出しで世界状態の一致・閉じた根の保持・ops の追記を確かめる試験（round-handoff。MOD-19・MOD-5・MOD-8。TASK-254 2/2。入力は native の emit_round_handoff_for_browser が書き出す）を含む。
@@ -154,10 +156,17 @@ done
 export FANDHE_ROUND_HANDOFF_DIR="${TMP}/round-handoff"
 
 # 空配列の展開は bash 3.2 の set -u で未定義扱いになるため、要素がある場合だけ渡す。
+# TAP（件数の照合用）と junit（試験ファイルごとの所要時間の集計用。tools/browser-durations.mjs。#2037）は
+# どちらも任意で、指定された方だけを足す。どちらかを指すと spec が stdout から消えるため、先に spec を足す。
 REPORTER_ARGS=()
+if [[ -n "${FANDHE_TEST_TAP_OUT:-}" || -n "${FANDHE_TEST_JUNIT_OUT:-}" ]]; then
+  REPORTER_ARGS=(--test-reporter=spec --test-reporter-destination=stdout)
+fi
 if [[ -n "${FANDHE_TEST_TAP_OUT:-}" ]]; then
-  REPORTER_ARGS=(--test-reporter=spec --test-reporter-destination=stdout \
-    --test-reporter=tap "--test-reporter-destination=${FANDHE_TEST_TAP_OUT}")
+  REPORTER_ARGS+=(--test-reporter=tap "--test-reporter-destination=${FANDHE_TEST_TAP_OUT}")
+fi
+if [[ -n "${FANDHE_TEST_JUNIT_OUT:-}" ]]; then
+  REPORTER_ARGS+=(--test-reporter=junit "--test-reporter-destination=${FANDHE_TEST_JUNIT_OUT}")
 fi
 
 FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \

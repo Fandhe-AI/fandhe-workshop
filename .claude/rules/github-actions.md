@@ -251,13 +251,15 @@ gh run list --workflow ci.yml --limit 30 --json databaseId,conclusion,createdAt,
 gh run view <run-id> --json jobs --jq '.jobs[]|[.name,.conclusion,.startedAt,.completedAt]|@tsv'
 ```
 
+`browser-test` の試験ファイルごとの所要時間は、run のログの step「Summarize browser test durations per file」で読める（`node tools/browser-durations.mjs <junit.xml> --top N`。junit は `FANDHE_TEST_JUNIT_OUT` で書く。#2037）。timeout は所要時間の 1.5 倍以上にする。
+
 ## 棚卸し結果（2026-10-11。ci.yml の rust-lint・rust-test・browser-test は 2026-11-04 に更新）
 
 | ワークフロー | ジョブ | 実測（直近の実行） |
 | --- | --- | --- |
 | `ci.yml` | check・test-hooks（ubuntu / macOS）・pr-title・ci-complete | wall-clock 約 2〜3 分。各ジョブの実処理は 5〜15 秒で、大半は macOS ランナーの起動待ち（約 2 分） |
 | `ci.yml` | rust-lint・rust-test | rust-lint 約 3 分（192 秒）、rust-test 約 17 分（1,002 秒）（main の run 41831522092・2026-11-04）。rust-test のうち `make test` は 642 秒、`make check-second-pack` は 271 秒、2026-11-04 に足した `check-second-pack-repro` と回帰テストは合わせて 3 秒（PR の run 41825483180） |
-| `ci.yml` | browser-test | 約 40 分（2,393 秒。main の run 41831522092・2026-11-04）。うち `make test-browser` が 2,118 秒、`make test-l2-run` が 135 秒、2026-11-04 に足した `check-generic-words` と回帰テストは合わせて 11 秒（PR の run 41825483180）。timeout は 60 分 |
+| `ci.yml` | browser-test | 約 40 分（2,393 秒。main の run 41831522092・2026-11-04）。うち `make test-browser` が 2,118 秒、`make test-l2-run` が 135 秒、2026-11-04 に足した `check-generic-words` と回帰テストは合わせて 11 秒（PR の run 41825483180）。直近 10 run は 2,175〜2,432 秒。timeout は 90 分（#2037。最大 2,432 秒に対する余裕は約 122%。変えた後の実測は PR の run で記入、未記入） |
 | `ai-review.yml` | codex の preflight・review・post_feedback | 約 1〜2 分 |
 | `update-external.yml` | 日次の外部ソース追従（reusable） | 実績なし（未計測） |
 

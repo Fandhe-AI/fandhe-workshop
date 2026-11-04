@@ -418,7 +418,10 @@ jobs:
   browser-test:
     name: "browser test (Chromium)"
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # timeout は所要時間の 1.5 倍以上にする（余裕 50% 以上。#2037）。2026-11-04 の直近 10 run の最大は 2,432 秒（run 41843918677）で、
+    # 1.5 倍は約 61 分になり 60 分では足りないため 90 分にした（余裕は約 122%）。所要時間が 60 分に近づいたら見直す。
+    # 根拠と実測は docs/testing.md 5.465・.claude/rules/github-actions.md の棚卸し。
+    timeout-minutes: 90
     env:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: "0"
@@ -473,6 +476,7 @@ jobs:
           set -euo pipefail
           make check-generic-words
           make test-check-generic-words
+          make test-browser-durations
 
       - name: Install npm dependencies
         # Playwright の版は package-lock.json で固定されている
@@ -491,7 +495,14 @@ jobs:
         env:
           CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
           FANDHE_TEST_TAP_OUT: ${{ runner.temp }}/browser-test.tap
+          FANDHE_TEST_JUNIT_OUT: ${{ runner.temp }}/browser-test.junit.xml
         run: make test-browser
+
+      # 試験ファイルごとの所要時間の上位 20 件をログに残す（#2037）。junit は make test-browser の FANDHE_TEST_JUNIT_OUT が書く。
+      # 出すのはファイル名・秒・件数だけ。既存ジョブへの step 追加のため、ジョブの集合・名前・ci-complete の needs・ruleset は変わらない。
+      # secret・通信を使わない。
+      - name: Summarize browser test durations per file (#2037)
+        run: node tools/browser-durations.mjs "${RUNNER_TEMP}/browser-test.junit.xml" --top 20
 
       # 入力欄のない教材の完走の道具を、設定ファイル（tools/browser/choice-journey/*.json）の全件で流す（TASK-748 2/2）。
       # 設定ごと・CSP あり／なしごとに完走させ、設定の期待（完走・止まる位置・達成の数・外部通信 0・ページ内エラー 0 など）と照合する。
