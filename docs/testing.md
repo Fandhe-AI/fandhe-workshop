@@ -12725,3 +12725,22 @@ CI 上の実測: 未記入。PR の run で `.claude/rules/github-actions.md` �
 CI 上の実測: 未記入。PR の run の browser-test の秒数と集計の step の上位 10 件で埋める。手元で `make test-browser` の全体は流していない（未実施）。
 
 限界: 上位 10 件の表は推定で、集計の step の正確な値とずれ得る。`expected-test-counts.txt` の `browser|total|tests=1149` と CI の 1804 が合わない件は本件の範囲外（版上げ PR の件数の照合で問題になり得る）。
+
+### 5.466 ViewKind::list_field の綴りが view_ と語彙の綴りの連結であることをコンパイル時に表明する（#2039。#2023・5.462 の続き）
+
+目的: 5.462 の「残したもの」の 3 つ目の写し（`list_field` の直書き）が、contract の `VIEW_KINDS` とずれても型の上で止まらない点を、依存を足さずに塞ぐ。
+
+変更: `crates/web/src/artifact_view.rs` に接頭辞の定数 `LIST_FIELD_PREFIX` と、バイトを比べる private な `const fn is_prefixed_spelling` を足し、`ViewKind::ALL` を回す `const _` の表明で、7 種すべてが `list_field() == "view_" + as_str()` であることを確かめる。`list_field` の値・DOM・`VIEW_LIST_FIELDS` は変えない。
+
+試験: 新しい `#[test]` は足さない（試験の件数の期待値は不変）。値そのものは既存の `束縛点の名前の表と順` が引き続き固定する。
+
+変異の定義を足さない理由: `scripts/check-mutations.sh` は、コンパイルできない写しを検出ではなく誤りとして止めるため。compile-fail を数える拡張は本件の範囲外。
+
+手元の対照（2026-11-04。いずれも元に戻した）:
+
+- `list_field` の `"view_file_tree"` を `"view_file_trees"` に変えると、web が `E0080: evaluation panicked: ViewKind::list_field must equal "view_" + as_str()` でコンパイルできない
+- contract の `VIEW_KINDS` の `"diff"` を `"diffs"` に変えると、同じ理由で web がコンパイルできない
+
+IR の同一: web だけの変更で、`compile` の出力は変わらない。
+
+結果（2026-11-04）: `make lint`・`make test`（失敗 0 件）・`make check-deps` は通った。

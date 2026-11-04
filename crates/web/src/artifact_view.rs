@@ -147,6 +147,7 @@ impl ViewKind {
     /// keyed list の束縛点（field）の名前。`view_` に語彙の綴りを続ける（ART-5・FEND-15）。
     ///
     /// `parts` の field 名の規則を満たし、他の部品の field 名と重ならない。
+    /// `view_` と `as_str()` の連結に等しいことは const の表明が守る（#2039）。
     pub const fn list_field(self) -> &'static str {
         match self {
             ViewKind::FileTree => "view_file_tree",
@@ -187,6 +188,49 @@ const _: () = {
         i += 1;
     }
     assert!(ViewKind::AppDemo as usize + 1 == VIEW_KINDS.len());
+};
+
+/// `list_field` の接頭辞。語彙の綴り（`VIEW_KINDS`）に続ける（#2039）。
+const LIST_FIELD_PREFIX: &str = "view_";
+
+/// `field` が `prefix` と `spelling` のバイト列の連結に等しいか。const では `==` が使えないため手書きで比べる（#2039）。
+const fn is_prefixed_spelling(field: &str, prefix: &str, spelling: &str) -> bool {
+    let (f, p, s) = (field.as_bytes(), prefix.as_bytes(), spelling.as_bytes());
+    if f.len() != p.len() + s.len() {
+        return false;
+    }
+    let mut i = 0;
+    while i < p.len() {
+        if f[i] != p[i] {
+            return false;
+        }
+        i += 1;
+    }
+    let mut j = 0;
+    while j < s.len() {
+        if f[p.len() + j] != s[j] {
+            return false;
+        }
+        j += 1;
+    }
+    true
+}
+
+// `list_field` の直書きが `view_` + `as_str()`（= contract の `VIEW_KINDS`）とずれたらコンパイルを止める（#2039）。
+// 添字の範囲は上の表明（`ALL[i] as usize == i`）が守る。
+const _: () = {
+    let mut i = 0;
+    while i < ViewKind::ALL.len() {
+        assert!(
+            is_prefixed_spelling(
+                ViewKind::ALL[i].list_field(),
+                LIST_FIELD_PREFIX,
+                ViewKind::ALL[i].as_str()
+            ),
+            "ViewKind::list_field must equal \"view_\" + as_str()"
+        );
+        i += 1;
+    }
 };
 
 /// 7 種の束縛点の宣言（`ViewKind::ALL` の順）。`PartKind::ArtifactView` の 1 部品の `fields()` に使う。
