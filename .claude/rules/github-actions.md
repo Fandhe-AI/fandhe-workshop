@@ -79,6 +79,7 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 
 - `deploy.yml` の `deploy` は `workflow_dispatch` だけで動き、PR に報告されないため、必須に入れない
 - `release.yml` の `build-pack-macos-arm64`（TASK-415）も同じ理由で必須に入れない。ruleset の変更は要らない
+- `clean-room.yml` の `clean-room`（#2040）も PR に報告されないため必須に入れない。ruleset の変更は要らない
 - 反映は、ジョブを追加した変更のマージ直後に行った。マージ前に追加すると、古い `ci.yml` を持つ他の open PR で
   新しいチェックが「Expected」のまま残りマージできなくなるため。今後ジョブを追加するときも同じ順序で行う
 
@@ -110,7 +111,8 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 - `ci.yml`: `pull_request` と `push`（`main` のみ）。push を全ブランチにしない（PR との二重実行になる）。`ci.yml` は secret を参照しない（`scripts/check-workflow-secrets.sh` が `check` ジョブで強制する）
 - 例外: `deploy.yml` は `workflow_dispatch` だけで動く。配信は secret・書き込み権限・`environment` を要するため、PR の起点を持たない別ワークフローに置く（ジョブ追加チェックリストの「新しいワークフローを作らない」の例外）。`pull_request`・`pull_request_target`・`push` を足さない。トップレベルとジョブの `permissions` は `{}` から始め、必要な権限だけをジョブ単位で付ける
 - 例外: `release.yml`（TASK-415。`fandhe-pack` の実行ファイルのビルドと配布）も `workflow_dispatch` だけで動く。PR に報告されず、macOS の runner の費用を PR のたびに払わないため、`ci.yml` に置かない。トップレベルの `permissions` は `{}`、ジョブは `contents: read` だけ。Release はワークフローで作らず、成果物は workflow artifact として残す。ユーザーが公開前の確認の承認の後に手で draft の Release を作る（`docs/publish-checks.md`）。書き込み権限のジョブは足さない。`uses` は `actions` の所有者の 40 桁 SHA 固定だけにする
-- 配信のジョブ（`deploy.yml`）と `release.yml` の全ジョブは fork では動かさない。全ジョブに `if: github.repository == 'Fandhe-AI/fandhe-workshop'` を付け、`ci.yml` が secret・private な依存・submodule の取得に依存しないことと合わせて、`make check-fork-ci` が `check` ジョブで検査する（`release.yml` は C4。パーサで復号した値で判定する。検査の限界は `scripts/check-fork-ci.sh` の冒頭と README の「fork の CI」）。教材 repo の版の固定（`ENGINE_REV` の正準の形）は、同じスクリプトの D（`--pack-workflow`・`--engine-rev` の指定時のみ）が見る
+- 例外: `clean-room.yml`（#2040。`make clean-room` の定期実行）は `schedule`（週 1 回）と `workflow_dispatch` だけで動く。docker と通信が要り所要時間も長いため、PR の必須チェックにしない。`workflow_dispatch` に `inputs` を置かず、`pull_request`・`pull_request_target`・`push` を足さない。トップレベルの `permissions` は `{}`、ジョブは `contents: read` だけで、secret を参照しない。`uses` は `actions` の所有者の 40 桁 SHA 固定だけにする。`schedule` と `workflow_dispatch` は既定ブランチにあるときだけ動き、public repo で 60 日間活動が無いと `schedule` は無効になる
+- 配信のジョブ（`deploy.yml`）と `release.yml`・`clean-room.yml` の全ジョブは fork では動かさない。全ジョブに `if: github.repository == 'Fandhe-AI/fandhe-workshop'` を付け、`ci.yml` が secret・private な依存・submodule の取得に依存しないことと合わせて、`make check-fork-ci` が `check` ジョブで検査する（`release.yml` は C4、`clean-room.yml` は C5（発火の起点が `schedule` と `workflow_dispatch` のちょうど 2 つで、secret の参照が 0 件であることも見る）。パーサで復号した値で判定する。検査の限界は `scripts/check-fork-ci.sh` の冒頭と README の「fork の CI」）。教材 repo の版の固定（`ENGINE_REV` の正準の形）は、同じスクリプトの D（`--pack-workflow`・`--engine-rev` の指定時のみ）が見る
 - `concurrency` は `group` は PR では workflow + ref、それ以外は `run_id` で分け、`cancel-in-progress` は PR のみ true にする
   （`${{ github.event_name == 'pull_request' }}`。main / release の実行は cancel しない）
 - 必須チェックを含む workflow に workflow 単位の `paths` / `paths-ignore` を付けない
@@ -119,7 +121,7 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
   `test-hooks-os` を決め、`test-hooks-macos` の `if:` がそれを読む。`ci-complete` は同じ出力と突き合わせ、skip が
   正しい場合だけ許容する）
 - draft PR をスキップする場合は `types` に `ready_for_review` を含める
-- `schedule` は必要最小限の頻度にする（`update-external.yml` は日次 1 回）
+- `schedule` は必要最小限の頻度にする（`update-external.yml` は日次 1 回、`clean-room.yml` は週 1 回）
 
 ## ジョブ追加チェックリスト
 
@@ -261,6 +263,7 @@ gh run view <run-id> --json jobs --jq '.jobs[]|[.name,.conclusion,.startedAt,.co
 | `ci.yml` | rust-lint・rust-test | rust-lint 約 3 分（192 秒）、rust-test 約 17 分（1,002 秒）（main の run 41831522092・2026-11-04）。rust-test のうち `make test` は 642 秒、`make check-second-pack` は 271 秒、2026-11-04 に足した `check-second-pack-repro` と回帰テストは合わせて 3 秒（PR の run 41825483180） |
 | `ci.yml` | browser-test | 約 40 分（2,393 秒。main の run 41831522092・2026-11-04）。うち `make test-browser` が 2,118 秒、`make test-l2-run` が 135 秒、2026-11-04 に足した `check-generic-words` と回帰テストは合わせて 11 秒（PR の run 41825483180）。直近 10 run は 2,175〜2,432 秒。timeout は 90 分（#2037。最大 2,432 秒に対する余裕は約 122%。変えた後の実測は PR の run で記入、未記入） |
 | `ai-review.yml` | codex の preflight・review・post_feedback | 約 1〜2 分 |
+| `clean-room.yml` | clean-room（まっさらなコンテナの試験） | 未計測（初回の手動実行の後に run の番号と秒数を記入）。手元の実測は cargo の 2 区間で 592 秒（2026-10-28） |
 | `update-external.yml` | 日次の外部ソース追従（reusable） | 実績なし（未計測） |
 
 施策: macOS のフック回帰テスト（`test-hooks-macos`）はフック関連の変更時のみ実行（`changes` ジョブ。不要時は skipped として報告）。main への push 実行は cancel しない。

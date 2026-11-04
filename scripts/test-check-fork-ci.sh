@@ -101,6 +101,17 @@ release_doc() {
     "${on}" "${perm}" "${guard}" "${uses}"
 }
 
+# clean_room_doc <on|-> <perm|-> <guard|-> <uses|->: clean-room.yml の見本を標準出力へ出す（C5）
+clean_room_doc() {
+  local on="$1" perm="$2" guard="$3" uses="$4"
+  [ "${on}" != "-" ] || on=$'on:\n  schedule:\n    - cron: \'23 18 * * 0\'\n  workflow_dispatch:'
+  [ "${perm}" != "-" ] || perm='permissions: {}'
+  [ "${guard}" != "-" ] || guard="${G}"
+  [ "${uses}" != "-" ] || uses="actions/checkout@${SHA}"
+  printf 'name: Clean room\n%s\n%s\njobs:\n  clean-room:\n    if: %s\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read\n    steps:\n      - uses: %s\n' \
+    "${on}" "${perm}" "${guard}" "${uses}"
+}
+
 # ycase <name> <rc> <tag|-> <ci|deploy> <content>: 内容を一時ファイルに書いて検査する
 ycase() {
   local f
@@ -291,6 +302,45 @@ ycase "release guard of another repository is rejected (C4)" 1 C4 release "$(rel
 ycase "release with top-level contents: write is rejected (C4)" 1 C4 release "$(release_doc - $'permissions:\n  contents: write' - -)"
 ycase "release uses pinned by tag is rejected (C4)" 1 C4 release "$(release_doc - - - 'actions/checkout@v4')"
 ycase "release uses of another owner is rejected (C4)" 1 C4 release "$(release_doc - - - "evil/act@${SHA}")"
+
+# ---- C5: clean-room.yml ----
+SCHED=$'  schedule:\n    - cron: \'23 18 * * 0\''
+ycase "clean-room sample passes" 0 - clean-room "$(clean_room_doc - - - -)"
+ycase "clean-room with push added is rejected (C5)" 1 C5 clean-room "$(clean_room_doc "on:
+${SCHED}
+  workflow_dispatch:
+  push:" - - -)"
+ycase "clean-room with pull_request is rejected (C5)" 1 C5 clean-room "$(clean_room_doc "on:
+${SCHED}
+  workflow_dispatch:
+  pull_request:" - - -)"
+ycase "clean-room with pull_request_target is rejected (C5)" 1 C5 clean-room "$(clean_room_doc "on:
+${SCHED}
+  workflow_dispatch:
+  pull_request_target:" - - -)"
+ycase "clean-room without schedule is rejected (C5)" 1 C5 clean-room "$(clean_room_doc $'on:\n  workflow_dispatch:' - - -)"
+ycase "clean-room without workflow_dispatch is rejected (C5)" 1 C5 clean-room "$(clean_room_doc "on:
+${SCHED}" - - -)"
+ycase "clean-room workflow_dispatch with inputs is rejected (C5)" 1 C5 clean-room "$(clean_room_doc "on:
+${SCHED}
+  workflow_dispatch:
+    inputs:
+      x:
+        type: string" - - -)"
+ycase "clean-room schedule entry with another key is rejected (C5)" 1 C5 clean-room "$(clean_room_doc "on:
+  schedule:
+    - cron: '1 2 * * 0'
+      timezone: x
+  workflow_dispatch:" - - -)"
+ycase "clean-room without a fork guard is rejected (C5)" 1 C5 clean-room "$(clean_room_doc - - "true" -)"
+ycase "clean-room guard of another repository is rejected (C5)" 1 C5 clean-room "$(clean_room_doc - - "github.repository == 'someone/else'" -)"
+ycase "clean-room with top-level contents: write is rejected (C5)" 1 C5 clean-room "$(clean_room_doc - $'permissions:\n  contents: write' - -)"
+ycase "clean-room uses pinned by tag is rejected (C5)" 1 C5 clean-room "$(clean_room_doc - - - 'actions/checkout@v4')"
+ycase "clean-room uses of another owner is rejected (C5)" 1 C5 clean-room "$(clean_room_doc - - - "evil/act@${SHA}")"
+printf 'name: Clean room\njobs:\n  a:\n    steps:\n      - run: echo %s\n' "\${{ secrets.X }}" >"${TMP_DIR}/cr-secret.yml"
+rc=0
+"${CHECK}" --clean-room "${TMP_DIR}/cr-secret.yml" >/dev/null 2>"${TMP_DIR}/err" || rc=$?
+verdict "a secrets reference in clean-room is rejected by the real checker (C5)" 1 C5 "${rc}" "${TMP_DIR}/err"
 
 # ---- D: ENGINE_REV の正準の形（教材 repo の workflow）----
 # 先行の字句実装（awk）が回避の指摘で収束しなかった形を、ここで拒否されることとして個別に確かめる。

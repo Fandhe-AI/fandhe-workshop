@@ -340,6 +340,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 
 - 前提: `docker`（`CONTAINER_RUNTIME=podman` で podman）と通信。VM のメモリは 2 GiB より大きくしてください
 - 実行: `make clean-room`（既定の `HEAD` を引数なしで流します。`make` はオプションを転送しないため、対象やログの置き場を変えるときは `tools/clean-room.sh run --ref <rev> --out-dir <dir>` を直接実行します）
+- 定期実行: `clean-room.yml` が週 1 回と手動（`workflow_dispatch`）で流します。PR の必須チェックではありません
 - 対象は `git archive` したコミット済みの内容だけです。未コミットの変更と `docs/spec`（private）の中身は入りません
 - 所要は `cargo test` の 2 回の実行で 10 分前後です（2026-10-28 の実測は 592 秒）。結果の記録は `docs/testing.md` の 5.355 にあります
 - 既定の実行は、第 2 教材（`template-workshop/examples/review-request/`）の確認も 3 つ目の区間として行います。`fandhe-pack` のビルド、`validate`（診断 0 件）、`compile` の出力と基準の IR（`tests/ir.json`）のバイト一致、`test`（全件合格）の 4 段です。第 2 教材はエンジンの repo の中にあるため、第三者はこの repo を取得するだけで同じ場所でビルドとテストを再現できます（SECOND-18）
@@ -372,6 +373,7 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 | ワークフロー | 内容 |
 |---|---|
 | `ci.yml` | `check`: ローカル・hooks と同じ `make check` を実行する（editorconfig-checker / shellcheck はバージョン固定 + SHA256 検証で導入）。あわせて `make check-toolchain`・`make check-workflow-secrets`・`make check-fork-ci`（と各回帰テスト）も流す（`check-fork-ci` のために固定の Rust toolchain も導入する）。`rust-lint`: `make lint`・`make check-deps`・`make test-check-deps`・`make check-dom-reads`・`make test-check-dom-reads`（`rust-toolchain.toml` の版を rustup で導入し、導入された版を `scripts/ci-rust-toolchain.sh` で照合する）。`rust-test`: `make test`（`cargo test --locked --workspace`）がネイティブのビルドと試験を兼ねる。2 つの Rust ジョブはキャッシュを使わない（効果を実測してから足す）。`changes`: 変更ファイルから、フックの回帰テストを macOS でも実行するかを決める（`scripts/ci-changes.sh`。PR でフック関連の変更が無ければ ubuntu のみ、push・判定不能時は macOS も含める）。`test-hooks`: フックスクリプト自体の回帰テスト（`make test-hooks`。ubuntu-latest で常に実行する）。`test-hooks-macos`: 同じテストの macOS 版（macos-latest。標準の bash 3.2 でも実行する）。`changes` の結果で不要な場合は macOS ランナーを起動せず、チェックは skipped として報告される。`browser-test`: `make test-browser`（pass／fail 型の試験と `smoke-hello`）を同梱の Chromium で流す（TASK-79。Node・Playwright の導入を含み、キャッシュは使わない）。`pr-title`: PR タイトルを commit-msg フックと同じスクリプトで検証する（squash merge でコミット件名になるため）。`ci-complete`: 全ジョブ結果の集約（`test-hooks-macos` の skipped は、`changes` の結果と一致する場合だけ許容する） |
+| `clean-room.yml` | まっさらなコンテナの試験（`make clean-room`）を週 1 回（`schedule`）と手動（`workflow_dispatch`）で流す（#2040）。`ubuntu-latest`、トップレベルの `permissions` は `{}`、ジョブは `contents: read` だけで、secret を参照しない。fork では skip される。ログを workflow artifact（保持 14 日）に残す。PR に報告されないため必須チェックには入れない |
 | `release.yml` | 作成者向けの実行ファイル（`fandhe-pack`）のビルド（TASK-415 1/2）。`workflow_dispatch` だけで動き、トップレベルの `permissions` は `{}`、ジョブは `contents: read` だけ。fork では skip される。`macos-latest`（Apple シリコン）で `make build-pack-release` を流し、tar.gz と `.sha256` を workflow artifact（保持 14 日）に残す。Release は作らず、署名・公証もしない。署名の無い実行ファイルの起動の案内文は tar.gz に `README.txt` として同梱し（TASK-415 2/2）、Release はユーザーが公開前の確認の承認の後に手で draft として作る（`docs/publish-checks.md`）。PR に報告されないため必須チェックには入れない |
 | `deploy.yml` | 配信の骨格（TASK-33）。`workflow_dispatch` だけで動き、`permissions: {}`。fork では skip される（`github.repository` が本 repo のときだけ動く）。中身は未実装で、実行すると失敗して止まる（TASK-121 で作る）。secret を参照するビルド・試験を `ci.yml` に置かないため、配信は PR の起点を持たない別ワークフローに分けている |
 | `ai-review.yml` | Fandhe-AI/actions の ai-review（codex）による PR 自動レビュー。Actions variable `CODEX_HOME_DIR` が未設定の間は skip される |
@@ -396,7 +398,7 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 
 - A: private な依存が 0 件で、submodule を取得しない
 - B: `ci.yml` からの secret の参照が 0 件で、`uses` は許可した所有者の 40 桁 SHA 固定だけ
-- C: `ci.yml` のトップレベルの `permissions` が読み取り専用で、配信（`deploy.yml`）と実行ファイルの配布（`release.yml`。C4）は別ワークフローに切り離され、fork では skip される
+- C: `ci.yml` のトップレベルの `permissions` が読み取り専用で、配信（`deploy.yml`）と実行ファイルの配布（`release.yml`。C4）とまっさらなコンテナの試験（`clean-room.yml`。C5。`schedule` と `workflow_dispatch` だけで動き、secret を参照しない）は別ワークフローに切り離され、fork では skip される
 - D: 教材 repo の workflow が、固定したエンジンの版（`ENGINE_REV`。C-14）でエンジンを取得する。`ENGINE_REV` は 40 桁の小文字の 16 進を 1 行だけ持つ（D1）。workflow には、次の正準の 3 step で始まるジョブが 1 つ以上必要で（D2・D3）、4 番目以降の step は `actions/checkout`・`git` の語・エンジンの repo・`ENGINE_REV`・エンジンの置き場に触れてはならない（D4）
 
 D の正準の 3 step は、次の 1 つだけです。形が外れたものは拒否します。

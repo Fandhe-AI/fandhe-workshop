@@ -265,7 +265,7 @@ test-measure: ## 一括測定の様式検証と実行の回帰テスト（遅い
 test-measure-result: ## 測定の結果の組み立てが jq 1.7 の文法でも通ることを確かめる（速い・ビルドなし）。直接: scripts/test-measure-result.sh
 	@scripts/test-measure-result.sh
 
-clean-room: ## まっさらなコンテナ（公開イメージ・認証情報なし）で cargo test を既定と --workspace で流して判定する（遅い・docker と通信が要る。CI 未組み込み）。直接: tools/clean-room.sh
+clean-room: ## まっさらなコンテナ（公開イメージ・認証情報なし）で cargo test を既定と --workspace で流して判定する（遅い・docker と通信が要る。PR の CI には入れない。clean-room.yml が週 1 回と手動で流す）。直接: tools/clean-room.sh
 	@tools/clean-room.sh
 
 test-clean-room: ## まっさらなコンテナの試験の判定自体の回帰テスト（docker なし。CI の check）。直接: scripts/test-clean-room.sh
