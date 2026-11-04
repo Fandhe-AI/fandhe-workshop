@@ -38,7 +38,7 @@
 | EP-2 | `input.cancel` | v1 | `docs/pack-authoring.md` の「入力方式」 | `kind: cancel` はありません。規則の `on: { cancel: true }` で受けます |
 | EP-3 | `condition.param` | v1 | `docs/schema-format-b.md` の 7 節 | モジュールの引数との比較です |
 | EP-4 | `condition.clarifying` | v1 | `docs/schema-format-b.md` の 7 節 | 問い返しの待ちかどうかを見ます |
-| EP-5 | `view.card_list` | v1 | `docs/views.md` の 2 節 | `kind: card_list` の綴りは検査されません。綴りを確かめてください |
+| EP-5 | `view.card_list` | v1 | `docs/views.md` の 2 節 | `kind` の綴りを間違えると、`validate`・`compile` が `E-VIEW-KIND-UNKNOWN` で止めます（2026-11-03 から。TASK-796・D-97） |
 | EP-6 | `confirm.answer.option_on_wrong` | v1.1 | `docs/pack-authoring.md` の「確認」 | 正答の選択肢に書くと `E-STRUCTURE` です |
 | EP-7 | `text.slot` | v1.1 | `docs/pack-authoring.md` の「差し込みの枠」 | **`{{...}}` を含む値は引用符で囲みます。** flow 形式の中、および値が `{{` で始まる位置の引用符なしは `E-PARSE` です（`docs/schema-format-b.md` の 9 節。AUTHOR-13） |
 | EP-8 | `guidance.variant` | v1.1 | `docs/pack-authoring.md` | `pack.guidance_levels`・`body_levels`・ヒントの `levels`・開始点の `guidance` で出し分けます。`vocab` は `body_levels` とヒントの `levels` だけを数えます |
