@@ -284,7 +284,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-check-generic-words` | `scripts/test-check-generic-words.sh` | 教材固有の語の検査自体の回帰テスト |
 | `make check-second-pack` | `scripts/check-second-pack.sh` | 第 2 教材の骨格の設定値・文書のビューの 5 行・Step 群と模範解答の照合・誤答の 8 場面の規則・誤入力と文面の確認（TASK-746 2/2）・IR のバイト一致・形式 B・学習目標（TASK-747）・使った拡張点の照合と掲示板教材の写しとの比較（TASK-753。`--board-pack`・`--vocab-doc` で差し替え）・AR-12 の読みの記録と設定値の一致・診断の試験（CI の `rust-test` が流す。TASK-102。cargo が要る） |
 | `make test-check-second-pack` | `scripts/test-check-second-pack.sh` | 上の試験自体の回帰テスト（変異を入れた写し。CI の `rust-test` が流す） |
-| `make check-second-pack-repro` | `scripts/check-second-pack-repro.sh` | 公開の資料だけで別の作者が書いた第 2 教材の写し（`docs/second-pack-repro/`）の validate・test・設定値・件数・IR のバイト一致の検査（TASK-413 1/2・2/2。CI の rust-test が流す。cargo が要る） |
+| `make check-second-pack-repro` | `scripts/check-second-pack-repro.sh` | 公開の資料だけで別の作者が書いた第 2 教材の写し（`docs/second-pack-repro/`）の validate・test・設定値・件数・IR のバイト一致の検査（TASK-413 1/2・2/2。CI の `rust-test` が流す。cargo が要る） |
 | `make test-check-second-pack-repro` | `scripts/test-check-second-pack-repro.sh` | 上の検査自体の回帰テスト（変異を入れた写し） |
 | `make check-third-pack` | `scripts/check-third-pack.sh` | 3 本目の教材（`template-workshop/examples/task-breakdown/`）の validate の診断 0 件・test の全件合格・R-22／R-21 の 0 の検査（TASK-797。CI の `rust-test` が流す。cargo が要る） |
 | `make test-check-third-pack` | `scripts/test-check-third-pack.sh` | 上の検査自体の回帰テスト（壊した写し。CI の `rust-test` が流す） |
