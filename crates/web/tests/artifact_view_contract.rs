@@ -269,6 +269,8 @@ fn item_row_は_cell_を運ぶ() {
 }
 
 /// 画面の `ViewKind::ALL` の綴りが contract の `VIEW_KINDS`（pack の検査の正）と一致する（TASK-796、D-97）。
+/// 今は `as_str` が `VIEW_KINDS` から導かれるため、導いた後も関係が成り立つことの回帰である。順のずれの検出は
+/// `artifact_view.rs` の const の表明が持つ（#2023）。
 #[test]
 fn view_kind_spellings_match_contract() {
     let got: Vec<&str> = ViewKind::ALL.iter().map(|k| k.as_str()).collect();
