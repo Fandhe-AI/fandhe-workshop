@@ -251,13 +251,13 @@ gh run list --workflow ci.yml --limit 30 --json databaseId,conclusion,createdAt,
 gh run view <run-id> --json jobs --jq '.jobs[]|[.name,.conclusion,.startedAt,.completedAt]|@tsv'
 ```
 
-## 棚卸し結果（2026-10-11）
+## 棚卸し結果（2026-10-11。ci.yml の rust-lint・rust-test・browser-test は 2026-11-04 に更新）
 
 | ワークフロー | ジョブ | 実測（直近の実行） |
 | --- | --- | --- |
 | `ci.yml` | check・test-hooks（ubuntu / macOS）・pr-title・ci-complete | wall-clock 約 2〜3 分。各ジョブの実処理は 5〜15 秒で、大半は macOS ランナーの起動待ち（約 2 分） |
-| `ci.yml` | rust-lint・rust-test | 未計測（初回の実行後に更新する）。2026-11-04 に rust-test へ第 2 教材の写しの検査（`check-second-pack-repro`）、browser-test へ教材固有の語の検査を足したが、足した後の実測は未取得（PR の CI の run で測る） |
-| `ci.yml` | browser-test | 約 4 分（run 39157607724・2026-10-18）。ローカルの `make test-browser` は 85 秒（2026-10-19。観察の記録の追加を含む）。timeout は 60 分 |
+| `ci.yml` | rust-lint・rust-test | rust-lint 約 3 分（192 秒）、rust-test 約 17 分（1,002 秒）（main の run 41831522092・2026-11-04）。rust-test のうち `make test` は 642 秒、`make check-second-pack` は 271 秒、2026-11-04 に足した `check-second-pack-repro` と回帰テストは合わせて 3 秒（PR の run 41825483180） |
+| `ci.yml` | browser-test | 約 40 分（2,393 秒。main の run 41831522092・2026-11-04）。うち `make test-browser` が 2,118 秒、`make test-l2-run` が 135 秒、2026-11-04 に足した `check-generic-words` と回帰テストは合わせて 11 秒（PR の run 41825483180）。timeout は 60 分 |
 | `ai-review.yml` | codex の preflight・review・post_feedback | 約 1〜2 分 |
 | `update-external.yml` | 日次の外部ソース追従（reusable） | 実績なし（未計測） |
 
