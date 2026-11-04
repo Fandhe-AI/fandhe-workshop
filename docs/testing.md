@@ -12601,3 +12601,17 @@ Rust・`Cargo.*` は変えない。
 **試験**: `crates/pack/tests/view_kind.rs`（8 件。綴りの誤り 5 形が 1 件の診断・`compile` が失敗・CLI が終了コード 1・7 種の受理・欠けと型の誤りが `E-PARSE`・安全でない ID を写さない・ID の順・既存の実教材 4 本に新しい診断が無い）、`crates/contract/tests/view_kind_contract.rs`（3 件）、`crates/web/tests/artifact_view_contract.rs` の `view_kind_spellings_match_contract`（画面の `ViewKind::ALL` と contract の綴りの一致）。`diagnostics_doc.rs` は一覧を 37 件（版 21）にして通る。
 
 **IR の同一（2026-11-03）**: 変更の前後で、掲示板教材の写し・第 2 教材・第 3 教材（`probes/views` を含む）・`docs/examples/*`・`docs/second-pack-repro/pack` の `compile` の出力と `validate` の出力・終了コードがバイト一致する。golden（`golden/`・`ir_format_1/`）は書き換えていない。不正な綴り（`kind: files`）だった試験の入力 `input-kinds-pack`（と `validate_refs.rs` の 4 か所）を `file_tree` に正し、凍結物 `ir_before_ep13/input-kinds-pack.ir.json` の同じ 1 か所を直した（`ext9_ir_identity.rs` が通る）。
+
+### 5.462 ViewKind の綴りを contract の VIEW_KINDS から導く（#2023。TASK-796 の続き）
+
+**目的**: ビューの種類の綴り 7 種の二重の定義（web の `ViewKind` と contract の `VIEW_KINDS`）をなくし、正を contract に寄せる。一致の試験だけで守る案は採らなかった。綴りが 1 か所になり、pack の検査と画面の受理の集合が型の上でずれなくなるため。web は contract に既に依存しており、依存は増えない。
+
+**変更**: `ViewKind::as_str` は `VIEW_KINDS[self as usize]` を返し、`ALL` の型は `[ViewKind; VIEW_KINDS.len()]`。`parse` は `as_str` を通るので間接的に導かれる。`artifact_view.rs` の const の表明（コンパイル時）が守るのは enum の宣言順・`ALL` の順・判別子と長さの一致だけである。`VIEW_KINDS` の綴りの並びの入れ替えはコンパイルを通り、綴りの固定表を持つ `view_kind_spellings_match_contract` などの試験が検出する。enum・`ALL` の並び・`parse` の fail-closed（一覧外は `None`）は変えない。
+
+**試験**: 新しい試験は足さない。既存の `artifact_view_contract.rs`（綴りの表・往復・一覧外は none・`view_kind_spellings_match_contract`）、`artifact_view_binding_contract.rs`、`crates/contract/tests/view_kind_contract.rs`、`crates/pack/tests/view_kind.rs` がそのまま通る。
+
+**IR の同一**: web だけの実質変更で、`compile` の出力は変わらない（contract は文書コメントだけの変更）。
+
+**残したもの**: `list_field` の `"view_<綴り>"` は 3 つ目の写しとして残す（const の文字列の連結にマクロが要るため。`artifact_view_binding_contract.rs` の直書きの表で固定済み）。`ViewKind` 自体は web の型（`PartField` など）を使うため contract へ移さない。
+
+結果（2026-11-04）: `make fmt`・`make lint`・`make test`（失敗 0 件）・`make check-deps`・`make check` が通った。VIEW_KINDS の入れ替えによる手元の対照は未実施。

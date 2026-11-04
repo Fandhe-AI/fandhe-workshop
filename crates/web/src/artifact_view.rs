@@ -49,6 +49,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 use fandhe_frontend_core::Node;
+use fandhe_workshop_contract::view_kind::VIEW_KINDS;
 use fandhe_workshop_core::input::Input;
 use fandhe_workshop_core::projection::MarkKind;
 
@@ -100,6 +101,7 @@ impl std::error::Error for ArtifactViewError {}
 ///
 /// `card_list` は語彙の拡張点 EP-5 で固定済み。残りの綴りは、語彙の文書が「画面の契約が持つ」と
 /// 委ねた値で、本契約が持ち主になる。
+/// 綴りの文字列の正は contract の `view_kind::VIEW_KINDS` に置き、ここでは添字で引く（#2023）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ViewKind {
     /// ファイルツリー。
@@ -119,8 +121,8 @@ pub enum ViewKind {
 }
 
 impl ViewKind {
-    /// 全種類（標準の並び）。
-    pub const ALL: [ViewKind; 7] = [
+    /// 全種類（標準の並び）。並びは enum の宣言順・判別子と同じで、contract の `VIEW_KINDS` の順に従う。
+    pub const ALL: [ViewKind; VIEW_KINDS.len()] = [
         ViewKind::FileTree,
         ViewKind::Document,
         ViewKind::Diff,
@@ -130,17 +132,10 @@ impl ViewKind {
         ViewKind::AppDemo,
     ];
 
-    /// 語彙の綴り。
+    /// 語彙の綴り。正は contract の `VIEW_KINDS`（pack の検査と同じ集合。#2023）。
     pub const fn as_str(self) -> &'static str {
-        match self {
-            ViewKind::FileTree => "file_tree",
-            ViewKind::Document => "document",
-            ViewKind::Diff => "diff",
-            ViewKind::TaskTree => "task_tree",
-            ViewKind::CardList => "card_list",
-            ViewKind::CheckList => "check_list",
-            ViewKind::AppDemo => "app_demo",
-        }
+        // 判別子は宣言順の 0..7 で、下の const の表明が `ALL[i] as usize == i` と長さの一致を保証するため、添字は範囲外にならない。
+        VIEW_KINDS[self as usize]
     }
 
     /// 綴りから変換する。完全一致だけで、一覧外（大文字小文字違いを含む）は `None`。
@@ -182,6 +177,17 @@ impl ViewKind {
         !matches!((self, v), (ViewKind::Document | ViewKind::Diff, Variant::A))
     }
 }
+
+// enum の宣言順・`ALL` の順・contract の `VIEW_KINDS` の順の一致をコンパイル時に確かめる（#2023）。
+const _: () = {
+    assert!(ViewKind::ALL.len() == VIEW_KINDS.len());
+    let mut i = 0;
+    while i < ViewKind::ALL.len() {
+        assert!(ViewKind::ALL[i] as usize == i);
+        i += 1;
+    }
+    assert!(ViewKind::AppDemo as usize + 1 == VIEW_KINDS.len());
+};
 
 /// 7 種の束縛点の宣言（`ViewKind::ALL` の順）。`PartKind::ArtifactView` の 1 部品の `fields()` に使う。
 pub const VIEW_LIST_FIELDS: [PartField; 7] = [

@@ -13,7 +13,7 @@
 
 | 項目 | 状態 | 根拠 |
 |---|---|---|
-| 7 種の綴りと、Step が宣言したビューから種類を決める規則 | 実装済み | `crates/web/src/artifact_view.rs`・`view_select.rs` |
+| 7 種の綴りと、Step が宣言したビューから種類を決める規則 | 実装済み | `crates/web/src/artifact_view.rs`・`view_select.rs`・`crates/contract/src/view_kind.rs`（綴りの正） |
 | 綴りの検査（`E-VIEW-KIND-UNKNOWN`） | 実装済み（2026-11-03） | `crates/pack/src/view_kind.rs`・`crates/contract/src/view_kind.rs`・`crates/pack/tests/view_kind.rs` |
 | 7 種ごとの描画部品（ファイルツリー・文書・差分・タスクツリー・カード・チェック・アプリのデモ） | 部品は実装済み。製品の画面へは未結線 | `crates/web/src/*_view.rs` の冒頭の説明、`engine_parts.rs` の `ArtifactPart` |
 | 製品の画面が見せる左エリア | 世界状態の経路の一覧と、変化の印。文書のビューで `body: shown` のときは練習データの本文も | `engine_parts.rs` の `ArtifactPart::view` |
