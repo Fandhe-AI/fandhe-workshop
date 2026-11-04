@@ -56,11 +56,11 @@ cat <<'EOF'
   test-check-delivery          scripts/test-check-delivery.sh          配信検査自体の回帰テスト（実ビルドを行うため遅い）
   serve                        node tools/serve.mjs                    dist/web をサブパスの下で gzip つきで配る（--dir --base --port --no-gzip --gzip-level）
   test-serve                   scripts/test-serve.sh                   配信サーバ（tools/serve.mjs）の試験（node:test）
-  check-generic-words          tools/check-generic-words.mjs           エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことを検査する（CI 未組み込み）
+  check-generic-words          tools/check-generic-words.mjs           エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことを検査する（CI の browser-test が流す）
   test-check-generic-words     scripts/test-check-generic-words.sh     教材固有の語の検査自体の回帰テスト
   check-second-pack            scripts/check-second-pack.sh            第 2 教材の骨格の設定値・Step 群と模範解答・誤答の 8 場面の規則・誤入力と文面の確認（TASK-746 2/2）・IR のバイト一致・形式 B・学習目標（TASK-747）・使った拡張点の照合と掲示板教材の写しとの比較（TASK-753）・基準値・診断の試験（CI の rust-test が流す。cargo が要る）
   test-check-second-pack       scripts/test-check-second-pack.sh       上の試験自体の回帰テスト（変異を入れた写し。やや遅い。CI の rust-test が流す）
-  check-second-pack-repro      scripts/check-second-pack-repro.sh      公開の資料だけで作者が書いた第 2 教材の写し（docs/second-pack-repro）の validate・test・設定値・件数・IR のバイト一致の検査（TASK-413 1/2・2/2。CI 未組み込み。cargo が要る）
+  check-second-pack-repro      scripts/check-second-pack-repro.sh      公開の資料だけで作者が書いた第 2 教材の写し（docs/second-pack-repro）の validate・test・設定値・件数・IR のバイト一致の検査（TASK-413 1/2・2/2。CI の rust-test が流す。cargo が要る）
   test-check-second-pack-repro scripts/test-check-second-pack-repro.sh 上の検査自体の回帰テスト（変異を入れた写し。やや遅い）
   check-third-pack             scripts/check-third-pack.sh             3 本目の教材（task-breakdown）の validate の診断 0 件・test の全件合格・R-22／R-21 の 0 の検査（TASK-797。CI の rust-test。cargo が要る）
   test-check-third-pack        scripts/test-check-third-pack.sh        上の検査自体の回帰テスト（壊した写し。CI の rust-test）

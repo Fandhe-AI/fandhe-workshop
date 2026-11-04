@@ -280,11 +280,11 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make check-fork-ci` | `scripts/check-fork-ci.sh` | fork が secret 無しでも CI を通せる構成であることを、パーサで復号した値で検査する（A〜C。教材 repo 向けの D は `--pack-workflow` と `--engine-rev` を渡したときだけ。`ruby`・`jq`・`cargo` が必要） |
 | `make test-check-fork-ci` | `scripts/test-check-fork-ci.sh` | fork CI 検査自体の回帰テスト |
 | `make serve` | `node tools/serve.mjs` | `dist/web` をサブパス（既定 `/subpath/`、`--base` で任意の名前）の下で gzip つきで配る。例: `make build-web` の後に `node tools/serve.mjs --base /my-site/` を実行し、`http://127.0.0.1:8765/my-site/` を開く |
-| `make check-generic-words` | `tools/check-generic-words.mjs` | エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査（CI 未組み込み） |
+| `make check-generic-words` | `tools/check-generic-words.mjs` | エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査（CI の `browser-test` が回帰テストとともに流します。#2034） |
 | `make test-check-generic-words` | `scripts/test-check-generic-words.sh` | 教材固有の語の検査自体の回帰テスト |
 | `make check-second-pack` | `scripts/check-second-pack.sh` | 第 2 教材の骨格の設定値・文書のビューの 5 行・Step 群と模範解答の照合・誤答の 8 場面の規則・誤入力と文面の確認（TASK-746 2/2）・IR のバイト一致・形式 B・学習目標（TASK-747）・使った拡張点の照合と掲示板教材の写しとの比較（TASK-753。`--board-pack`・`--vocab-doc` で差し替え）・AR-12 の読みの記録と設定値の一致・診断の試験（CI の `rust-test` が流す。TASK-102。cargo が要る） |
 | `make test-check-second-pack` | `scripts/test-check-second-pack.sh` | 上の試験自体の回帰テスト（変異を入れた写し。CI の `rust-test` が流す） |
-| `make check-second-pack-repro` | `scripts/check-second-pack-repro.sh` | 公開の資料だけで別の作者が書いた第 2 教材の写し（`docs/second-pack-repro/`）の validate・test・設定値・件数・IR のバイト一致の検査（TASK-413 1/2・2/2。CI 未組み込み。cargo が要る） |
+| `make check-second-pack-repro` | `scripts/check-second-pack-repro.sh` | 公開の資料だけで別の作者が書いた第 2 教材の写し（`docs/second-pack-repro/`）の validate・test・設定値・件数・IR のバイト一致の検査（TASK-413 1/2・2/2。CI の `rust-test` が流す。cargo が要る） |
 | `make test-check-second-pack-repro` | `scripts/test-check-second-pack-repro.sh` | 上の検査自体の回帰テスト（変異を入れた写し） |
 | `make check-third-pack` | `scripts/check-third-pack.sh` | 3 本目の教材（`template-workshop/examples/task-breakdown/`）の validate の診断 0 件・test の全件合格・R-22／R-21 の 0 の検査（TASK-797。CI の `rust-test` が流す。cargo が要る） |
 | `make test-check-third-pack` | `scripts/test-check-third-pack.sh` | 上の検査自体の回帰テスト（壊した写し。CI の `rust-test` が流す） |

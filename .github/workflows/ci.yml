@@ -390,6 +390,21 @@ jobs:
           make check-second-pack
           make test-check-second-pack
 
+      # 公開の資料だけで別の作者が書いた第 2 教材の写し（docs/second-pack-repro）の検査（TASK-413。#2034）。
+      # validate・test・設定値・基準値・ir-match の 5 項目と、壊した写しが落ちること（負の対照）を確かめる。
+      # 既存ジョブへの step の追加なので、ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
+      # secret・通信・submodule を使わないので fork でも通る。make test の直後で fandhe-pack はビルド済みで、
+      # build-pack-bin.sh が解決する（差分ビルドで数秒）。
+      # ir-match が落ちたとき（compile の出力を変えるエンジンの PR）は、その PR で基準を書き直す。教材の本文
+      # （pack/** の YAML・brief.md・public.sha256）は凍結のまま直さず、
+      # fandhe-pack compile docs/second-pack-repro/pack -o docs/second-pack-repro/pack/tests/ir.json
+      # と baseline.txt の IR 由来の値を更新し、ずれを日付つきの所見として docs/testing.md 5.464 に残す。
+      - name: make check-second-pack-repro (TASK-413)
+        run: |
+          set -euo pipefail
+          make check-second-pack-repro
+          make test-check-second-pack-repro
+
   # ブラウザ試験の関門（TASK-79。BUILD-4）。pass／fail 型の試験（tools/browser/*.test.mjs の全件）と
   # smoke-hello と、信頼できない入力への安全性の観察の記録（safety-observe。観察値は assert せず、完走して終了コード 0 に
   # なることを関門にする。TASK-79 2/2）を、同梱の Chromium（FANDHE_BROWSER_CHANNEL を設定しない = channel "chrome" を外した写し）で流す。
@@ -448,6 +463,16 @@ jobs:
         with:
           node-version-file: package.json
           package-manager-cache: false
+
+      # エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査と、その回帰テスト（#2034。#2031 で既存の違反が 0 件）。
+      # node だけで動き、版が固定されているのはこのジョブの Setup Node.js なので、ここに置く。npm ci より前に置くのは、
+      # npm・ブラウザに依存せず数秒で終わり、違反を早く知らせるため。既存ジョブへの step の追加なので、ジョブの集合・名前・
+      # ci-complete の needs・ruleset の必須チェックは変わらない。secret・通信・submodule を使わないので fork でも通る。
+      - name: make check-generic-words (W-22)
+        run: |
+          set -euo pipefail
+          make check-generic-words
+          make test-check-generic-words
 
       - name: Install npm dependencies
         # Playwright の版は package-lock.json で固定されている

@@ -12,7 +12,7 @@
 # 一覧は下記の `## ` コメントから生成されるため、`## ` の無いターゲットは表示されない。
 # ターゲットを追加・改名・削除したら scripts/help.sh も同じ変更で更新すること。
 #
-# Rust 向けの lint / fmt / test / check-deps / check-dom-reads / check-mutations と、web の wasm ビルド（build-web）、L2 の配布物の作成（build-l2）・更新（update-l2）、ワークフローの secret 参照の検査、ビルド・試験の経路の棚卸し（check-build-inventory。CI 未組み込み）、教材固有の語の検査（check-generic-words。CI 未組み込み）、公開前の社内固有の情報・認証情報の照合（check-internal-info。CI 未組み込み）、依存の棚卸し（inventory-deps。通信が要る。CI 未組み込み）、影響する Step の洗い出しの回帰テスト（test-upstream-impact。CI 未組み込み）を持つ。
+# Rust 向けの lint / fmt / test / check-deps / check-dom-reads / check-mutations と、web の wasm ビルド（build-web）、L2 の配布物の作成（build-l2）・更新（update-l2）、ワークフローの secret 参照の検査、ビルド・試験の経路の棚卸し（check-build-inventory。CI 未組み込み）、教材固有の語の検査（check-generic-words。CI の browser-test が流す）、公開前の社内固有の情報・認証情報の照合（check-internal-info。CI 未組み込み）、依存の棚卸し（inventory-deps。通信が要る。CI 未組み込み）、影響する Step の洗い出しの回帰テスト（test-upstream-impact。CI 未組み込み）を持つ。
 # 中身の無いターゲット（`@true` 等）は呼び出し元が終了コードを信用してしまうため置かない。
 
 .DEFAULT_GOAL := help
@@ -150,7 +150,7 @@ serve: ## dist/web をサブパスの下で gzip つきで配る（引数は直�
 test-serve: ## 配信サーバ（tools/serve.mjs）の試験（node:test）。直接: scripts/test-serve.sh
 	@scripts/test-serve.sh
 
-check-generic-words: ## エンジンの crate のコードに教材固有の語（付録 A）が無いことを検査する（CI 未組み込み）。直接: node tools/check-generic-words.mjs
+check-generic-words: ## エンジンの crate のコードに教材固有の語（付録 A）が無いことを検査する（CI の browser-test が流す）。直接: node tools/check-generic-words.mjs
 	@node tools/check-generic-words.mjs
 
 check-second-pack: ## 第 2 教材の骨格の設定値・Step 群と模範解答・誤答の 8 場面の規則・誤入力と文面の確認（TASK-746 2/2）・IR のバイト一致・形式 B・学習目標（TASK-747）・使った拡張点の照合と掲示板教材の写しとの比較（TASK-753）・基準値・診断の試験（CI の rust-test が流す。cargo が要る）。直接: scripts/check-second-pack.sh [--pack <dir>] [--board-pack <dir>] [--vocab-doc <path>]
@@ -165,7 +165,7 @@ check-engine-zero-diff: ## 第 2 教材の追加でエンジン（crates/・Carg
 test-check-engine-zero-diff: ## 上の検査自体の回帰テスト（見本の repo。CI の check）。直接: scripts/test-check-engine-zero-diff.sh
 	@scripts/test-check-engine-zero-diff.sh
 
-check-second-pack-repro: ## 公開の資料だけで作者が書いた第 2 教材の写し（docs/second-pack-repro）の validate・test・設定値・件数・IR のバイト一致の検査（TASK-413 1/2・2/2。CI 未組み込み。cargo が要る）。直接: scripts/check-second-pack-repro.sh [--pack <dir>]
+check-second-pack-repro: ## 公開の資料だけで作者が書いた第 2 教材の写し（docs/second-pack-repro）の validate・test・設定値・件数・IR のバイト一致の検査（TASK-413 1/2・2/2。CI の rust-test が流す。cargo が要る）。直接: scripts/check-second-pack-repro.sh [--pack <dir>]
 	@scripts/check-second-pack-repro.sh
 
 test-check-second-pack-repro: ## 上の検査自体の回帰テスト（変異を入れた写し。本物の fandhe-pack を使うためやや遅い）。直接: scripts/test-check-second-pack-repro.sh
