@@ -55,6 +55,19 @@
 | 承認 | 未承認（承認者: ユーザー（リポジトリの管理者）） |
 | 次回 | 教材 repo の配信物と講師資料ができたら、TASK-794 で公開する版について照合をやり直す |
 
+### 追記 2（2026-11-04。紛らわしい名前の判断）
+
+記録 1 の下見と記録 2 の対象（加えて `template-workshop/examples/**`）について、repo・組織の名前に見える文字列を洗い出し、
+AI（Claude Code）が実在を確かめて推奨を出し、ユーザー（リポジトリの管理者）が推奨どおりとすると判断した。
+
+| 名前 | 判断 | 理由 |
+|---|---|---|
+| `Fandhe-AI/template-ideas`・`Fandhe-AI/agent-cli-skills`・`Fandhe-AI/actions`・`Fandhe-AI/fandhe-workshop` | そのまま許容する | 実在の public の repo への本物の参照で、架空の名前ではない |
+| `ideas/bbs-with-login`・`ideas/bbs-search` など（練習データの `put` のパス） | そのまま許容する | 成果物のディレクトリのパスで、repo の参照ではない。同じ綴りの repo は無い。`ideas` は一般の英単語で、語の一覧からも外した。綴りを変えると 880 件を超える置き換えになり、写しの元（spec repo）からずれる |
+| `Fandhe-AI/fandhe-workshop-spec`（`testdata/README.md` などの出所の説明） | そのまま許容する | `.gitmodules`・`README.md` で、決めたうえで名前を出している |
+
+架空の名前のうち、実在の private の repo と一致・酷似するものは見つからなかった（照合は機械、一致の判断は AI の目視）。
+
 ## LIC-1 エンジン repo のライセンス表記の確認（TASK-129）
 
 ライセンスは D-6 で `MIT OR Apache-2.0` と決まっている。機械が `cargo metadata` で全 crate の `license` を、直下のファイルで 2 つの本文を確かめる（`make check-license`）。公開は TASK-122 で行う。
