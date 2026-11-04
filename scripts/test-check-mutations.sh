@@ -48,6 +48,8 @@ DEFS_DIR="${FAKE_REPO}/crates/c/tests/mutations"
 #   FAKE_SURVIVE=1     : 変異が入っても試験が通る（生存）
 #   FAKE_COMPILE_FAIL=1: 変異が入ると --no-run が失敗する
 #   FAKE_LITERAL=1     : 変異が入った行が「& \1 "x"」と文字どおりのときだけ試験が失敗する
+#   FAKE_COMPILE_MSG   : --no-run が失敗するときに出す診断の文字列（既定は "error: boom"）
+#   FAKE_BASE_MSG      : 試験の実行（--no-run 以外）の出力に足す文字列（元の状態に診断が出ている場面の再現）
 cat >"${TMP_DIR}/bin/cargo" <<'EOF'
 #!/usr/bin/env bash
 src="${PWD}/crates/c/src/lib.rs"
@@ -59,10 +61,11 @@ else
 fi
 for a in "$@"; do
   if [ "${a}" = "--no-run" ]; then
-    if [ "${FAKE_COMPILE_FAIL:-0}" = "1" ] && [ "${mutated}" = "1" ]; then exit 101; fi
+    if [ "${FAKE_COMPILE_FAIL:-0}" = "1" ] && [ "${mutated}" = "1" ]; then echo "${FAKE_COMPILE_MSG:-error: boom}"; exit 101; fi
     exit 0
   fi
 done
+[ -z "${FAKE_BASE_MSG:-}" ] || echo "${FAKE_BASE_MSG}"
 if [ "${FAKE_BASE_FAIL:-0}" = "1" ]; then
   echo "test alpha ... FAILED"
   echo "test beta ... ok"
@@ -95,6 +98,23 @@ write_def() {
   } >"${DEFS_DIR}/${name}.mutation"
 }
 
+# write_cf_def <name> <find> <replace> <msg> [extra-line...]: expect: compile-fail の定義（expect-fail なし）を書く。
+write_cf_def() {
+  local name="$1" find="$2" replace="$3" msg="$4"
+  shift 4
+  {
+    echo "id: ${name}"
+    echo "package: fake-pkg"
+    echo "test: fake_test"
+    echo "target: crates/c/src/lib.rs"
+    echo "find: ${find}"
+    echo "replace: ${replace}"
+    echo "expect: compile-fail"
+    echo "expect-compile-error: ${msg}"
+    for extra in "$@"; do echo "${extra}"; done
+  } >"${DEFS_DIR}/${name}.mutation"
+}
+
 # run_check <args...>: 偽の cargo を先頭にして流し、終了コードを RC に入れる。環境変数は呼び出し側が前置する。
 run_check() {
   RC=0
@@ -123,10 +143,60 @@ RC=0
 FAKE_COMPILE_FAIL=1 PATH="${TMP_DIR}/bin:${PATH}" "${CHECK}" >/dev/null 2>&1 || RC=$?
 expect "mutation that does not compile is an error" 2 "${RC}"
 
+# 既定の種類は、期待の文字列と同じ診断でコンパイルが失敗しても 2 のまま。
+RC=0
+FAKE_COMPILE_FAIL=1 FAKE_COMPILE_MSG='error[E0080]: WANTED' PATH="${TMP_DIR}/bin:${PATH}" "${CHECK}" "${DEFS_DIR}/ok.mutation" >/dev/null 2>&1 || RC=$?
+expect "default kind: compile failure is an error even with a matching message" 2 "${RC}"
+
 write_def ghost 'let v = 1;' 'let v = MUT;' 'expect-fail: gamma'
 run_check "${DEFS_DIR}/ghost.mutation"
 expect "expect-fail name absent from the unmodified run is an error" 2 "${RC}"
 rm -f "${DEFS_DIR}/ghost.mutation"
+
+# --- expect: compile-fail ---
+write_cf_def cf 'let v = 1;' 'let v = MUT;' 'WANTED'
+RC=0
+FAKE_COMPILE_FAIL=1 FAKE_COMPILE_MSG='error[E0080]: evaluation panicked: WANTED' PATH="${TMP_DIR}/bin:${PATH}" "${CHECK}" "${DEFS_DIR}/cf.mutation" >"${TMP_DIR}/stdout.txt" 2>/dev/null || RC=$?
+expect "compile-fail: failure with the expected message is DETECTED" 0 "${RC}"
+grep -q '| cf | .* | compile error | DETECTED |' "${TMP_DIR}/stdout.txt" && r=0 || r=1
+expect "compile-fail: record row says compile error and DETECTED" 0 "${r}"
+
+RC=0
+PATH="${TMP_DIR}/bin:${PATH}" "${CHECK}" "${DEFS_DIR}/cf.mutation" >"${TMP_DIR}/stdout.txt" 2>/dev/null || RC=$?
+expect "compile-fail: a mutation that compiles SURVIVED" 1 "${RC}"
+grep -q '| cf | .* | SURVIVED |' "${TMP_DIR}/stdout.txt" && r=0 || r=1
+expect "compile-fail: record row says SURVIVED" 0 "${r}"
+
+RC=0
+FAKE_COMPILE_FAIL=1 FAKE_COMPILE_MSG='error: unrelated' PATH="${TMP_DIR}/bin:${PATH}" "${CHECK}" "${DEFS_DIR}/cf.mutation" >/dev/null 2>&1 || RC=$?
+expect "compile-fail: failure without the expected message is an error" 2 "${RC}"
+
+RC=0
+FAKE_BASE_MSG='warning: WANTED' PATH="${TMP_DIR}/bin:${PATH}" "${CHECK}" "${DEFS_DIR}/cf.mutation" >/dev/null 2>&1 || RC=$?
+expect "compile-fail: message already in the unmodified state is an error" 2 "${RC}"
+rm -f "${DEFS_DIR}/cf.mutation"
+
+write_cf_def cfbad 'let v = 1;' 'let v = MUT;' 'WANTED' 'expect-fail: alpha'
+run_check "${DEFS_DIR}/cfbad.mutation"
+expect "compile-fail with expect-fail is rejected" 2 "${RC}"
+write_cf_def cfbad 'let v = 1;' 'let v = MUT;' 'WANTED' 'expect: compile-fail'
+run_check "${DEFS_DIR}/cfbad.mutation"
+expect "duplicate expect is rejected" 2 "${RC}"
+write_cf_def cfbad 'let v = 1;' 'let v = MUT;' 'WANTED' 'expect-compile-error: OTHER'
+run_check "${DEFS_DIR}/cfbad.mutation"
+expect "duplicate expect-compile-error is rejected" 2 "${RC}"
+write_cf_def cfbad 'let v = 1;' 'let v = MUT;' 'WANTED'
+sed 's|^expect: compile-fail|expect: bogus|' "${DEFS_DIR}/cfbad.mutation" >"${DEFS_DIR}/cfbad2.mutation"
+run_check "${DEFS_DIR}/cfbad2.mutation"
+expect "invalid expect value is rejected" 2 "${RC}"
+grep -v '^expect-compile-error: ' "${DEFS_DIR}/cfbad.mutation" >"${DEFS_DIR}/cfbad2.mutation"
+run_check "${DEFS_DIR}/cfbad2.mutation"
+expect "compile-fail without expect-compile-error is rejected" 2 "${RC}"
+grep -v '^expect: ' "${DEFS_DIR}/cfbad.mutation" >"${DEFS_DIR}/cfbad2.mutation"
+printf 'expect-fail: alpha\n' >>"${DEFS_DIR}/cfbad2.mutation"
+run_check "${DEFS_DIR}/cfbad2.mutation"
+expect "expect-compile-error without expect: compile-fail is rejected" 2 "${RC}"
+rm -f "${DEFS_DIR}"/cfbad*.mutation
 
 # --- find の出現回数 ---
 write_def none 'let nothing = 0;' 'let v = MUT;'

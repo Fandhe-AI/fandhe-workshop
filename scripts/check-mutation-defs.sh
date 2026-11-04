@@ -8,6 +8,8 @@
 #   2. expect-fail の名前が、対象 crate の試験ターゲット（tests/<test>.rs または tests/<test>/main.rs）に実在すること
 # 違反は最初の 1 件で止めず、全件を調べてからすべて列挙して失敗する。
 #
+# expect: compile-fail の定義は試験の名前を持たないため、2 の照合の対象外である（1 と試験ターゲットの実在は確かめる）。
+#
 # 既知の近似: 名前の照合は `fn <name>(` と `mod <name> {` の字句の照合である。#[test] の有無・mod の入れ子の位置・
 # 同名の別関数は区別しない。tests/common/ は探さない。元の状態で試験が通ること、変異がコンパイルでき検出されることは、
 # 従来どおり動的な検査（check-mutations.sh）の担当である。
@@ -61,6 +63,7 @@ violation() {
 }
 
 names_total=0
+cf_total=0
 for def in "${DEFS[@]}"; do
   parse_def "${def}"
   rel="${def#"${REAL_ROOT}"/}"
@@ -80,18 +83,22 @@ for def in "${DEFS[@]}"; do
   [ -f "${src}" ] || src="${tests_dir}/${M_TEST}/main.rs"
   [ -f "${src}" ] || die "${rel}: test target source not found: crates/${matches}/tests/${M_TEST}.rs"
 
-  for name in "${M_EXPECT[@]}"; do
-    names_total=$((names_total + 1))
-    rest="${name}"
-    leaf="${name##*::}"
-    # 前置きの mod（a::b::leaf の a・b）→ 末尾の fn の順に、固定文字列で探す。
-    while [ "${rest}" != "${leaf}" ]; do
-      seg="${rest%%::*}"
-      rest="${rest#*::}"
-      grep -Fq -- "mod ${seg} {" "${src}" || violation "${rel}: expect-fail not found in ${src#"${REAL_ROOT}"/}: ${name}"
+  if [ "${M_KIND}" = "compile-fail" ]; then
+    cf_total=$((cf_total + 1))
+  else
+    for name in "${M_EXPECT[@]}"; do
+      names_total=$((names_total + 1))
+      rest="${name}"
+      leaf="${name##*::}"
+      # 前置きの mod（a::b::leaf の a・b）→ 末尾の fn の順に、固定文字列で探す。
+      while [ "${rest}" != "${leaf}" ]; do
+        seg="${rest%%::*}"
+        rest="${rest#*::}"
+        grep -Fq -- "mod ${seg} {" "${src}" || violation "${rel}: expect-fail not found in ${src#"${REAL_ROOT}"/}: ${name}"
+      done
+      grep -Fq -- "fn ${leaf}(" "${src}" || violation "${rel}: expect-fail not found in ${src#"${REAL_ROOT}"/}: ${name}"
     done
-    grep -Fq -- "fn ${leaf}(" "${src}" || violation "${rel}: expect-fail not found in ${src#"${REAL_ROOT}"/}: ${name}"
-  done
+  fi
 done
 
 if [ -s "${VIOLATIONS}" ]; then
@@ -102,4 +109,4 @@ if [ -s "${VIOLATIONS}" ]; then
   exit 1
 fi
 
-log "mutation definitions: ${#DEFS[@]} files, ${names_total} expect-fail names, all consistent"
+log "mutation definitions: ${#DEFS[@]} files (${cf_total} compile-fail), ${names_total} expect-fail names, all consistent"

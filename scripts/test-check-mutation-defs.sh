@@ -62,6 +62,18 @@ def() {
   } >"${MUT}/${name}.mutation"
 }
 
+# cfdef <name> <find> [extra-line...]: expect: compile-fail の定義（expect-fail なし）を 1 件書く。
+cfdef() {
+  local name="$1" find="$2"
+  shift 2
+  {
+    printf 'id: %s\npackage: fake-pkg\ntest: fake_test\ntarget: crates/c/src/lib.rs\n' "${name}"
+    printf 'find: %s\nreplace: zzz\n' "${find}"
+    printf 'expect: compile-fail\nexpect-compile-error: WANTED\n'
+    for e in "$@"; do printf '%s\n' "${e}"; done
+  } >"${MUT}/${name}.mutation"
+}
+
 # run_check [args...]: 終了コードを RC に入れる。
 run_check() {
   RC=0
@@ -74,6 +86,46 @@ reset
 def ok1 'let v = 1;' alpha
 run_check
 expect "valid definition passes" 0 "${RC}"
+
+reset
+cfdef cf1 'let v = 1;'
+run_check
+expect "valid compile-fail definition (no expect-fail) passes" 0 "${RC}"
+
+reset
+cfdef cf2 'let w = 1;'
+run_check
+expect "compile-fail definition with find occurring twice fails" 1 "${RC}"
+
+reset
+cfdef cf3 'let v = 1;' 'expect-fail: alpha'
+run_check
+expect "compile-fail with expect-fail is rejected" 2 "${RC}"
+
+reset
+cfdef cf4 'let v = 1;' 'expect: compile-fail'
+run_check
+expect "duplicate expect is rejected" 2 "${RC}"
+
+reset
+cfdef cf5 'let v = 1;'
+sed 's|^expect: compile-fail|expect: bogus|' "${MUT}/cf5.mutation" >"${MUT}/cf5b.mutation"
+rm -f "${MUT}/cf5.mutation"
+run_check
+expect "invalid expect value is rejected" 2 "${RC}"
+
+reset
+cfdef cf6 'let v = 1;'
+grep -v '^expect-compile-error: ' "${MUT}/cf6.mutation" >"${MUT}/cf6b.mutation"
+rm -f "${MUT}/cf6.mutation"
+run_check
+expect "compile-fail without expect-compile-error is rejected" 2 "${RC}"
+
+reset
+def cf7 'let v = 1;' alpha
+printf 'expect-compile-error: WANTED\n' >>"${MUT}/cf7.mutation"
+run_check
+expect "expect-compile-error without expect: compile-fail is rejected" 2 "${RC}"
 
 reset
 def zero 'let nothing = 0;' alpha
