@@ -1,0 +1,4 @@
+# 記録の機械可読な正（記録モードが読む。README の表と一致させる）
+base=505fef25de073875d814500e76a9e597e4513639
+head=cddeca51a9b3ef9c9669e01a5b5a54edf6a11fd1
+pack=template-workshop/examples/review-request

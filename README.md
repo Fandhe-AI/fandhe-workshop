@@ -289,7 +289,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-check-second-pack-repro` | `scripts/test-check-second-pack-repro.sh` | 上の検査自体の回帰テスト（変異を入れた写し） |
 | `make check-third-pack` | `scripts/check-third-pack.sh` | 3 本目の教材（`template-workshop/examples/task-breakdown/`）の validate の診断 0 件・test の全件合格・R-22／R-21 の 0 の検査（TASK-797。CI の `rust-test` が流す。cargo が要る） |
 | `make test-check-third-pack` | `scripts/test-check-third-pack.sh` | 上の検査自体の回帰テスト（壊した写し。CI の `rust-test` が流す） |
-| `make check-engine-zero-diff` | `scripts/check-engine-zero-diff.sh` | 第 2 教材の追加でエンジンの差分が 0 行であることを、固定した commit からの行数と SHA-256 の一覧で確かめます（記録は `docs/engine-zero-diff/review-request/`。CI 未組み込み）。第 3 教材の記録は `docs/engine-zero-diff/task-breakdown/` です（`--base`・`--pack`・`--manifest` を指定して直接流します） |
+| `make check-engine-zero-diff` | `scripts/check-engine-zero-diff.sh` | 第 2・第 3 教材の追加でエンジンの差分が 0 行であることを、各記録の `record.txt`（固定した commit・測った HEAD・パック）を再現して確かめます（記録は `docs/engine-zero-diff/review-request/` と `task-breakdown/`。CI 未組み込み）。いまの rev を測るときは `--head <rev>` で明示します。`--record <dir>` で 1 件に絞れます |
 | `make test-check-engine-zero-diff` | `scripts/test-check-engine-zero-diff.sh` | 上の検査自体の回帰テスト（見本の repo） |
 | `make check-internal-info WORDS=<一覧のパス>` | `tools/check-internal-info.mjs` | 社内固有の語（private の spec repo の一覧）と認証情報の形の公開前の照合（CI 未組み込み。記録は `docs/publish-checks.md`） |
 | `make check-internal-info-secrets` | `tools/check-internal-info.mjs` | 認証情報の形だけの照合（語の照合は行わない。CI 未組み込み） |

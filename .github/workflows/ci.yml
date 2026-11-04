@@ -151,7 +151,7 @@ jobs:
 
       # エンジンの差分 0 の確認（scripts/check-engine-zero-diff.sh。TASK-752）自体の回帰テスト。見本の repo で数秒。
       # 本体の make check-engine-zero-diff は固定した commit まで履歴が要り（fetch-depth: 2 では base が無い）、
-      # 以後のエンジンの変更での扱いが未決のため CI には入れない。既存ジョブへの step 追加で、必須チェックは変わらない。
+      # 浅い checkout では流せないため CI には入れない（既定は記録した測った HEAD の再現に決めた。#2038）。既存ジョブへの step 追加で、必須チェックは変わらない。
       - name: make test-check-engine-zero-diff
         run: make test-check-engine-zero-diff
 

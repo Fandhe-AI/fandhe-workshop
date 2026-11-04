@@ -50,7 +50,7 @@
 
 1. 固定した commit の記録: 上の表
 2. `git diff --numstat --no-renames <base> <head> -- crates Cargo.toml Cargo.lock` の行数。移動も差分に数え、バイナリは 1 件の変更として数える
-3. ファイルの SHA-256 の一覧の照合: `engine-manifest.sha256`（base の時点の 1,628 件。形は `sha256sum -c` と同じ `<sha256>  <path>`）。git の blob から作り、作業ツリーの改行の変換に左右されない。手で編集しない。作り直すときは `scripts/check-engine-zero-diff.sh --write-manifest`
+3. ファイルの SHA-256 の一覧の照合: `engine-manifest.sha256`（base の時点の 1,628 件。形は `sha256sum -c` と同じ `<sha256>  <path>`）。git の blob から作り、作業ツリーの改行の変換に左右されない。手で編集しない。作り直すときは `scripts/check-engine-zero-diff.sh --base 505fef25de073875d814500e76a9e597e4513639 --manifest docs/engine-zero-diff/review-request/engine-manifest.sha256 --write-manifest`（個別の指定モードなので `--base` と `--manifest` が必須）
 
 手の照合として、`git ls-tree -r --name-only 505fef25 -- crates Cargo.toml Cargo.lock | wc -l` も 1,628 でした。
 
@@ -80,9 +80,14 @@
 CI（`check` ジョブ）は回帰テスト `make test-check-engine-zero-diff` だけを流します。本体は、次の理由で CI に入れていません。
 
 - `ci.yml` の checkout は浅く（深さ 2）、固定した commit が取れません
-- 以後に別のタスクがエンジンを変えると、HEAD を既定にした実行は落ちます。その扱いの決定が先に要ります
 
-エンジンが後から変わった場合は、上の「測った HEAD」の SHA を `--head` に渡して再測定します（`scripts/check-engine-zero-diff.sh --head cddeca51a9b3ef9c9669e01a5b5a54edf6a11fd1`）。
+`make check-engine-zero-diff` は、記録の再現です（#2038）。扱いは次のとおりです。
+
+- 既定の head は、このディレクトリの `record.txt`（`base`・`head`・`pack`）に書いた「測った HEAD」です。いまの HEAD ではないので、記録の後にエンジンが変わっても落ちません
+- いまの HEAD を測るときは `--head HEAD`（任意の rev）を明示します。エンジンが変わっていれば FAIL するのが正しい挙動です
+- `record.txt` が機械可読な正で、上の表と食い違うと `record-readme` の項目が FAIL します
+- 既定の実行では head が作業ツリーの HEAD でないため、`worktree-clean` は SKIP になります。退行ではありません
+- 第 3 教材の記録（`../task-breakdown/`）も同じ入口で再現します。1 件に絞るときは `--record docs/engine-zero-diff/review-request` を渡します
 
 ## 限界
 

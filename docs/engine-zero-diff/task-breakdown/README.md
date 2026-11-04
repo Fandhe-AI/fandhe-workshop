@@ -1,7 +1,7 @@
 # エンジンの差分 0 の確認（第 3 教材「タスクの分解と進行管理」。TASK-763 3/3）
 
 第 3 教材 `template-workshop/examples/task-breakdown/` が、エンジンの Rust を変えずに足せたことを、数えて示す記録です（SECOND-20）。
-形は第 2 教材の記録（`docs/engine-zero-diff/review-request/`）と同じで、道具も同じ `scripts/check-engine-zero-diff.sh` です。教材ごとに `--base`・`--pack`・`--manifest` を指定して流しました。
+形は第 2 教材の記録（`docs/engine-zero-diff/review-request/`）と同じで、道具も同じ `scripts/check-engine-zero-diff.sh` です。教材ごとに `--base`・`--pack`・`--manifest` を指定して流しました。いまは `make check-engine-zero-diff` が、このディレクトリの `record.txt`（`base`・`head`・`pack`）と第 2 教材の記録の両方を再現します。
 
 ## 結論
 
@@ -45,7 +45,7 @@ base 自身の `7dbc58a1`（#2010）は `docs/` の測定の記録だけを変�
 
 1. 固定した commit の記録: 上の表
 2. `git diff --numstat --no-renames <base> <head> -- crates Cargo.toml Cargo.lock` の行数。移動も差分に数え、バイナリは 1 件の変更として数える
-3. ファイルの SHA-256 の一覧の照合: `engine-manifest.sha256`（base の時点の 1,628 件。形は `sha256sum -c` と同じ `<sha256>  <path>`）。blob から作り、作業ツリーの改行の変換に左右されない。手で編集しない。作り直すときは `--write-manifest`
+3. ファイルの SHA-256 の一覧の照合: `engine-manifest.sha256`（base の時点の 1,628 件。形は `sha256sum -c` と同じ `<sha256>  <path>`）。blob から作り、作業ツリーの改行の変換に左右されない。手で編集しない。作り直すときは `scripts/check-engine-zero-diff.sh --base 7dbc58a161a62faeef6a1aad221f8c947a1521a5 --manifest docs/engine-zero-diff/task-breakdown/engine-manifest.sha256 --write-manifest`
 
 手の照合として、`git ls-tree -r --name-only 7dbc58a1 -- crates Cargo.toml Cargo.lock | wc -l` も 1,628 でした。
 
@@ -86,7 +86,9 @@ scripts/check-engine-zero-diff.sh --base 7dbc58a161a62faeef6a1aad221f8c947a1521a
 
 ## CI について
 
-第 2 教材の記録と同じ理由で、本体は CI に入れていません（checkout が浅く固定した commit が取れない。以後の別タスクがエンジンを変えると HEAD 既定の実行が落ちる）。再測定は、上の「測った HEAD」の SHA を `--head` に渡します。
+第 2 教材の記録と同じ理由で、本体は CI に入れていません（checkout が浅く固定した commit が取れない）。
+
+`make check-engine-zero-diff` の既定は、`record.txt` の測った HEAD の再現に決めました（#2038）。この記録だけに絞るときは `scripts/check-engine-zero-diff.sh --record docs/engine-zero-diff/task-breakdown` を使います。いまの HEAD を測るときは `--head HEAD` を明示します（エンジンが変わっていれば FAIL します）。`record.txt` が上の表と食い違うと `record-readme` が FAIL し、既定の実行では `worktree-clean` が SKIP になります。
 
 ## 限界
 

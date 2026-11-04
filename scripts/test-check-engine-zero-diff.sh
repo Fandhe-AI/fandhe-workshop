@@ -120,6 +120,75 @@ r="$(new_repo)"; run "missing manifest" 2 "${r}" --manifest "${TMP_DIR}/none.sha
 r="$(new_repo)"; run "dotdot in pack" 2 "${r}" --pack ../x
 r="$(new_repo)"; run "dash-leading head" 2 "${r}" --head --all
 
+# --- 記録モード（#2038）---
+# new_record <repo> <name> <base> <head> <pack>: docs/engine-zero-diff/<name>/ に record.txt・一覧・README の表を置いて commit する。
+new_record() {
+  local r="$1" n="$2" b="$3" h="$4" p="$5" d
+  d="${r}/docs/engine-zero-diff/${n}"
+  mkdir -p "${d}"
+  printf 'base=%s\nhead=%s\npack=%s\n' "${b}" "${h}" "${p}" > "${d}/record.txt"
+  "${CHECK}" --root "${r}" --base "${b}" --manifest "docs/engine-zero-diff/${n}/engine-manifest.sha256" --write-manifest >/dev/null
+  printf '| 固定した commit（base） | %s |\n| 測った HEAD | %s |\n' "${b}" "${h}" > "${d}/README.md"
+  commit "${r}" "record ${n}"
+}
+# rec <name> <rc> <repo> [引数...]: 記録モード（--root と追加の引数だけ）
+rec() {
+  local name="$1" want="$2" r="$3" rc=0
+  shift 3
+  "${CHECK}" --root "${r}" "$@" >"${TMP_DIR}/out" 2>"${TMP_DIR}/err" || rc=$?
+  expect "${name}" "${want}" "${rc}"
+}
+# 記録の head を教材を足した commit にし、その後にエンジンを変える
+r="$(new_repo)"; rb="$(base_of "${r}")"; rh="$(git -C "${r}" rev-parse HEAD)"
+new_record "${r}" one "${rb}" "${rh}" template-workshop/examples/p
+printf 'fn x() {}\n' >> "${r}/crates/a/src/lib.rs"; commit "${r}" engine-change
+rec "record default ignores later engine change" 0 "${r}"
+has "record-readme passes" '^PASS record-readme'
+has "worktree-clean is skipped in record mode" '^SKIP worktree-clean'
+has "record result line" '^result: 1 record(s) reproduced'
+rec "record mode with --head HEAD measures HEAD" 1 "${r}" --head HEAD
+has "head override is reported" '^INFO head overridden'
+has "--head HEAD sees the engine change" '^FAIL diff-lines'
+rec "--record narrows to one record" 0 "${r}" --record docs/engine-zero-diff/one
+rec "--head with the recorded head" 0 "${r}" --head "${rh}"
+rec "--record with dotdot" 2 "${r}" --record ../x
+rec "--record with --base" 2 "${r}" --record docs/engine-zero-diff/one --base "${rb}"
+rec "pack missing in explicit mode" 2 "${r}" --base "${rb}" --manifest docs/engine-zero-diff/one/engine-manifest.sha256
+
+# 2 つの記録: 片方の README の head が食い違うと全体が 1
+r="$(new_repo)"; rb="$(base_of "${r}")"; rh="$(git -C "${r}" rev-parse HEAD)"
+mkdir -p "${r}/template-workshop/examples/q"; printf 'q\n' > "${r}/template-workshop/examples/q/a.md"; commit "${r}" q
+rh2="$(git -C "${r}" rev-parse HEAD)"
+new_record "${r}" one "${rb}" "${rh}" template-workshop/examples/p
+new_record "${r}" two "${rh}" "${rh2}" template-workshop/examples/q
+rec "two records" 0 "${r}"
+if [ "$(grep -c '^== record' "${TMP_DIR}/out")" = "2" ]; then expect "both records are listed" 0 0; else expect "both records are listed" 0 1; fi
+printf '| 固定した commit（base） | %s |\n| 測った HEAD | %s |\n' "${rh}" "${rh}" > "${r}/docs/engine-zero-diff/two/README.md"
+commit "${r}" readme-drift
+rec "README drift" 1 "${r}"
+has "record-readme fails" '^FAIL record-readme'
+
+# 誤用・前提の欠け
+# bad_record <name> <record.txt の中身（printf %b）>
+bad_record() {
+  local rr
+  rr="$(new_repo)"
+  mkdir -p "${rr}/docs/engine-zero-diff/x"
+  printf '%b' "$2" > "${rr}/docs/engine-zero-diff/x/record.txt"
+  commit "${rr}" x
+  rec "$1" 2 "${rr}"
+}
+h40=0123456789abcdef0123456789abcdef01234567
+bad_record "head is not 40 hex" "base=${h40}\nhead=HEAD\npack=p\n"
+bad_record "unknown key" "base=${h40}\nhead=${h40}\npack=p\nextra=1\n"
+bad_record "duplicate key" "base=${h40}\nbase=${h40}\nhead=${h40}\npack=p\n"
+bad_record "head missing" "base=${h40}\npack=p\n"
+bad_record "carriage return" "base=${h40}\r\nhead=${h40}\npack=p\n"
+bad_record "pack with dotdot" "base=${h40}\nhead=${h40}\npack=../p\n"
+r="$(new_repo)"; mkdir -p "${r}/docs/engine-zero-diff/empty"; : > "${r}/docs/engine-zero-diff/empty/.keep"; commit "${r}" e
+rec "directory without record.txt" 2 "${r}"
+r="$(new_repo)"; rec "no records at all" 2 "${r}"
+
 # SHA-256 の道具が無い PATH では 2 になる
 tools="${TMP_DIR}/bin"
 mkdir -p "${tools}"
@@ -127,7 +196,7 @@ for c in git awk sed cmp head wc mktemp rm cat mv dirname tr; do
   ln -s "$(command -v "${c}")" "${tools}/${c}"
 done
 r="$(new_repo)"; rc=0
-PATH="${tools}" "$(command -v bash)" "${CHECK}" --root "${r}" --base "$(base_of "${r}")" --manifest "${TMP_DIR}/m.$(basename "${r}")" >/dev/null 2>&1 || rc=$?
+PATH="${tools}" "$(command -v bash)" "${CHECK}" --root "${r}" --base "$(base_of "${r}")" --manifest "${TMP_DIR}/m.$(basename "${r}")" --pack template-workshop/examples/p >/dev/null 2>&1 || rc=$?
 expect "no sha256 tool" 2 "${rc}"
 
 echo "1..$((passed + failed))"

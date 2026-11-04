@@ -159,7 +159,7 @@ check-second-pack: ## 第 2 教材の骨格の設定値・Step 群と模範解�
 test-check-second-pack: ## 上の試験自体の回帰テスト（変異を入れた写し。本物の fandhe-pack を使うためやや遅い。CI の rust-test が流す）。直接: scripts/test-check-second-pack.sh
 	@scripts/test-check-second-pack.sh
 
-check-engine-zero-diff: ## 第 2 教材の追加でエンジン（crates/・Cargo.toml・Cargo.lock）の差分が 0 行であることを、固定した commit からの行数と SHA-256 の一覧で確かめる（TASK-752。CI 未組み込み。通信・cargo なし）。直接: scripts/check-engine-zero-diff.sh [--head <rev>]
+check-engine-zero-diff: ## 第 2・第 3 教材の記録（docs/engine-zero-diff/*/record.txt の固定した commit と測った HEAD）を再現し、エンジン（crates/・Cargo.toml・Cargo.lock）の差分が 0 行であることを確かめる（TASK-752・#2038。CI 未組み込み。通信・cargo なし）。いまの rev は --head <rev> で明示。直接: scripts/check-engine-zero-diff.sh [--record <dir>] [--head <rev>]
 	@scripts/check-engine-zero-diff.sh
 
 test-check-engine-zero-diff: ## 上の検査自体の回帰テスト（見本の repo。CI の check）。直接: scripts/test-check-engine-zero-diff.sh

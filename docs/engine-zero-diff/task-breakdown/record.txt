@@ -1,0 +1,4 @@
+# 記録の機械可読な正（記録モードが読む。README の表と一致させる）
+base=7dbc58a161a62faeef6a1aad221f8c947a1521a5
+head=ae3cc2bed398908035120e13fdca27f1202072fa
+pack=template-workshop/examples/task-breakdown

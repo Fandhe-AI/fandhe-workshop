@@ -12744,3 +12744,16 @@ CI 上の実測: 未記入。PR の run の browser-test の秒数と集計の s
 IR の同一: web だけの変更で、`compile` の出力は変わらない。
 
 結果（2026-11-04）: `make lint`・`make test`（失敗 0 件）・`make check-deps` は通った。
+
+### 5.467 make check-engine-zero-diff の既定を記録の再現にする（#2038）
+
+2026-11-04 に決めた。記録（5.450・5.459）の後に `crates/` が変わり、HEAD を既定にした実行は `manifest-head`（19 件の差）・`manifest-count`（1,632 対 1,628）・`diff-lines`（374 行）が FAIL して 1 で終わっていた。make の入口は「記録の再現」にする。
+
+- 各記録のディレクトリに `record.txt`（`base`・`head`・`pack` の `key=value`。完全な 40 桁の SHA）を置き、`scripts/check-engine-zero-diff.sh` の記録モードが読む。一覧は同じディレクトリの `engine-manifest.sha256`。`.gitattributes` で `-text`
+- 記録モード（`--base`・`--manifest`・`--pack`・`--write-manifest` が無いとき）は、`docs/engine-zero-diff/*/` を順に、`record-file`・`record-readme`（README の表の base・測った HEAD と `record.txt` の一致）を確かめ、自身を個別の指定モードで呼び直して従来の 9 項目を判定する。`record.txt` の無いディレクトリ・記録 0 件・壊れた `record.txt` は 2
+- `--head <rev>` は全記録の head を上書きする（`INFO head overridden`）。`--record <dir>` は 1 件に絞る
+- 個別の指定モードは `--base`・`--manifest`・`--pack` が必須（`--write-manifest` では `--pack` 不要）。head の既定は HEAD のまま
+- 回帰テスト `make test-check-engine-zero-diff`: 60 件 pass（従来 36 件）。エンジンを変えた後の見本で、引数なしは 0、`--head HEAD` は 1（`FAIL diff-lines`）になる場面で既定が HEAD でないことを固定する
+- 実測（2026-11-04、main `b9f32e7e` を基にしたブランチ）: `make check-engine-zero-diff` は 0（`result: 2 record(s) reproduced`）。`--head HEAD` は 1
+
+限界: CI 未組み込みのまま（浅い checkout で base が取れない）。既定の実行では `worktree-clean` が SKIP になる。
