@@ -42,8 +42,10 @@ section() {
 OK_BODY='test a::b ... ok
 test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s'
 IGN_BODY='test core::emit_histories_for_browser ... ignored
+test core::emit_broken_histories_for_browser ... ignored
+test core::emit_ops_rewrites_for_browser ... ignored
 test web::emit_round_handoff_for_browser ... ignored, writes a file
-test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.1s'
+test result: ok. 3 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.1s'
 
 # pack_log [<validate-rc> <validate-out> <ir-rc> <test-rc> <test-out> <build-rc>]: 第 2 教材の区間（pack）を出す。
 PACK_VALIDATE='OK: 診断 0 件（章 4・Step 8）'

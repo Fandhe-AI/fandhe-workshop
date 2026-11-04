@@ -159,6 +159,11 @@ jobs:
       - name: make test-check-mutation-defs
         run: make test-check-mutation-defs
 
+      # clean-room の無視してよい試験の一覧の静的検査（make check に入っている）自体の回帰テスト。cargo 不要で数秒。
+      # 既存ジョブへの step 追加で、必須チェックは変わらない。
+      - name: make test-check-ignored-tests
+        run: make test-check-ignored-tests
+
       - name: make check-toolchain
         run: |
           set -euo pipefail

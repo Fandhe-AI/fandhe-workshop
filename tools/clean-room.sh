@@ -38,10 +38,14 @@
 #   コンテナが確かめるのは、公開の依存だけでのビルドと、教材テスト・IR の一致の 4 段である。
 #
 # ALLOWED_IGNORED と spec の文言のずれ: spec（PoC-11・BUILD-1・TASK-77）の許容は `measure_*`・`generate_histories` だが、
-#   これは試作の時点の名前で本 repo に存在しない。現物の #[ignore] は、ブラウザ試験の入力を書き出す次の 2 件だけで、
+#   これは試作の時点の名前で本 repo に存在しない。現物の #[ignore] は、ブラウザ試験の入力を書き出す次の 4 件だけで、
 #   scripts/test-browser.sh だけが --ignored で呼ぶ。存在しない名前を許すと検査が空回りするため、現物の名前で完全一致にする。
 #     crates/core/tests/version_histories.rs の emit_histories_for_browser（spec の generate_histories に当たる）
+#     crates/core/tests/broken_histories.rs の emit_broken_histories_for_browser
+#     crates/core/tests/ops_rewrites.rs の emit_ops_rewrites_for_browser
 #     crates/web/tests/round_begin_host.rs の emit_round_handoff_for_browser
+#   この一覧と現物の #[ignore] のずれは scripts/check-ignored-tests.sh が make check で検出する
+#   （配列は 1 行の `readonly ALLOWED_IGNORED=(...)` のまま保つ。検査がその 1 行を読む）。
 #
 # 終了コード: 0 = 両方の実行が不変条件を満たす
 #   1 = 試験の失敗・許容外の無視・まっさらさの前提の崩れ・cargo の失敗
@@ -60,7 +64,7 @@ source "${DIR}/../scripts/lib.sh"
 readonly IMAGE_VERSION="1.98.1"
 readonly IMAGE_DIGEST="sha256:a8a5f0a1e5fe7dfe1d352591e4a1c7dd2c08fd70475cae872cf3458ba0df0546"
 readonly IMAGE="docker.io/library/rust:${IMAGE_VERSION}@${IMAGE_DIGEST}"
-readonly ALLOWED_IGNORED=(emit_histories_for_browser emit_round_handoff_for_browser)
+readonly ALLOWED_IGNORED=(emit_histories_for_browser emit_broken_histories_for_browser emit_ops_rewrites_for_browser emit_round_handoff_for_browser)
 readonly M="### clean-room:"
 
 usage() {
