@@ -12666,3 +12666,62 @@ CI は既存ジョブ `rust-test` に step `make check-second-pack (TASK-102)` �
 CI 上の実測: 未記入。PR の run で `.claude/rules/github-actions.md` の表とあわせて埋める。マージ後の `main` の run での再確認も残る。
 
 限界: `check-engine-zero-diff`・`clean-room` は CI 未組み込みのまま。
+
+### 5.465 browser-test の所要時間と timeout の余裕（#2037）
+
+目的: `browser-test` ジョブの所要時間（約 40 分）と `timeout-minutes` の間に余裕を確保し、試験が増えても timeout で落ちないようにする。2026-10-18 の記録（約 4 分）から大きく伸びていた。
+
+ジョブの所要時間（秒。2026-11-04 に `gh run view` で読んだ直近 10 run）:
+
+| run | イベント | 秒 |
+|---|---|---|
+| 41843918677 | push main | 2,432 |
+| 41837666961 | PR | 2,409 |
+| 41831522092 | push main | 2,393 |
+| 41825483180 | PR | 2,408 |
+| 41809773693 | push main | 2,362 |
+| 41805050212 | PR | 2,200 |
+| 41796329914 | push main | 2,356 |
+| 41791746849 | PR | 2,175 |
+| 41785119774 | PR | 2,414 |
+| 41778123186 | push main | 2,213 |
+
+60 分の timeout では最大 2,432 秒に対する余裕が約 48% で、余裕 50% 以上（`timeout ≥ 1.5 × 所要時間`）を満たしていなかった。
+
+試験ファイルごとの所要時間の上位 10 件（main の run 41831522092・2026-11-04。spec の出力の各行をファイルの順で対応づけた推定。204 ファイル中 198 ファイルに対応づけた。並列に走った時間の和で、実時間ではない）:
+
+| 順位 | ファイル | 合計（秒） | 試験の数 |
+|---|---|---|---|
+| 1 | `data-payload-tamper.test.mjs` | 963.2 | 33 |
+| 2 | `structure-xss.test.mjs` | 398.1 | 13 |
+| 3 | `practice-data-xss.test.mjs` | 309.6 | 9 |
+| 4 | `refusal-keeps-saved.test.mjs` | 190.9 | 28 |
+| 5 | `receptor-safety.test.mjs` | 177.3 | 5 |
+| 6 | `history-xss.test.mjs` | 151.7 | 10 |
+| 7 | `boot-corrupt-history.test.mjs` | 123.3 | 16 |
+| 8 | `log-limit.test.mjs` | 122.8 | 1 |
+| 9 | `choice-journey.test.mjs` | 118.4 | 23 |
+| 10 | `url-xss.test.mjs` | 114.2 | 5 |
+
+分析: 試験の所要時間の合計は 5,291 秒、`node --test` の実時間は 1,962 秒で、実効の並列度は約 2.7 倍。runner は 4 vCPU で既定の並列数が 3 だと推定する（runner 上では未確認）。並列数 3 の理論の下限は約 1,764 秒で、前後の約 7 分を足すと約 2,200 秒になる。短縮だけでは 60 分の下で余裕 50% に届かない。`data-payload-tamper` は 1 ファイルで合計の約 18% を占める。1 click ごとの `settle`（3 回連続で同じ観察になるまで 30ms ずつ待つ）と 377 回以上の click の照合、2 設定 × CSP の有無の 4 通しは、仕様に基づく試験の中身である。
+
+変えたもの:
+
+- `ci.yml` の `browser-test` の `timeout-minutes` を 60 から 90 にした。最大 2,432 秒の 1.5 倍は約 61 分で、伸びの余地を見て 90 分にした。余裕は (5,400 − 2,432) / 2,432 で約 122%。所要時間が 60 分に近づいたら見直す
+- `scripts/test-browser.sh` に任意の `FANDHE_TEST_JUNIT_OUT` を足した（junit の reporter。未指定なら `node --test` の引数は変わらない）
+- `tools/browser-durations.mjs` が junit から試験ファイルごとの合計を出す。`ci.yml` の step が上位 20 件をログに残す。これで次からは推定でなく正確な値が読める。回帰テストは `make test-browser-durations`（`tools/browser-durations.test.mjs`。ブラウザ試験の一覧には入れない）
+- ジョブの集合・名前・`ci-complete` の `needs`・ruleset の必須チェックは変えていない
+
+行わなかったこと（理由）:
+
+- `--test-concurrency` を上げる: 1 秒以内の上限を確かめる試験（`save-latency`・`secret-scan-time`・`ops-limit`・`ir-size-limit` など）が不安定になりやすい
+- 引数の並べ替えで長い試験を先に始める: `node --test` は引数の順序によらず名前の順に実行する（node v24.13.0 で、逆順に渡した 3・4 ファイルを concurrency 1・2 で確かめた）
+- CSP の有無・配信する設定の二重化を減らす: 仕様が求めている
+- ジョブの分割: ruleset の必須チェックが変わる
+- 試験の中身（待ち・click の数）の変更: 仕様に基づくため、今回は変えていない
+
+件数（AC3）: 試験ファイル・`scripts/expected-test-counts.txt` は変えていない。件数は変わらない見込みで、PR の run の `ℹ tests` を main の run 41831522092 の 1804 と比べて確かめる（未確認）。
+
+CI 上の実測: 未記入。PR の run の browser-test の秒数と集計の step の上位 10 件で埋める。手元で `make test-browser` の全体は流していない（未実施）。
+
+限界: 上位 10 件の表は推定で、集計の step の正確な値とずれ得る。`expected-test-counts.txt` の `browser|total|tests=1149` と CI の 1804 が合わない件は本件の範囲外（版上げ PR の件数の照合で問題になり得る）。
