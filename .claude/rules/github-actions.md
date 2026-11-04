@@ -255,15 +255,15 @@ gh run view <run-id> --json jobs --jq '.jobs[]|[.name,.conclusion,.startedAt,.co
 
 `browser-test` の試験ファイルごとの所要時間は、run のログの step「Summarize browser test durations per file」で読める（`node tools/browser-durations.mjs <junit.xml> --top N`。junit は `FANDHE_TEST_JUNIT_OUT` で書く。#2037）。timeout は所要時間の 1.5 倍以上にする。
 
-## 棚卸し結果（2026-10-11。ci.yml の rust-lint・rust-test・browser-test は 2026-11-04 に更新）
+## 棚卸し結果（2026-10-11。ci.yml の rust-lint・rust-test・browser-test と clean-room.yml は 2026-11-04 に更新）
 
 | ワークフロー | ジョブ | 実測（直近の実行） |
 | --- | --- | --- |
 | `ci.yml` | check・test-hooks（ubuntu / macOS）・pr-title・ci-complete | wall-clock 約 2〜3 分。各ジョブの実処理は 5〜15 秒で、大半は macOS ランナーの起動待ち（約 2 分） |
 | `ci.yml` | rust-lint・rust-test | rust-lint 約 3 分（192 秒）、rust-test 約 17 分（1,002 秒）（main の run 41831522092・2026-11-04）。rust-test のうち `make test` は 642 秒、`make check-second-pack` は 271 秒、2026-11-04 に足した `check-second-pack-repro` と回帰テストは合わせて 3 秒（PR の run 41825483180） |
-| `ci.yml` | browser-test | 約 40 分（2,393 秒。main の run 41831522092・2026-11-04）。うち `make test-browser` が 2,118 秒、`make test-l2-run` が 135 秒、2026-11-04 に足した `check-generic-words` と回帰テストは合わせて 11 秒（PR の run 41825483180）。直近 10 run は 2,175〜2,432 秒。timeout は 90 分（#2037。最大 2,432 秒に対する余裕は約 122%。変えた後の実測は PR の run で記入、未記入） |
+| `ci.yml` | browser-test | 約 40 分（2,393 秒。main の run 41831522092・2026-11-04）。うち `make test-browser` が 2,118 秒、`make test-l2-run` が 135 秒、2026-11-04 に足した `check-generic-words` と回帰テストは合わせて 11 秒（PR の run 41825483180）。直近 10 run は 2,175〜2,432 秒。timeout は 90 分（#2037。最大 2,432 秒に対する余裕は約 122%）。変えた後の main の run は 2,205 秒（41891141515）と 2,431 秒（41908143064） |
 | `ai-review.yml` | codex の preflight・review・post_feedback | 約 1〜2 分 |
-| `clean-room.yml` | clean-room（まっさらなコンテナの試験） | 未計測（初回の手動実行の後に run の番号と秒数を記入）。手元の実測は cargo の 2 区間で 592 秒（2026-10-28） |
+| `clean-room.yml` | clean-room（まっさらなコンテナの試験） | 約 22 分（1,336 秒。main の手動実行の run 41908467901・2026-11-04）。うち cargo の `[default]` が 610 秒、`[workspace]` が 678 秒、`[pack]` は 1 秒未満。timeout は 60 分（余裕は約 169%）。初回の run 41891672614（1,222 秒）は、無視してよい試験の一覧が古く失敗した（#2045 で修正） |
 | `update-external.yml` | 日次の外部ソース追従（reusable） | 実績なし（未計測） |
 
 施策: macOS のフック回帰テスト（`test-hooks-macos`）はフック関連の変更時のみ実行（`changes` ジョブ。不要時は skipped として報告）。main への push 実行は cancel しない。
