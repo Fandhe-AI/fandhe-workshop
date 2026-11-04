@@ -25,8 +25,9 @@ on:
 permissions: {}
 
 concurrency:
-  group: clean-room-${{ github.workflow }}
-  # 定期実行と手動実行が重なっても途中で止めず、待たせる
+  # PR では動かないため run_id で各実行を分ける。固定の group だと待機が 1 件しか保持されず、重なった実行が置き換えられる
+  group: clean-room-${{ github.workflow }}-${{ github.run_id }}
+  # 実行が重なっても途中で止めない
   cancel-in-progress: false
 
 jobs:
