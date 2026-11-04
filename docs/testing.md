@@ -12594,8 +12594,8 @@ Rust・`Cargo.*` は変えない。
 結果（2026-11-03、Linux、debug ビルド）: `check-third-pack` は 3 項目 PASS、`test-check-third-pack` は全件 ok。CI 上の所要時間の増分は PR の初回の実行で確かめる（未測定）。
 
 限界: `probes/views/` は対象外。件数（Step 8・誤入力 18）は固定しない。`test` は `set_attr` の値と `asserts` を照合しない（AUTHOR-4）。
-第 2 教材の CI 組み込み（TASK-102）は別。
 第 2 教材の CI 組み込み（TASK-102）は 5.463 で行った。
+
 ### 5.461 ビューの `kind` の綴りの誤りを `validate`・`compile` の診断にする（TASK-796。#2017。D-97）
 
 **目的**: ビューの `kind` を書き誤っても止まらず、画面が黙って描かない問題（`docs/known-gaps.md`）を、`E-VIEW-KIND-UNKNOWN` で止める。画面の fail-closed は変えない。
@@ -12623,7 +12623,7 @@ Rust・`Cargo.*` は変えない。
 目的: 第 2 教材 `template-workshop/examples/review-request/` を BUILD-9 の教材テストの対象に数える。置き場がエンジン repo の雛形の例（D-91）のため、この repo の CI で流す。
 5.453・5.460 までは手元の記録だけだった。
 
-道具: 既存の `scripts/check-second-pack.sh`（`make check-second-pack`、39 項目）と回帰テスト `scripts/test-check-second-pack.sh`（`make test-check-second-pack`）。
+道具: 既存の `scripts/check-second-pack.sh`（`make check-second-pack`）と回帰テスト `scripts/test-check-second-pack.sh`（`make test-check-second-pack`）。
 validate・test だけを切り出さず全体を流す（`validate`・`test`・`zero-counts` の判定を二重に定義しないため）。
 CI は既存ジョブ `rust-test` に step `make check-second-pack (TASK-102)` を足す（ジョブを足さないため ruleset の必須チェックは変わらない）。Rust・`Cargo.*` は変えない。
 
@@ -12636,7 +12636,7 @@ CI は既存ジョブ `rust-test` に step `make check-second-pack (TASK-102)` �
 | `final: true` を外して行き止まり | validate | `E-DEAD-END` |
 | `pack:` を壊した YAML にする | validate | `E-PARSE` |
 
-結果（2026-11-04、Linux、debug ビルド）: `check-second-pack` は 39 項目すべて PASS（約 4.5 秒）、`test-check-second-pack` は全件 ok（約 3 分）。CI 上の所要時間の増分は初回の実行で確かめる（未測定）。
+結果（2026-11-04、Linux、debug ビルド）: `check-second-pack` は全項目 PASS（約 4.5 秒）、`test-check-second-pack` は全件 ok（約 3 分）。CI 上の所要時間の増分は初回の実行で確かめる（未測定）。
 ジョブが約 20 分を超えたら、step から `make test-check-second-pack` だけを外し、`make check-second-pack` は残す。
 
 新しい関門: `ir-match`・`baseline`（`ir.bytes`）が CI に入るため、`compile` の出力を変えるエンジンの PR は `rust-test` で落ちる。意図した関門である。直すときは
