@@ -376,6 +376,20 @@ jobs:
           make check-third-pack
           make test-check-third-pack
 
+      # 第 2 教材（template-workshop/examples/review-request）の教材テスト（TASK-102。BUILD-9 の (b)・D-91。#2025）。
+      # check-second-pack は validate の診断 0 件（参照切れ・到達不能・行き止まりなし）と test の全件合格（模範解答の完走）を
+      # 確かめ、2 つ目の make は壊した写しが診断コードつきで落ちること（負の対照）を確かめる。
+      # 既存ジョブへの step の追加なので、ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
+      # secret・通信・submodule を使わないので fork でも通る。make test の直後で fandhe-pack はビルド済み。
+      # ir-match と baseline が入るため、compile の出力を変えるエンジンの PR はここで落ちる。意図した関門で、直すときは
+      # fandhe-pack compile template-workshop/examples/review-request -o template-workshop/examples/review-request/tests/ir.json
+      # と tests/baseline.txt の該当値を書き直す（docs/testing.md 5.463）。
+      - name: make check-second-pack (TASK-102)
+        run: |
+          set -euo pipefail
+          make check-second-pack
+          make test-check-second-pack
+
   # ブラウザ試験の関門（TASK-79。BUILD-4）。pass／fail 型の試験（tools/browser/*.test.mjs の全件）と
   # smoke-hello と、信頼できない入力への安全性の観察の記録（safety-observe。観察値は assert せず、完走して終了コード 0 に
   # なることを関門にする。TASK-79 2/2）を、同梱の Chromium（FANDHE_BROWSER_CHANNEL を設定しない = channel "chrome" を外した写し）で流す。

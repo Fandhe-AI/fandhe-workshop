@@ -44,6 +44,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── check-license.sh      # 全 crate の license と直下の 2 つのライセンスの本文と雛形の表記の検査（回帰テストは test-check-license.sh）
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
 │   ├── check-choice-journey.sh # 入力欄のない教材の完走の道具を設定ファイルで流す入口（回帰テストは test-check-choice-journey.sh。TASK-748）
+│   ├── check-second-pack.sh  # 第 2 教材の骨格・validate・test の検査（CI の rust-test が流す。回帰テストは test-check-second-pack.sh。TASK-102）
 │   ├── check-third-pack.sh   # 3 本目の教材の validate・test の検査（CI の rust-test が流す。回帰テストは test-check-third-pack.sh。TASK-797）
 │   ├── check-sibling-free.sh # 兄弟の 03-poc/prototype と docs/spec の中身が無いことの検査（回帰テストは test-check-sibling-free.sh）
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
@@ -168,8 +169,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-measure-wasm-size` | 測定の様式の検証と実ビルドの回帰テスト（遅く、CI・フックには入れない） |
 | `make check-generic-words` | エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査（`tools/check-generic-words.mjs`。CI 未組み込み） |
 | `make test-check-generic-words` | 教材固有の語の検査自体の回帰テスト |
-| `make check-second-pack` | 第 2 教材の骨格（`template-workshop/examples/review-request/`）の設定値・文書のビューの 5 行・Step 8 つと模範解答 2 通りの行の変化・誤答の 8 場面の規則・誤入力と文面の確認（TASK-746 2/2）・IR のバイト一致・形式 B・学習目標（TASK-747）（TASK-746）・使った拡張点の照合と掲示板教材の写しとの比較（TASK-753。`docs/testing.md` 5.453）・基準値・AR-12 の読みの記録と設定値の一致・AR-8 の読みの記録と属性の形のままであること（ar8-reading。TASK-755）・診断の試験（`scripts/check-second-pack.sh`。TASK-745・TASK-756。`E-PROFILE-NO-INPUT` は compile で確かめる。CI 未組み込み。cargo が要る。TASK-743） |
-| `make test-check-second-pack` | 上の試験自体の回帰テスト（変異を入れた写し。やや遅い） |
+| `make check-second-pack` | 第 2 教材の骨格（`template-workshop/examples/review-request/`）の設定値・文書のビューの 5 行・Step 8 つと模範解答 2 通りの行の変化・誤答の 8 場面の規則・誤入力と文面の確認（TASK-746 2/2）・IR のバイト一致・形式 B・学習目標（TASK-747）（TASK-746）・使った拡張点の照合と掲示板教材の写しとの比較（TASK-753。`docs/testing.md` 5.453）・基準値・AR-12 の読みの記録と設定値の一致・AR-8 の読みの記録と属性の形のままであること（ar8-reading。TASK-755）・診断の試験（`scripts/check-second-pack.sh`。TASK-745・TASK-756。`E-PROFILE-NO-INPUT` は compile で確かめる。CI の `rust-test` が流す。TASK-102。cargo が要る。TASK-743） |
+| `make test-check-second-pack` | 上の試験自体の回帰テスト（変異を入れた写し。やや遅い。診断コードつきの変異 4 件。CI の `rust-test` が流す） |
 | `make check-second-pack-repro` | 公開の資料だけで別の作者が書いた第 2 教材の写し（`docs/second-pack-repro/`）の validate・test・設定値・件数の検査（`scripts/check-second-pack-repro.sh`。TASK-413 1/2。記録は `docs/testing.md` 5.449・5.451。CI 未組み込み。cargo が要る） |
 | `make test-check-second-pack-repro` | 上の検査自体の回帰テスト（変異を入れた写し。やや遅い） |
 | `make check-third-pack` | 3 本目の教材（`template-workshop/examples/task-breakdown/`）の validate の診断 0 件・test の全件合格・R-22／R-21 の 0 の検査（`scripts/check-third-pack.sh`。TASK-797・D-98。CI の `rust-test` が流す。cargo が要る。記録は `docs/testing.md` 5.460） |

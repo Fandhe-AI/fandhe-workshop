@@ -3,6 +3,7 @@
 #
 # 確かめること: 誤用の拒否（終了コード 2）・変えていない写しの合格・設定値や文面を 1 か所ずつ壊した写しが
 # 対応する項目で不合格になること（負の対照。置き換えが写しの中でちょうど 1 回起きない場合はテスト自体を失敗にする）。
+# CI の rust-test が流す（TASK-102。#2025）。診断コード付きの変異（mutate_diag）は validate の診断コードそのものを確かめる。
 # 終了コード: 0 = 全件期待どおり / 1 = 期待と違う件がある
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -77,6 +78,16 @@ mutate() {
   if printf '%s\n' "${OUT}" | grep -q "^FAIL ${item}:"; then ok "${name}は ${item} で不合格"; else ng "${name} (no FAIL ${item} line)"; fi
 }
 
+# mutate_diag <名前> <相対パス> <sed の式> <期待する FAIL の項目> <診断コード>: mutate の確認に加え、写しの fandhe-pack validate が
+# その診断コードを出すことを確かめる（参照切れ・到達不能・行き止まり・構文誤りが別の理由で落ちていないことの固定。TASK-102）。
+mutate_diag() {
+  local name="$1" rel="$2" expr="$3" item="$4" code="$5" dir vout vrc=0
+  mutate "${name}" "${rel}" "${expr}" "${item}"
+  dir="${WORK}/m${n}"
+  vout="$("${FANDHE_PACK_BIN}" validate "${dir}" 2>&1)" || vrc=$?
+  if [ "${vrc}" -ne 0 ] && printf '%s\n' "${vout}" | grep -q ": ${code}:"; then ok "${name}の validate は ${code}"; else ng "${name} (validate exit ${vrc}, no ${code})"; fi
+}
+
 W="workshop.yaml"
 # BSD sed と GNU sed の両方で通る改行の渡し方（置換文字列の中は バックスラッシュ + 実改行）
 NL="$(printf '\nX')"; NL="${NL%X}"
@@ -129,6 +140,12 @@ mutate "誤入力の ID を改名した写し" "tests/playthrough.yaml" 's/id: w
 mutate "誤入力の期待を替えた写し" "tests/playthrough.yaml" 's/expect: "rejected:wrong_order"/expect: "rejected:not_in_this_step"/' test
 mutate "除外の場面を替えた写し" "${T}" 's/"scene": 5,/"scene": 2,/' text-checks
 mutate "R-21 の基準値を変えた写し" "tests/baseline.txt" 's/^r21.empty=0/r21.empty=1/' baseline
+
+# TASK-102: 参照切れ 0・到達不能 0・行き止まり 0 の関門が、壊した写しで診断コードつきで落ちること。
+mutate_diag "存在しない Step を指す写し" "${C}" 's/next: \[{ to: st-2 }\]/next: [{ to: st-9 }]/' validate E-REF-STEP
+mutate_diag "Step 2 を飛ばす写し" "${C}" 's/next: \[{ to: st-2 }\]/next: [{ to: st-3 }]/' validate E-UNREACHABLE
+mutate_diag "最終 Step の印を外した写し（行き止まり）" "${C}" '/^    final: true$/d' validate E-DEAD-END
+mutate_diag "構造定義の構文を壊した写し" "${W}" 's/^pack:/pack: [/' validate E-PARSE
 
 # TASK-747: 基準の IR・形式 B・学習目標・基準値。教材の中身を変える変異は ir-match も不合格にする（mutate は指定の項目の行だけを見る）。
 mutate "基準の IR の 1 か所を変えた写し" "tests/ir.json" 's/"id": "review-request"/"id": "review-requestx"/' ir-match

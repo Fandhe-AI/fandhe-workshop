@@ -153,10 +153,10 @@ test-serve: ## 配信サーバ（tools/serve.mjs）の試験（node:test）。�
 check-generic-words: ## エンジンの crate のコードに教材固有の語（付録 A）が無いことを検査する（CI 未組み込み）。直接: node tools/check-generic-words.mjs
 	@node tools/check-generic-words.mjs
 
-check-second-pack: ## 第 2 教材の骨格の設定値・Step 群と模範解答・誤答の 8 場面の規則・誤入力と文面の確認（TASK-746 2/2）・IR のバイト一致・形式 B・学習目標（TASK-747）・使った拡張点の照合と掲示板教材の写しとの比較（TASK-753）・基準値・診断の試験（CI 未組み込み。cargo が要る）。直接: scripts/check-second-pack.sh [--pack <dir>] [--board-pack <dir>] [--vocab-doc <path>]
+check-second-pack: ## 第 2 教材の骨格の設定値・Step 群と模範解答・誤答の 8 場面の規則・誤入力と文面の確認（TASK-746 2/2）・IR のバイト一致・形式 B・学習目標（TASK-747）・使った拡張点の照合と掲示板教材の写しとの比較（TASK-753）・基準値・診断の試験（CI の rust-test が流す。cargo が要る）。直接: scripts/check-second-pack.sh [--pack <dir>] [--board-pack <dir>] [--vocab-doc <path>]
 	@scripts/check-second-pack.sh
 
-test-check-second-pack: ## 上の試験自体の回帰テスト（変異を入れた写し。本物の fandhe-pack を使うためやや遅い）。直接: scripts/test-check-second-pack.sh
+test-check-second-pack: ## 上の試験自体の回帰テスト（変異を入れた写し。本物の fandhe-pack を使うためやや遅い。CI の rust-test が流す）。直接: scripts/test-check-second-pack.sh
 	@scripts/test-check-second-pack.sh
 
 check-engine-zero-diff: ## 第 2 教材の追加でエンジン（crates/・Cargo.toml・Cargo.lock）の差分が 0 行であることを、固定した commit からの行数と SHA-256 の一覧で確かめる（TASK-752。CI 未組み込み。通信・cargo なし）。直接: scripts/check-engine-zero-diff.sh [--head <rev>]
