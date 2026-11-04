@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 第 2 教材（レビューの頼み方）の骨格の設定値と診断の試験（`make check-second-pack`。CI 未組み込み。TASK-743）。
+# 第 2 教材（レビューの頼み方）の骨格の設定値と診断の試験（`make check-second-pack`。CI の rust-test が流す。TASK-743・TASK-102）。
 #
 # 目的: 第 2 教材が「エンジンの Rust を変えずに足した教材」であること（W-20）を、設定値で固定する。
 # 選択肢だけで進み（SECOND-7）、左に文書のビューだけを出し（SECOND-8）、コマンドを持たず（SECOND-9）、
@@ -13,7 +13,7 @@
 #   error-inputs-sync・text-checks・zero-counts（TASK-746 2/2）/ ir-match・format-b・learning-goals（TASK-747）/
 #   ep-used・label-field・ep-public・ep-record・board-ep-overlap・board-rejections・no-rounds・input-kinds（TASK-753。SECOND-2・SECOND-11）
 # ir-match の基準は tests/ir.json（compile の出力そのもの）。教材を変えたら fandhe-pack compile <pack> -o tests/ir.json で書き直す。
-# CI の教材テスト（TASK-102）は FANDHE_PACK_BIN を渡してこのスクリプトを呼べば足りる（cargo 不要）。
+# CI の rust-test が make check-second-pack と make test-check-second-pack を流す（TASK-102。#2025）。FANDHE_PACK_BIN を渡せばビルド済みを使う。
 # ar12-reading は AR-12 の読み（コマンドを持たない形で満たす。D-93・2026-11-02）の記録と設定値の一致を見る。
 # 読みの是非は人の決定であり、確かめるのは docs/requirements.md の行・workshop.yaml・IR の設定値が一致することだけである。
 # ar8-reading は AR-8 の読み（属性の変化を含む読み。D-93・2026-11-02）の記録と、5 行の属性の形のまま（本文を出さない側。SECOND-14 は検討中）
