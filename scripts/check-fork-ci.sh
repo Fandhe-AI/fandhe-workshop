@@ -30,6 +30,9 @@
 #     C3 ci.yml に配信のジョブ（名前に deploy を含む）を置かない
 #     C4 release.yml（実行ファイルのビルドと配布。TASK-415）は C2 と同じ規則（workflow_dispatch だけ・permissions が空・
 #        全ジョブが fork で skip）に加え、uses が許可した所有者の 40 桁 SHA 固定だけである
+#     C5 clean-room.yml（まっさらなコンテナの試験の定期・手動実行。#2040）は C4 の規則のうち on だけを、schedule と
+#        workflow_dispatch のちょうど 2 つ（workflow_dispatch は inputs 無し。schedule は cron だけ）に替える。加えて secret の
+#        参照が 0 件（check-workflow-secrets.sh --file を呼ぶ）
 #   D 教材 repo の workflow が、固定したエンジンの版（`ENGINE_REV`。C-14）でエンジンを取得する
 #     （`--pack-workflow` と `--engine-rev` を渡したときだけ動く。本 repo の CI の既定の実行には入らない）
 #     D1 ENGINE_REV が 40 桁の小文字の 16 進を 1 行だけ持つ（末尾の改行は 1 つまで）
@@ -77,6 +80,7 @@
 #   --ci <file>                  ci.yml（A5・B・C1・C3 と Y。B1 を含む）
 #   --deploy <file>              deploy.yml（C2 と Y）
 #   --release <file>             release.yml（C4 と Y）
+#   --clean-room <file>          clean-room.yml（C5 と Y。secret の参照 0 件を含む）
 #   --cargo-manifest <Cargo.toml> A1 を cargo metadata --locked で判定する
 #   --cargo-metadata-json <file> A1 を、cargo metadata の出力 JSON で判定する（回帰テストだけが使う。
 #                                オフラインでは解決できない git・別 registry の source の見本を作るため）
@@ -107,7 +111,7 @@ CRATES_REGISTRY="registry+https://github.com/rust-lang/crates.io-index"
 NPM_REGISTRY_PREFIX="https://registry.npmjs.org/"
 
 usage() {
-  echo "usage: $(basename "$0") [--ci <file>] [--deploy <file>] [--release <file>] [--cargo-manifest <Cargo.toml>] [--cargo-metadata-json <file>]" \
+  echo "usage: $(basename "$0") [--ci <file>] [--deploy <file>] [--release <file>] [--clean-room <file>] [--cargo-manifest <Cargo.toml>] [--cargo-metadata-json <file>]" \
     "[--package-lock <file>] [--npmrc <file>] [--gitmodules <file>] [--cargo-config-dir <dir>]" \
     "[--pack-workflow <file> --engine-rev <file>] [--secrets-checker <script>]" >&2
   exit 2
@@ -116,6 +120,7 @@ usage() {
 CI_FILE=""
 DEPLOY_FILE=""
 RELEASE_FILE=""
+CLEAN_ROOM_FILE=""
 CARGO_MANIFEST=""
 CARGO_META_JSON=""
 PKG_LOCK=""
@@ -132,6 +137,7 @@ while [ "$#" -gt 0 ]; do
     --ci) CI_FILE="$2" ;;
     --deploy) DEPLOY_FILE="$2" ;;
     --release) RELEASE_FILE="$2" ;;
+    --clean-room) CLEAN_ROOM_FILE="$2" ;;
     --cargo-manifest) CARGO_MANIFEST="$2" ;;
     --cargo-metadata-json) CARGO_META_JSON="$2" ;;
     --package-lock) PKG_LOCK="$2" ;;
@@ -150,6 +156,7 @@ if [ "${SELECTED}" -eq 0 ]; then
   CI_FILE="${ROOT_DIR}/.github/workflows/ci.yml"
   DEPLOY_FILE="${ROOT_DIR}/.github/workflows/deploy.yml"
   RELEASE_FILE="${ROOT_DIR}/.github/workflows/release.yml"
+  CLEAN_ROOM_FILE="${ROOT_DIR}/.github/workflows/clean-room.yml"
   CARGO_MANIFEST="${ROOT_DIR}/Cargo.toml"
   PKG_LOCK="${ROOT_DIR}/package-lock.json"
   NPMRC_FILE="${ROOT_DIR}/.npmrc"
@@ -162,7 +169,7 @@ if [ -n "${PACK_WORKFLOW}" ] && [ -z "${ENGINE_REV_FILE}" ]; then usage; fi
 if [ -z "${PACK_WORKFLOW}" ] && [ -n "${ENGINE_REV_FILE}" ]; then usage; fi
 
 # 検査を流す前に、必要な道具を確かめる（無ければ exit 2。合格にしない）
-if [ -n "${CI_FILE}" ] || [ -n "${DEPLOY_FILE}" ] || [ -n "${RELEASE_FILE}" ] || [ -n "${PACK_WORKFLOW}" ]; then require_cmd ruby || exit 2; fi
+if [ -n "${CI_FILE}" ] || [ -n "${DEPLOY_FILE}" ] || [ -n "${RELEASE_FILE}" ] || [ -n "${CLEAN_ROOM_FILE}" ] || [ -n "${PACK_WORKFLOW}" ]; then require_cmd ruby || exit 2; fi
 if [ -n "${CARGO_MANIFEST}" ] || [ -n "${CARGO_META_JSON}" ] || [ -n "${PKG_LOCK}" ]; then require_cmd jq || exit 2; fi
 if [ -n "${CARGO_MANIFEST}" ] && [ -z "${CARGO_META_JSON}" ]; then require_cmd cargo || exit 2; fi
 if [ -n "${GITMODULES_FILE}" ]; then require_cmd git || exit 2; fi
@@ -370,18 +377,44 @@ def check_ci(root, owners)
   end
 end
 
-# ---- deploy.yml（C2）・release.yml（C4）----
-# release.yml は C2 の規則に加えて、uses を許可した所有者の 40 桁 SHA 固定に限る（owners を渡したときだけ）
-def check_deploy(root, tag = "C2", owners = nil)
-  on = mget(root, "on")
-  ok =
-    case on
-    when N::Scalar then on.value == "workflow_dispatch"
-    when N::Sequence then on.children.size == 1 && str(on.children[0]) == "workflow_dispatch"
-    when N::Mapping then pairs(on).size == 1 && str(pairs(on)[0][0]) == "workflow_dispatch"
-    else false
+# ---- clean-room.yml の発火の起点（C5）----
+def check_clean_room_on(at, on, tag)
+  unless on.is_a?(N::Mapping)
+    add(at, tag, "on must be a mapping with schedule and workflow_dispatch only")
+    return
+  end
+  keys = pairs(on).map { |k, _| str(k) }
+  add(on, tag, "on must have exactly schedule and workflow_dispatch") unless keys.sort == %w[schedule workflow_dispatch]
+  pairs(on).each do |k, v|
+    case str(k)
+    when "schedule"
+      ok = v.is_a?(N::Sequence) && !v.children.empty? && v.children.all? { |e| e.is_a?(N::Mapping) && pairs(e).size == 1 && str(pairs(e)[0][0]) == "cron" && pairs(e)[0][1].is_a?(N::Scalar) }
+      add(k, tag, "schedule must be a non-empty list of cron entries only") unless ok
+    when "workflow_dispatch"
+      empty = v.nil? || (v.is_a?(N::Scalar) && (v.value.nil? || v.value.to_s.empty? || v.value == "~" || v.value == "null")) ||
+              (v.is_a?(N::Mapping) && v.children.empty?)
+      add(k, tag, "workflow_dispatch must be empty (no inputs)") unless empty
     end
-  add(on || root, tag, "on must be workflow_dispatch only") unless ok
+  end
+end
+
+# ---- deploy.yml（C2）・release.yml（C4）・clean-room.yml（C5）----
+# release.yml は C2 の規則に加えて、uses を許可した所有者の 40 桁 SHA 固定に限る（owners を渡したときだけ）
+# clean_room: true のとき、on は schedule と workflow_dispatch のちょうど 2 つ（C5）。inputs・cron 以外のキーは拒否する
+def check_deploy(root, tag = "C2", owners = nil, clean_room = false)
+  on = mget(root, "on")
+  if clean_room
+    check_clean_room_on(on || root, on, tag)
+  else
+    ok =
+      case on
+      when N::Scalar then on.value == "workflow_dispatch"
+      when N::Sequence then on.children.size == 1 && str(on.children[0]) == "workflow_dispatch"
+      when N::Mapping then pairs(on).size == 1 && str(pairs(on)[0][0]) == "workflow_dispatch"
+      else false
+      end
+    add(on || root, tag, "on must be workflow_dispatch only") unless ok
+  end
 
   perm = mget(root, "permissions")
   add(perm || root, tag, "top-level permissions must be an empty mapping") unless perm.is_a?(N::Mapping) && perm.children.empty?
@@ -578,6 +611,7 @@ when "ci" then check_ci(root, owners)
 when "pack" then check_pack(root, engine)
 when "deploy" then check_deploy(root)
 when "release" then check_deploy(root, "C4", owners)
+when "clean-room" then check_deploy(root, "C5", owners, true)
 else
   warn "error: unknown mode"
   exit 2
@@ -750,13 +784,13 @@ check_engine_rev() {
 
 # ---- B1 ----
 check_secrets() {
-  local f="$1" rc=0
+  local f="$1" tag="${2:-B1}" rc=0
   need_file "${f}"
   # 出力には式の本文が含まれ得るため、そのまま出さない
   "${SECRETS_CHECKER}" --file "${f}" >/dev/null 2>&1 || rc=$?
   case "${rc}" in
     0) ;;
-    1) report "${f}:B1 check-workflow-secrets reported secret references (run scripts/check-workflow-secrets.sh --file to see them)" ;;
+    1) report "${f}:${tag} check-workflow-secrets reported secret references (run scripts/check-workflow-secrets.sh --file to see them)" ;;
     *)
       echo "error: check-workflow-secrets could not complete (exit ${rc})" >&2
       exit 2
@@ -775,6 +809,10 @@ if [ -n "${CI_FILE}" ]; then
 fi
 [ -z "${DEPLOY_FILE}" ] || run_yaml deploy "${DEPLOY_FILE}"
 [ -z "${RELEASE_FILE}" ] || run_yaml release "${RELEASE_FILE}"
+if [ -n "${CLEAN_ROOM_FILE}" ]; then
+  check_secrets "${CLEAN_ROOM_FILE}" C5
+  run_yaml clean-room "${CLEAN_ROOM_FILE}"
+fi
 if [ -n "${PACK_WORKFLOW}" ]; then
   check_engine_rev
   run_yaml pack "${PACK_WORKFLOW}"

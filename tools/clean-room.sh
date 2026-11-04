@@ -3,7 +3,8 @@
 # あわせて、第 2 教材（template-workshop/examples/review-request/）のビルドと教材テストが同じ場所で通ることを確かめる
 # （SECOND-18・R-32。TASK-754。D-91 により第 2 教材はエンジン repo の側に置くので、ワークスペースの中で通す）。
 #
-# 呼び出し元: make clean-room（人が手で流す。遅く、docker と通信が要るため CI・フックには入れない）。
+# 呼び出し元: make clean-room（人が手で流す。遅く、docker と通信が要るため PR の CI・フックには入れない）と、
+# .github/workflows/clean-room.yml（週 1 回の定期実行と手動実行。#2040）。
 # 回帰テスト: scripts/test-clean-room.sh（make test-clean-room。docker なしで judge だけを合成のログに当てる）。
 #
 # 使い方:

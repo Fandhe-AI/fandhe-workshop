@@ -1,0 +1,65 @@
+# まっさらなコンテナの試験（make clean-room。BUILD-1・SECOND-18）を週 1 回と手動で流すワークフロー（#2040）。
+# 第三者が公開の依存だけで cargo test と第 2 教材の区間を通せることを、PR とは別の周期で確かめる。
+#
+# ci.yml に置かず別ワークフローにする理由:
+# - docker と通信が要り、所要時間も長い（2026-10-28 の手元の実測で cargo の 2 区間だけで 592 秒）。PR の必須チェックに向かない
+# - ci.yml に置くと PR で skipped として報告され、ci-complete の skipped 許容条件か ruleset に影響する。
+#   schedule・workflow_dispatch だけなら PR の HEAD にチェックは報告されず、ruleset の必須チェックは変わらない
+#
+# 発火の起点は schedule と workflow_dispatch だけにする。pull_request・pull_request_target・push を足さない
+# （fork や PR の内容が runner で動く経路になる。scripts/check-fork-ci.sh の C5 が強制する）。
+# workflow_dispatch に inputs を置かない（利用者が決められる値を run に渡す経路を作らない）。
+#
+# 注意: schedule と workflow_dispatch は、このファイルが既定ブランチにあるときだけ動く。
+# public repo では 60 日間活動が無いと schedule が自動で無効になるため、止まっていないかを時々確かめる。
+#
+# ジョブ追加・変更時は .claude/rules/github-actions.md に従う。
+name: Clean room
+
+on:
+  schedule:
+    # 日曜 18:23 UTC（月曜 03:23 JST）。毎時 0 分の混雑を避ける
+    - cron: '23 18 * * 0'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  # PR では動かないため run_id で各実行を分ける。固定の group だと待機が 1 件しか保持されず、重なった実行が置き換えられる
+  group: clean-room-${{ github.workflow }}-${{ github.run_id }}
+  # 実行が重なっても途中で止めない
+  cancel-in-progress: false
+
+jobs:
+  clean-room:
+    # fork では動かさない。値はリポジトリ名の固定の比較にする（scripts/check-fork-ci.sh の C5 が完全一致で検査する）
+    if: github.repository == 'Fandhe-AI/fandhe-workshop'
+    # ruleset の必須チェックには登録しない（PR に報告されないため）
+    name: "clean-room (fresh container: cargo test + second pack)"
+    runs-on: ubuntu-latest
+    # 手元の実測は cargo の 2 区間で 592 秒。冷えた runner でのイメージの取得と pack の区間を見込む。初回の実測で見直す
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # ホストに要るのは git・docker・awk・grep・sed・sha256sum だけ（ubuntu-latest にある）。clean-room.sh は cargo を呼ばないので
+      # ホストに Rust を入れない。ログの置き場を TMPDIR で runner の一時領域に寄せ、artifact の対象を予測できる場所にする
+      - name: make clean-room
+        run: TMPDIR="${RUNNER_TEMP}" make clean-room
+      # ログは試験の出力だけ（コンテナには secret らしい環境変数が無いことを clean-room.sh が検査する）。
+      # public repo の artifact はログインした利用者が取得できる。source.tar は入れない
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: clean-room-logs
+          path: |
+            ${{ runner.temp }}/fandhe-clean-room.*/run.log
+            ${{ runner.temp }}/fandhe-clean-room.*/meta.txt
+            ${{ runner.temp }}/fandhe-clean-room.*/default.log
+            ${{ runner.temp }}/fandhe-clean-room.*/workspace.log
+            ${{ runner.temp }}/fandhe-clean-room.*/pack.log
+          if-no-files-found: warn
+          retention-days: 14
