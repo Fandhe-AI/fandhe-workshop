@@ -176,7 +176,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-second-pack-repro` | 上の検査自体の回帰テスト（変異を入れた写し。やや遅い） |
 | `make check-third-pack` | 3 本目の教材（`template-workshop/examples/task-breakdown/`）の validate の診断 0 件・test の全件合格・R-22／R-21 の 0 の検査（`scripts/check-third-pack.sh`。TASK-797・D-98。CI の `rust-test` が流す。cargo が要る。記録は `docs/testing.md` 5.460） |
 | `make test-check-third-pack` | 上の検査自体の回帰テスト（壊した写し 6 通り。CI の `rust-test` が流す） |
-| `make check-engine-zero-diff` | 第 2・第 3 教材の追加でエンジン（`crates/`・`Cargo.toml`・`Cargo.lock`）の差分が 0 行であることを、`docs/engine-zero-diff/*/record.txt`（`base`・`head`・`pack`）の再現で確かめる（`scripts/check-engine-zero-diff.sh`。既定の head は記録の測った HEAD。`--head <rev>` でいまの rev を測る。`--record <dir>` で 1 件に絞る。README の表との食い違いは `record-readme` が FAIL。cargo・通信なし。CI 未組み込み。記録は `docs/engine-zero-diff/review-request/`・`task-breakdown/`、`docs/testing.md` 5.450・5.459・5.466。TASK-752・#2038） |
+| `make check-engine-zero-diff` | 第 2・第 3 教材の追加でエンジン（`crates/`・`Cargo.toml`・`Cargo.lock`）の差分が 0 行であることを、`docs/engine-zero-diff/*/record.txt`（`base`・`head`・`pack`）の再現で確かめる（`scripts/check-engine-zero-diff.sh`。既定の head は記録の測った HEAD。`--head <rev>` でいまの rev を測る。`--record <dir>` で 1 件に絞る。README の表との食い違いは `record-readme` が FAIL。cargo・通信なし。CI 未組み込み。記録は `docs/engine-zero-diff/review-request/`・`task-breakdown/`、`docs/testing.md` 5.450・5.459・5.467。TASK-752・#2038） |
 | `make test-check-engine-zero-diff` | 上の検査自体の回帰テスト（見本の repo。CI の `check` ジョブが流す） |
 | `make check-internal-info WORDS=<一覧のパス>` | 社内固有の語（private の spec repo の一覧。`tools/check-internal-info.mjs`）と認証情報の形の公開前の照合（CI 未組み込み。語の一覧は本 repo に置かない。記録は `docs/publish-checks.md`） |
 | `make check-internal-info-secrets` | 認証情報の形だけの照合（語の照合は行わない。CI 未組み込み） |
