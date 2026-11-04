@@ -2551,7 +2551,7 @@ TASK-471 の残りの 2 つを足した。検査器（5.77）が差を見つけ�
 - 例外は 2 種類で、理由をスクリプトに書いた。字句の完全一致の許可は `thread_local`（Rust 標準のマクロ）と `SlashCount`（区切り文字 `/` の個数）。件数を固定した例外は `crates/core/src/command_class.rs` の `skill` が 3 件（コマンドの種類 `skill` と付録 A の `skill` の実際の衝突。増減すると失敗する）と、`crates/core/src/secret_scan.rs` の `github` が 5 件・`gh` が 2 件（秘密情報の形の ID・名前・接頭辞が付録 A の語に当たる。ID は spec の試験データ `secret-shapes.json` の `expect` と同じ値にする必要がある。TASK-164 1/3。5.177）と、`crates/pack/src/preview_serve.rs` の `thread` が 3 件（プレビューの配信が使う Rust 標準の `std::thread`。`ALLOW_TOKENS` に足すと全ファイルで語の一致が効かなくなるため件数を固定した。#2022）
 - 回帰テスト（`make test-check-generic-words`）は、実 repo で 0、語を足した写しで 1、`.rs` のコメント・`tests/` の語は 0、static のコメントの語は 1、Codex が指摘した読み違いの例（上記）がすべて 1、例外の件数の増減で 1、判定できない入力で 2 を確かめる
 
-CI・`make check`・lefthook には組み込んでいない。失敗したら止めるガードを足すことは、仕様が人間の承認点に挙げている変更だからである。組み込むときは `ci.yml` の変更と、ruleset の必須チェックの更新が要る。
+`make check`・lefthook には組み込んでいない。CI には、#2034 で `browser-test` ジョブの step として足した（既存ジョブへの step の追加なので ruleset の必須チェックは変わらない。記録は 5.464）。
 
 実行結果（2026-10-17）。`make test-browser` は 314 件中 312 件が通過し、2 件（`ime-input` の「送信の直後に変換が始まっても…」。CSP あり・なし）が 30 秒のタイムアウトで失敗した。本変更と無関係な試験で、個別に流し直すと 23 件すべてが通過した（負荷による揺れと見られる。原因は未調査）。新しい試験（N1〜N3b の 12 件と、検査器の自己確認 T1〜T4）は通過した。`make test-check-generic-words`（17 件。Codex の指摘の修正後は 42 件で再実行し、通過した）・`make check-generic-words`・`make check`・`make lint`・`make test`・`make check-deps`・`make check-dom-reads` も通過した。`make check-delivery` は流していない（未検証）。
 
@@ -12163,7 +12163,7 @@ IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1
 
 日付: 2026-11-03。5.449（TASK-413 1/2）の続きである。作者が `compile` した IR と、写しを再 `compile` した IR のバイト一致を検査の項目 `ir-match` にし、作者が書けなかった箇所を `docs/known-gaps.md` に ID つきで記録した。
 
-**方針**: 作者の写し（`docs/second-pack-repro/pack/**`・`tests/ir.json`・`brief.md`・`public.sha256`・`baseline.txt`）は凍結する。製品の検査（`check-second-pack.sh`）は教材を変えたら `tests/ir.json` を書き直すが、ここでは基準が作者の出力そのものなので書き直さない。エンジンの変更で一致が崩れたら、写しを作り直さず所見として記録する。`public.sha256` は作者に渡した時点の資料の値で、本件で `known-gaps.md` を変えたため、今の資料とは合わない（想定内）。
+**方針**: 作者の写し（`docs/second-pack-repro/pack/**`・`tests/ir.json`・`brief.md`・`public.sha256`・`baseline.txt`）は凍結する。製品の検査（`check-second-pack.sh`）は教材を変えたら `tests/ir.json` を書き直すが、ここでは基準が作者の出力そのものなので書き直さない。エンジンの変更で一致が崩れたら、写しを作り直さず所見として記録する（#2034 で CI の関門にしたため、この扱いは 5.464 で改めた。本文は凍結のまま、`tests/ir.json` と `baseline.txt` の IR 由来の値だけを、崩した PR で書き直す）。`public.sha256` は作者に渡した時点の資料の値で、本件で `known-gaps.md` を変えたため、今の資料とは合わない（想定内）。
 
 **条件**: 実行ファイルは base cddeca51 の `scripts/build-pack-bin.sh` の出力（SHA-256 は `70f33e39bd8498dec6ad12cb6e7090b7792485d4c188f1d8771e1d507f1b4241`）。
 
@@ -12642,4 +12642,27 @@ CI は既存ジョブ `rust-test` に step `make check-second-pack (TASK-102)` �
 新しい関門: `ir-match`・`baseline`（`ir.bytes`）が CI に入るため、`compile` の出力を変えるエンジンの PR は `rust-test` で落ちる。意図した関門である。直すときは
 `fandhe-pack compile template-workshop/examples/review-request -o template-workshop/examples/review-request/tests/ir.json` で基準の IR を書き直し、`tests/baseline.txt` の該当値を更新する。
 
-限界: `asserts` は `test` で判定しない（AUTHOR-4）。`check-second-pack-repro`・`check-engine-zero-diff` は CI 未組み込み。
+限界: `asserts` は `test` で判定しない（AUTHOR-4）。`check-engine-zero-diff` は CI 未組み込み（`check-second-pack-repro` は 5.464 で CI に入れた）。
+
+### 5.464 教材固有の語の検査と第 2 教材の写しの検査の CI（#2034）
+
+目的: 手元でだけ流していた 2 つの検査を CI の関門にする。外れたら CI が落ちる。#2031 で `check-generic-words` の既存の違反が 0 件になり、#2032 で `check-second-pack` が CI に入ったので、残りを足せる状態になった。
+
+足した step（どちらも既存ジョブへの追加。ジョブの集合・名前・`ci-complete` の `needs`・ruleset の必須チェックは変わらない）:
+
+| ジョブ | step | 置き場の理由 |
+|---|---|---|
+| `browser-test` | `make check-generic-words (W-22)`（`make check-generic-words` と `make test-check-generic-words`） | node だけで動く。node の版を固定して導入しているのはこのジョブの `Setup Node.js` だけ。`npm ci` の前に置き、違反を早く知らせる |
+| `rust-test` | `make check-second-pack-repro (TASK-413)`（`make check-second-pack-repro` と `make test-check-second-pack-repro`） | cargo が要る。`make test` の直後で `fandhe-pack` はビルド済み（`build-pack-bin.sh` が解決する） |
+
+どちらも secret・通信・submodule を使わず、fork でも通る。入れないもの: `check-engine-zero-diff`（測った HEAD に固定した記録のため）、`clean-room`（docker と通信が要るため）。
+
+手元の所要時間（2026-11-04、Linux、debug ビルド）: `check-generic-words` 約 0.3 秒（違反 0・210 ファイル）、`test-check-generic-words` 約 5.5 秒、`check-second-pack-repro` 約 0.2 秒（5 項目 PASS）、`test-check-second-pack-repro` 約 1.6 秒。5.463 の「約 20 分を超えたら外す」目安に影響しない。
+
+凍結の方針の改訂: 5.451 は「写しは凍結し、一致が崩れても書き直さない」としていた。CI の関門にすると、`compile` の出力を変えるエンジンの PR が `rust-test` で落ち、緑に戻す手順が無くなる。そこで、教材の本文（`pack/**` の YAML・`brief.md`・`public.sha256`）は凍結のままとし、`ir-match`（と `baseline.txt` の IR 由来の値）が崩れたら、その PR で次を行う。
+`fandhe-pack compile docs/second-pack-repro/pack -o docs/second-pack-repro/pack/tests/ir.json` で基準を書き直し、`baseline.txt` の該当値を更新し、ずれを日付つきの所見としてこの節に追記する。
+作者の出力そのものの記録は 5.451 の値（41,733 bytes）で、本節の時点（2026-11-04）の `tests/ir.json` は 41,733 bytes・SHA-256 `bbeb3e132a66459f21503c62643f90be1c8c5577573bd4067d83af832c392b2d` で、書き直しは行っていない。
+
+CI 上の実測: 未記入。PR の run で `.claude/rules/github-actions.md` の表とあわせて埋める。マージ後の `main` の run での再確認も残る。
+
+限界: `check-engine-zero-diff`・`clean-room` は CI 未組み込みのまま。

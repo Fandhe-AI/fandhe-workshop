@@ -28,7 +28,7 @@
 // 字句が閉じない・static が UTF-8 でない等。合格にしない）。static の復号は全域の関数で、正当な JS・HTML・CSS では 2 にならない。
 // 使い方: node tools/check-generic-words.mjs [--root <dir>]（--root は回帰テスト用。既定はこのファイルの親の親）。
 // 回帰テスト: tools/check-generic-words.test.mjs（scripts/test-check-generic-words.sh）。
-// CI・make check・lefthook には組み込まない（失敗したら止めるガードにする変更は人間の承認点。docs/testing.md）。
+// CI の browser-test ジョブが回帰テストとともに流す（#2034）。make check・lefthook には組み込まない（docs/testing.md 5.464）。
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

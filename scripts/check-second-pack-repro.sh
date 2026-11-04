@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # 別の作者が公開の資料だけで書いた第 2 教材の写し（docs/second-pack-repro/pack）の再現検査（`make check-second-pack-repro`。
-# CI 未組み込み。TASK-413 1/2。AUTHOR-12）。
+# CI の rust-test ジョブが test-check-second-pack-repro とともに流す（#2034）。TASK-413 1/2。AUTHOR-12）。
 #
 # 目的: エンジンのソースを見ない作者が、公開の資料と fandhe-pack だけで第 2 教材を書き、validate・test を通せたことの
 # 記録（docs/testing.md 5.449）を、写しに対して再実行できるようにする。製品の第 2 教材の検査
 # （scripts/check-second-pack.sh）とは別の教材を見るため、ID・件数は共有しない。Rust・Cargo.* には触れない（W-20）。
-# 分担: IR のバイト一致（ir-match。TASK-413 2/2）は作者が compile した tests/ir.json を基準にする。作者の写し
-# （pack/** と tests/ir.json）は凍結し、一致が崩れたら compile で書き直さず所見として記録する（製品の検査とは逆）。
+# 分担: IR のバイト一致（ir-match。TASK-413 2/2）は作者が compile した tests/ir.json を基準にする。教材の本文
+# （pack/** の YAML・brief.md・public.sha256）は凍結し、直さない。CI の関門にしたため（#2034）、エンジンの変更で
+# ir-match や baseline の IR 由来の値が崩れたら、その PR で compile し直した tests/ir.json と baseline.txt に更新し、
+# ずれを日付つきの所見として docs/testing.md 5.464 に記録する。
 # 不足の記録は docs/known-gaps.md が持つ。
 #
 # 項目（1 項目 1 行。PASS <名前> / FAIL <名前>: <理由>）
