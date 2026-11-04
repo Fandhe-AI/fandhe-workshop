@@ -159,8 +159,8 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
   各ジョブの実処理は 5〜15 秒で、復元にかかる時間の方が長くなり得る。足す前後でジョブログの復元秒数・依存の
   ダウンロード件数・再ビルド数を比べ、効果を確かめてから入れる
 - self-hosted runner ではツールチェーンや pnpm store・`CARGO_TARGET_DIR` 等がジョブをまたいで残り、キャッシュが
-  無意味になることがある（他リポの実例: mirror-ui は pnpm キャッシュの復元に 1 ジョブ平均 75 秒かけていたが
-  `downloaded 0` で効果ゼロだったため撤去。team-hub は `Swatinem/rust-cache` が `./target` を保存対象にしていたが
+  無意味になることがある（他リポの実例: ある Node の repo は pnpm キャッシュの復元に 1 ジョブ平均 75 秒かけていたが
+  `downloaded 0` で効果ゼロだったため撤去。ある Rust の repo は `Swatinem/rust-cache` が `./target` を保存対象にしていたが
   runner の `CARGO_TARGET_DIR` が別の場所で registry しか保存されておらず、後処理が共有 `CARGO_HOME` の crate を
   消していたため撤去）。runner の種類を変えるときも測り直す
 
