@@ -183,7 +183,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 1. `mktemp -d` の一時ディレクトリに `Cargo.toml`・`Cargo.lock`・`rust-toolchain.toml`・`crates/` を写す（`testdata/` があれば、試験の入力として併せて写す）
 2. 元の状態（変異なし）で、対象の試験が通り、`expect-fail` の名前の試験が実行されていることを確かめる
 3. 変異ごとに写しをやり直し、1 か所を置換して `cargo test --locked` を流す
-4. `expect-fail` の試験がすべて失敗していれば DETECTED、1 つでも通っていれば SURVIVED とする
+4. `expect-fail` の試験がすべて失敗していれば DETECTED、1 つでも通っていれば SURVIVED とする。`expect: compile-fail` の変異は試験を流さず、写しのコンパイル（`cargo test --no-run`）が `expect-compile-error` の文字列を含んで失敗すれば DETECTED、コンパイルが通れば SURVIVED とする
 5. 記録の表を標準出力に出す。進行のログは標準エラー出力に出す
 
 - 作業ツリーは書き換えない（`coding-rust.md` が、試験で作業ツリーを書き換えることを禁じている）。中断しても壊れたソースが残らず、並列の worktree でも干渉しない
@@ -213,10 +213,13 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 | `find` | 必須 | `target` にちょうど 1 回現れる 1 行の文字列。0 回・2 回以上は定義の不正 |
 | `replace` | 必須 | 置き換え後の文字列（1 行） |
 | `features` | 任意 | 試験に付ける cargo の feature（`^[a-z0-9-]+$`、1 つ）。`test-hooks` の背後にある試験が対象のときに使う（TASK-221 2/2） |
-| `expect-fail` | 必須・複数可 | 失敗すべき試験関数名（完全一致）。1 行に 1 つ |
+| `expect` | 任意 | 値は `compile-fail` だけ。付けると「期待する診断を含むコンパイルの失敗」だけを検出に数える種類になる（#2046）。省略時は既定の種類（試験の失敗で検出） |
+| `expect-compile-error` | `expect: compile-fail` のとき必須 | コンパイルの出力に含まれるべき固定文字列（1 行。`grep -F` の部分一致）。`expect` が無いときは禁止 |
+| `expect-fail` | 既定の種類で必須・複数可（`expect: compile-fail` では禁止） | 失敗すべき試験関数名（完全一致）。1 行に 1 つ |
 | `note` | 任意 | 何を壊したかの説明 |
 
 - 未知のキー・重複した単一キー・必須キーの欠落・空の値は、終了コード 2 で止める
+- `expect: compile-fail` の定義は、`expect-fail` を持たない。静的検査（`check-mutation-defs.sh`）は名前の照合を飛ばし、`find` の一意性と試験ターゲットの実在だけを確かめる。元の状態の出力が `expect-compile-error` の文字列を含む定義は、動的な検査が 2 で止める（後の一致が何も証明しないため）
 - 1 件の変異は 1 か所の書き換えに限る。複数行・複数か所の変異が要る場合は、後続タスクで形式を拡張する（拡張点: `find` / `replace` を組で複数持てるようにする）
 - サンプルは `crates/core/tests/property_sample.rs` の見本を対象にする。エンジンの試験では `crates/core/src/**` などの実装を対象にする
 - ID の正は `crates/<crate>/tests/mutations/<ID>.mutation` の定義そのものである。どのタスクがどの ID を足したかは、第 5 節の各小見出しと記録の表の ID 列に残る
@@ -234,15 +237,17 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 3. `make check` で静的検査（`find` の一意性・名前の実在）を通し、`make check-mutations` で DETECTED になることを確かめる
 4. 出力された記録の表を、第 5 節の該当の見出しへ貼る（手で作らない）
 
+コンパイルを止めることで固定する表明（`const _` の表明など）は、`expect: compile-fail` と `expect-compile-error` で定義する。文字列は、実際に流したコンパイルの出力から写して確かめる。`target` のソースにそのまま現れない文字列（評価された panic の文など）を選ぶ。コードの抜粋に一致する文字列だと、無関係なコンパイルの失敗を検出と数えてしまう。この選び方は文書の規則で、機械では検査しない。
+
 ### 3.4 終了コードと対処
 
 | 終了コード | 意味 | 対処 |
 |---|---|---|
 | 0 | 全件が検出された | なし |
 | 1 | 検出されない変異がある（SURVIVED） | 試験が不足している。試験を足すか、`expect-fail` が事実と合っているかを確かめる |
-| 2 | 誤用・定義の不正・元の状態の失敗・コンパイルできない変異 | 標準エラー出力の `error:` に従って直す。2 は合格ではない |
+| 2 | 誤用・定義の不正・元の状態の失敗・既定の種類でコンパイルできない変異・`compile-fail` で期待する文字列を含まないコンパイルの失敗 | 標準エラー出力の `error:` に従って直す。2 は合格ではない |
 
-- コンパイルできない変異は、検出に数えない。試験が失敗したのではなく、ビルドが失敗しただけだからである
+- コンパイルできない変異は、既定の種類では検出に数えない。試験が失敗したのではなく、ビルドが失敗しただけだからである。`expect: compile-fail` の変異は、期待する文字列を含む失敗だけを検出に数える。文字列を含まない失敗は 2、コンパイルが通ってしまえば SURVIVED（1）である
 - `expect-fail` の名前が元の状態の出力に無いと、0 件が実行されて通ったように見える。これも終了コード 2 にする
 
 ### 3.5 所要時間と実行の場所
@@ -263,8 +268,8 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 |---|---|
 | ID | 変異の ID |
 | 対象 | `target` と、壊した内容（`note`） |
-| 期待した失敗 | `expect-fail` の試験名 |
-| 実際に失敗した試験 | 変異を入れて実際に失敗した試験名 |
+| 期待した失敗 | `expect-fail` の試験名。`compile-fail` の変異は `compile-fail: <expect-compile-error>` |
+| 実際に失敗した試験 | 変異を入れて実際に失敗した試験名。`compile-fail` の変異は、文字列つきで失敗したら `compile error`、コンパイルが通れば `-` |
 | 結果 | `DETECTED` または `SURVIVED` |
 | 性質テストの種・ケース数・最小の反例 | 性質テストが失敗した場合の `cases=`・`seed=`・`minimal input:`。無ければ `-` |
 
@@ -12738,7 +12743,7 @@ CI 上の実測: 未記入。PR の run の browser-test の秒数と集計の s
 
 試験: 新しい `#[test]` は足さない（試験の件数の期待値は不変）。値そのものは既存の `束縛点の名前の表と順` が引き続き固定する。
 
-変異の定義を足さない理由: `scripts/check-mutations.sh` は、コンパイルできない写しを検出ではなく誤りとして止めるため。compile-fail を数える拡張は本件の範囲外。
+変異の定義を足さない理由（当時）: `scripts/check-mutations.sh` は、コンパイルできない写しを検出ではなく誤りとして止めるため。compile-fail を数える拡張は本件の範囲外とした。5.468 で `ART5-4` として固定した。
 
 手元の対照（2026-11-04。いずれも元に戻した）:
 
@@ -12761,3 +12766,20 @@ IR の同一: web だけの変更で、`compile` の出力は変わらない。
 - 実測（2026-11-04、main `b9f32e7e` を基にしたブランチ）: `make check-engine-zero-diff` は 0（`result: 2 record(s) reproduced`）。`--head HEAD` は 1
 
 限界: CI 未組み込みのまま（浅い checkout で base が取れない）。既定の実行では `worktree-clean` が SKIP になる。
+
+### 5.468 コンパイルできない変異を、期待する診断つきで検出として数える（#2046。5.466 の続き）
+
+目的: `const _` の表明のように「崩すとビルドが止まる」固定を、変異注入で固定する。従来は写しがコンパイルできないと定義の誤りとして 2 で止めていた。
+
+変更: 定義に任意の `expect: compile-fail` と `expect-compile-error` を足した（3.2 節）。この種類は、`--no-run` が失敗し、出力が文字列を含むときだけ DETECTED とする。コンパイルが通れば SURVIVED、文字列を含まない失敗は 2。元の状態の出力が文字列を含む場合も 2。既定の種類の動作は変えない。静的検査は名前の照合を飛ばす。`ART5-4`（`ViewKind::CardList` の `list_field` の綴りを `"view_card_lizt"` にずらす）を足した。
+
+回帰テスト（2026-11-04）: `make test-check-mutations` の偽の cargo の部分は 34 件 pass（従来 21 件。compile-fail の検出・生存・無関係な失敗・元の状態の出力・形式の拒否 6 通り・既定の種類で文字列が一致しても 2 のままであることを追加）。`make test-check-mutation-defs` は 28 件 pass。実物の cargo による全定義の実行（約 2 時間）は、この変更では流していない（未検証）。
+
+実物の cargo の実行（2026-11-04、`scripts/check-mutations.sh crates/web/tests/mutations/ART5-4.mutation crates/web/tests/mutations/ART5-1.mutation`。元にしたコミット `9fcd3589`）:
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| ART5-4 | crates/web/src/artifact_view.rs: list_field の直書きを語彙の綴りからずらす（const の表明でコンパイルが止まる。#2039） | compile-fail: ViewKind::list_field must equal "view_" + as_str() | compile error | DETECTED | - |
+| ART5-1 | crates/web/src/artifact_view.rs: 選ばれていないビューに hidden を付けない（ART-12。隠すべきビューが見えたままになる） | 親の属性の表, view_list_の選択と件数 | view_list_の選択と件数, 親の属性の表 | DETECTED | - |
+
+限界: 文字列の一致は部分一致で、`target` のソースに現れる文字列だと無関係な失敗を検出と数えうる（3.3 節の規則で避ける。機械では検査しない）。`make check-mutations` の CI への組み込みは範囲外。

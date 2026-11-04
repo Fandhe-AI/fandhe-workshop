@@ -8,13 +8,17 @@
 #
 # 1 回の実行の流れ:
 #   1. 元の状態（変異なし）で対象の試験が通り、expect-fail の名前が実行されていることを確かめる
+#      （expect: compile-fail の定義は、代わりに元の出力が expect-compile-error の文字列を含まないことを確かめる）
 #   2. 変異ごとに写しをやり直して置換を当て、試験を流す。expect-fail がすべて失敗すれば DETECTED、欠ければ SURVIVED
+#      （expect: compile-fail の定義は試験を流さず、コンパイルが expect-compile-error を含んで失敗すれば DETECTED、
+#      コンパイルが通れば SURVIVED）
 #   3. 記録の表（Markdown）を標準出力に出す。進行のログは標準エラー出力に出す
 #
 # 使い方: scripts/check-mutations.sh [definition-file ...]
 #   引数が無ければ crates/*/tests/mutations/*.mutation の全件を対象にする。
 # 終了コード: 0 = 全件が検出された / 1 = 検出されない変異がある（SURVIVED）/
-#   2 = 誤用、定義の不正、元の状態の失敗、コンパイルできない変異（2 でも合格にしない。fail-closed）。
+#   2 = 誤用、定義の不正、元の状態の失敗、既定の種類でコンパイルできない変異、
+#   compile-fail で期待する文字列を含まないコンパイルの失敗（どれも合格にしない。fail-closed）。
 # 回帰テストは scripts/test-check-mutations.sh。CI には含めない（遅い。組み込みは TASK-33・TASK-83）。
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -159,42 +163,71 @@ for def in "${DEFS[@]}"; do
     tail -n 30 "${OUT}" >&2
     die "${M_ID}: the test fails without the mutation (package=${M_PACKAGE} test=${M_TEST})"
   fi
-  for name in "${M_EXPECT[@]}"; do
-    grep -Fxq "test ${name} ... ok" "${OUT}" ||
-      die "${M_ID}: expected test did not run and pass in the unmodified state: ${name}"
-  done
+  if [ "${M_KIND}" = "compile-fail" ]; then
+    # 元の出力に文字列が出ていると、置換後の一致が変異の証明にならない。
+    if grep -Fq -- "${M_COMPILE_ERROR}" "${OUT}"; then
+      die "${M_ID}: the expected compile error already appears in the unmodified state"
+    fi
+  else
+    for name in "${M_EXPECT[@]}"; do
+      grep -Fxq "test ${name} ... ok" "${OUT}" ||
+        die "${M_ID}: expected test did not run and pass in the unmodified state: ${name}"
+    done
+  fi
 
   # 置換を当てる。
   fresh_work
   replace_once "${WORK}/${M_TARGET}" "${M_FIND}" "${M_REPLACE}" "${WORK}/${M_TARGET}.mutated"
   mv "${WORK}/${M_TARGET}.mutated" "${WORK}/${M_TARGET}"
 
-  # コンパイルできない変異は、検出に数えない。
+  # 既定の種類でコンパイルできない変異は、検出に数えない。compile-fail は期待する診断つきの失敗だけを検出に数える。
   log "${M_ID}: compiling the mutated copy"
+  compiled=1
   if ! (cd "${WORK}" && cargo test --locked -p "${M_PACKAGE}" --test "${M_TEST}" ${M_FEATURES:+--features "${M_FEATURES}"} --no-run) >"${OUT}" 2>&1; then
-    tail -n 30 "${OUT}" >&2
-    die "${M_ID}: the mutated copy does not compile"
+    compiled=0
   fi
 
-  log "${M_ID}: running the test with the mutation"
-  run_test "${M_PACKAGE}" "${M_TEST}" || true
-
   failed=()
-  while IFS= read -r name; do
-    failed+=("${name}")
-  done < <(sed -n 's/^test \(.*\) \.\.\. FAILED$/\1/p' "${OUT}")
-
-  missing=0
-  for name in "${M_EXPECT[@]}"; do
-    found=0
-    if [ "${#failed[@]}" -gt 0 ]; then
-      for f in "${failed[@]}"; do
-        if [ "${f}" = "${name}" ]; then found=1; fi
-      done
+  expect_text=""
+  if [ "${M_KIND}" = "compile-fail" ]; then
+    expect_text="compile-fail: ${M_COMPILE_ERROR}"
+    if [ "${compiled}" -eq 1 ]; then
+      result="SURVIVED"
+      survived=1
+    else
+      if ! grep -Fq -- "${M_COMPILE_ERROR}" "${OUT}"; then
+        tail -n 30 "${OUT}" >&2
+        die "${M_ID}: the mutated copy fails to compile without the expected error: ${M_COMPILE_ERROR}"
+      fi
+      result="DETECTED"
+      failed+=("compile error")
     fi
-    [ "${found}" -eq 1 ] || missing=1
-  done
-  if [ "${missing}" -eq 0 ]; then result="DETECTED"; else result="SURVIVED"; survived=1; fi
+  else
+    if [ "${compiled}" -eq 0 ]; then
+      tail -n 30 "${OUT}" >&2
+      die "${M_ID}: the mutated copy does not compile"
+    fi
+
+    log "${M_ID}: running the test with the mutation"
+    run_test "${M_PACKAGE}" "${M_TEST}" || true
+
+    while IFS= read -r name; do
+      failed+=("${name}")
+    done < <(sed -n 's/^test \(.*\) \.\.\. FAILED$/\1/p' "${OUT}")
+
+    missing=0
+    for name in "${M_EXPECT[@]}"; do
+      found=0
+      if [ "${#failed[@]}" -gt 0 ]; then
+        for f in "${failed[@]}"; do
+          if [ "${f}" = "${name}" ]; then found=1; fi
+        done
+      fi
+      [ "${found}" -eq 1 ] || missing=1
+    done
+    if [ "${missing}" -eq 0 ]; then result="DETECTED"; else result="SURVIVED"; survived=1; fi
+    expect_text="$(join_by_comma "${M_EXPECT[@]}")"
+  fi
 
   # 性質テストが失敗した場合は、種・ケース数・最小の反例を控える。
   prop="-"
@@ -206,7 +239,7 @@ for def in "${DEFS[@]}"; do
   note_text="${M_TARGET}"
   if [ -n "${M_NOTE}" ]; then note_text="${M_TARGET}: ${M_NOTE}"; fi
   printf '| %s | %s | %s | %s | %s | %s |\n' \
-    "${M_ID}" "$(md_escape "${note_text}")" "$(md_escape "$(join_by_comma "${M_EXPECT[@]}")")" \
+    "${M_ID}" "$(md_escape "${note_text}")" "$(md_escape "${expect_text}")" \
     "$(md_escape "${failed_text}")" "${result}" "$(md_escape "${prop}")" >>"${ROWS_FILE}"
   log "${M_ID}: ${result}"
 done

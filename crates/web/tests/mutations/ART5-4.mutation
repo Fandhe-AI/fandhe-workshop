@@ -1,0 +1,9 @@
+id: ART5-4
+package: fandhe-workshop-web
+test: artifact_view_binding_contract
+target: crates/web/src/artifact_view.rs
+find:             ViewKind::CardList => "view_card_list",
+replace:             ViewKind::CardList => "view_card_lizt",
+expect: compile-fail
+expect-compile-error: ViewKind::list_field must equal "view_" + as_str()
+note: list_field の直書きを語彙の綴りからずらす（const の表明でコンパイルが止まる。#2039）

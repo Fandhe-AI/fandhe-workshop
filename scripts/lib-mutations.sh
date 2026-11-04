@@ -15,6 +15,8 @@ die() {
 
 # 1 件分の定義を保持する変数。parse_def が埋める。
 M_ID="" M_PACKAGE="" M_TEST="" M_TARGET="" M_FIND="" M_REPLACE="" M_NOTE="" M_FEATURES=""
+# M_KIND は "" か compile-fail。compile-fail は「期待する診断を含むコンパイルの失敗」だけを検出に数える種類。
+M_KIND="" M_COMPILE_ERROR=""
 M_EXPECT=()
 
 # parse_def <file>: 定義を読み、形式を検査する。不正なら終了コード 2。
@@ -23,6 +25,7 @@ parse_def() {
   local file="$1" line key value
   local seen_id=0 seen_package=0 seen_test=0 seen_target=0 seen_find=0 seen_replace=0 seen_note=0
   M_ID="" M_PACKAGE="" M_TEST="" M_TARGET="" M_FIND="" M_REPLACE="" M_NOTE="" M_FEATURES=""
+  M_KIND="" M_COMPILE_ERROR=""
   M_EXPECT=()
   while IFS= read -r line || [ -n "${line}" ]; do
     [ -z "${line}" ] && continue
@@ -42,6 +45,12 @@ parse_def() {
       replace) [ "${seen_replace}" -eq 0 ] || die "${file}: duplicate key: replace"; seen_replace=1; M_REPLACE="${value}" ;;
       note) [ "${seen_note}" -eq 0 ] || die "${file}: duplicate key: note"; seen_note=1; M_NOTE="${value}" ;;
       features) [ -z "${M_FEATURES}" ] || die "${file}: duplicate key: features"; M_FEATURES="${value}" ;;
+      expect)
+        [ -z "${M_KIND}" ] || die "${file}: duplicate key: expect"
+        [ "${value}" = "compile-fail" ] || die "${file}: invalid expect: ${value}"
+        M_KIND="${value}"
+        ;;
+      expect-compile-error) [ -z "${M_COMPILE_ERROR}" ] || die "${file}: duplicate key: expect-compile-error"; M_COMPILE_ERROR="${value}" ;;
       expect-fail) M_EXPECT+=("${value}") ;;
       *) die "${file}: unknown key: ${key}" ;;
     esac
@@ -52,7 +61,14 @@ parse_def() {
   [ "${seen_target}" -eq 1 ] || die "${file}: missing key: target"
   [ "${seen_find}" -eq 1 ] || die "${file}: missing key: find"
   [ "${seen_replace}" -eq 1 ] || die "${file}: missing key: replace"
-  [ "${#M_EXPECT[@]}" -gt 0 ] || die "${file}: missing key: expect-fail"
+  # expect: compile-fail は expect-fail の代わりに expect-compile-error を取る。組み合わせの誤りは fail-closed で止める。
+  if [ "${M_KIND}" = "compile-fail" ]; then
+    [ -n "${M_COMPILE_ERROR}" ] || die "${file}: missing key: expect-compile-error"
+    [ "${#M_EXPECT[@]}" -eq 0 ] || die "${file}: expect-fail is not allowed with expect: compile-fail"
+  else
+    [ -z "${M_COMPILE_ERROR}" ] || die "${file}: expect-compile-error requires expect: compile-fail"
+    [ "${#M_EXPECT[@]}" -gt 0 ] || die "${file}: missing key: expect-fail"
+  fi
   # package・test は cargo の引数に渡すため、使える文字を絞る。
   printf '%s\n' "${M_PACKAGE}" | grep -Eq '^[a-z0-9-]+$' || die "${file}: invalid package: ${M_PACKAGE}"
   printf '%s\n' "${M_TEST}" | grep -Eq '^[a-z0-9_]+$' || die "${file}: invalid test: ${M_TEST}"
