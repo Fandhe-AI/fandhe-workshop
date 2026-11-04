@@ -38,13 +38,16 @@ const COMMAND_CLASS = 'enum K { Skill }\nfn f() { let _ = "skill"; let _ = "skil
 // secret_scan.rs の例外（github が 5 件・gh が 2 件）を満たす最小の写し。
 const SECRET_SCAN = 'const A: &str = "github";\n'.repeat(5) + 'const B: &str = "gh";\n'.repeat(2);
 
+// preview_serve.rs の例外（thread が 3 件）を満たす最小の写し。
+const PREVIEW_SERVE = 'fn f() { std::thread::sleep(D); std::thread::sleep(D); let _ = std::thread::Builder::new(); }\n';
+
 const dirs = [];
 afterEach(() => {
   while (dirs.length > 0) fs.rmSync(dirs.pop(), { recursive: true, force: true });
 });
 
 // 一時 root を作る。files は { 相対パス: 内容 }。既定で付録 A と例外の写しを置く。
-function makeRoot(files = {}, { appendix = APPENDIX, commandClass = COMMAND_CLASS } = {}) {
+function makeRoot(files = {}, { appendix = APPENDIX, commandClass = COMMAND_CLASS, previewServe = PREVIEW_SERVE } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cgw-'));
   dirs.push(root);
   const put = (rel, body) => {
@@ -55,6 +58,7 @@ function makeRoot(files = {}, { appendix = APPENDIX, commandClass = COMMAND_CLAS
   put('crates/core/src/lib.rs', 'pub fn ok() {}\n');
   put('crates/core/src/command_class.rs', commandClass);
   put('crates/core/src/secret_scan.rs', SECRET_SCAN);
+  put('crates/pack/src/preview_serve.rs', previewServe);
   for (const [rel, body] of Object.entries(files)) put(rel, body);
   return root;
 }
@@ -173,6 +177,14 @@ test('例外の件数: secret_scan.rs の github と gh は増減で 1、別の�
   assert.equal(run(root(5, 3)).code, 1);
   assert.equal(run(root(5, 1)).code, 1);
   assert.equal(run(makeRoot({ 'crates/x/src/a.rs': 'const A: &str = "github";\n' })).code, 1);
+});
+
+test('例外の件数: preview_serve.rs の thread は増減で 1、別のファイルの thread は違反', () => {
+  const rs = (n) => 'fn f() { let _ = std::thread::sleep(D); }\n'.repeat(n);
+  assert.equal(run(makeRoot({}, { previewServe: rs(3) })).code, 0);
+  assert.equal(run(makeRoot({}, { previewServe: rs(4) })).code, 1);
+  assert.equal(run(makeRoot({}, { previewServe: rs(2) })).code, 1);
+  assert.equal(run(makeRoot({ 'crates/x/src/a.rs': 'fn f() { std::thread::sleep(D); }\n' })).code, 1);
 });
 
 test('許可は字句の完全一致だけ: thread_local は 0、thread_pool は 1', () => {

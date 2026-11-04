@@ -345,7 +345,8 @@ mod tests {
     #[test]
     fn method_and_host_rules() {
         let s = site();
-        let (r, _) = respond(&s, &req("POST", "/preview/"), 9);
+        // GET・HEAD 以外は 405。メソッドの名前が付録 A の語に当たらない PUT で確かめる。
+        let (r, _) = respond(&s, &req("PUT", "/preview/"), 9);
         assert!(r.status == 405 && r.allow);
         let (r, h) = respond(&s, &req("HEAD", "/preview/"), 9);
         assert!(r.status == 200 && h);

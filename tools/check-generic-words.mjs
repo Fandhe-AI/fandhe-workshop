@@ -49,6 +49,10 @@ export const FIXED_EXCEPTIONS = new Map([
   // 教材の知識ではなく秘密情報の形の名前である。語はこの 1 ファイルに閉じ、件数を固定して増減を検出する。
   ['crates/core/src/secret_scan.rs\tgithub', 5],
   ['crates/core/src/secret_scan.rs\tgh', 2],
+  // プレビューの配信（`fandhe-pack preview`。TASK-429）が使う Rust 標準の `std::thread`（`sleep` が 2 件・`Builder` が 1 件）。
+  // 掲示板のスレッドではない。`thread` を ALLOW_TOKENS に足すと全ファイルで語の一致の検査が効かなくなるため、
+  // このファイルに限って件数を固定して増減を検出する。
+  ['crates/pack/src/preview_serve.rs\tthread', 3],
 ]);
 
 class CheckError extends Error {}

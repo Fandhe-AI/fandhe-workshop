@@ -2548,7 +2548,7 @@ TASK-471 の残りの 2 つを足した。検査器（5.77）が差を見つけ�
 - static は字句解析をせず、コメントを含むファイル全体の素の文字列と、エスケープを文脈を見ずに全体で復号した文字列で照合し、どれか 1 つの読みで語が見つかれば違反にする。復号の形式は HTML の文字参照（数値の参照は `;` の有無を問わず先頭の 0 も許す。`;` の無い旧来の名前を含む）・CSS のエスケープ（16 進と 1 文字）・JS のエスケープ（`\xHH`・`\uXXXX`・`\u{...}`・旧来の 8 進・行の継続）で、形式が重なる場合のために 2 形式の順序つきの組（HTML→CSS・JS→HTML など）でも照合する
 - static のコメントも照合するのは、字句の読み違いで語を見逃す経路を無くすためである。JS・HTML・CSS を自前で字句解析していた版では、正規表現の開始の判定（`)`・`}`・`++`・`for await` の後の `/`）、`<script>` の中の `<!-- -->`、`;` の無い数値文字参照、`<style>` や引用符の無い style 属性の CSS エスケープなど、読み違いの経路を Codex のレビューが見つけ続けた。仕様が求めるのは語が 0 件であることと、語を足した対照が失敗することだけで、コメントを除くことは実装の選択だった
 - `.rs`・`Cargo.toml` の閉じない文字列・コメント、シンボリックリンク、UTF-8 でない static（BOM つきの UTF-16・不正なバイト列）は終了コード 2 にする。static の復号は全域の関数で、読めない形（範囲外の参照など）はブラウザと同じく置換文字にするか文字のまま残す。生の読みも必ず照合するため読めない形で語を隠すことはできず、正当な JS・HTML・CSS で 2 にはならない
-- 例外は 2 種類で、理由をスクリプトに書いた。字句の完全一致の許可は `thread_local`（Rust 標準のマクロ）と `SlashCount`（区切り文字 `/` の個数）。件数を固定した例外は `crates/core/src/command_class.rs` の `skill` が 3 件（コマンドの種類 `skill` と付録 A の `skill` の実際の衝突。増減すると失敗する）と、`crates/core/src/secret_scan.rs` の `github` が 5 件・`gh` が 2 件（秘密情報の形の ID・名前・接頭辞が付録 A の語に当たる。ID は spec の試験データ `secret-shapes.json` の `expect` と同じ値にする必要がある。TASK-164 1/3。5.177）
+- 例外は 2 種類で、理由をスクリプトに書いた。字句の完全一致の許可は `thread_local`（Rust 標準のマクロ）と `SlashCount`（区切り文字 `/` の個数）。件数を固定した例外は `crates/core/src/command_class.rs` の `skill` が 3 件（コマンドの種類 `skill` と付録 A の `skill` の実際の衝突。増減すると失敗する）と、`crates/core/src/secret_scan.rs` の `github` が 5 件・`gh` が 2 件（秘密情報の形の ID・名前・接頭辞が付録 A の語に当たる。ID は spec の試験データ `secret-shapes.json` の `expect` と同じ値にする必要がある。TASK-164 1/3。5.177）と、`crates/pack/src/preview_serve.rs` の `thread` が 3 件（プレビューの配信が使う Rust 標準の `std::thread`。`ALLOW_TOKENS` に足すと全ファイルで語の一致が効かなくなるため件数を固定した。#2022）
 - 回帰テスト（`make test-check-generic-words`）は、実 repo で 0、語を足した写しで 1、`.rs` のコメント・`tests/` の語は 0、static のコメントの語は 1、Codex が指摘した読み違いの例（上記）がすべて 1、例外の件数の増減で 1、判定できない入力で 2 を確かめる
 
 CI・`make check`・lefthook には組み込んでいない。失敗したら止めるガードを足すことは、仕様が人間の承認点に挙げている変更だからである。組み込むときは `ci.yml` の変更と、ruleset の必須チェックの更新が要る。
@@ -2556,6 +2556,8 @@ CI・`make check`・lefthook には組み込んでいない。失敗したら止
 実行結果（2026-10-17）。`make test-browser` は 314 件中 312 件が通過し、2 件（`ime-input` の「送信の直後に変換が始まっても…」。CSP あり・なし）が 30 秒のタイムアウトで失敗した。本変更と無関係な試験で、個別に流し直すと 23 件すべてが通過した（負荷による揺れと見られる。原因は未調査）。新しい試験（N1〜N3b の 12 件と、検査器の自己確認 T1〜T4）は通過した。`make test-check-generic-words`（17 件。Codex の指摘の修正後は 42 件で再実行し、通過した）・`make check-generic-words`・`make check`・`make lint`・`make test`・`make check-deps`・`make check-dom-reads` も通過した。`make check-delivery` は流していない（未検証）。
 
 static を素の文字列の照合へ作り直した後（2026-10-17）は、`make test-check-generic-words`（48 件）・`make check-generic-words`・`make check` を流し、通過した。実 repo の static で、コメントの語による新たな違反は 0 件だった。
+
+既存の違反 9 件を解消した後（2026-11-04。#2022）は、改名 1（`replay_with` の `pre`・`post` を `before_apply`・`after_apply` に）・言い換え 1（`app.js` のコメント）・試験の文字列の差し替え 1（`"POST"` を `"PUT"` に）・件数固定の例外 1（`preview_serve.rs` の `thread` 3 件）で `make check-generic-words` が違反 0 件で通った。`make test-check-generic-words` は 50 件（49 件から 1 件増）が通り、`make lint`・`make test`・`make check`・`make check-deps`・`make check-dom-reads` も通った。`make build-web`・`make check-delivery` は未検証。
 
 ### 5.85 送信の直後に変換が始まったときの書き戻し（#1510）
 

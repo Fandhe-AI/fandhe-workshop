@@ -103,9 +103,9 @@ pub fn replay(
 /// [`replay`] と同じ規則で適用し直しながら、`apply` を通す操作の前後に hook を呼ぶ。
 ///
 /// 規則を二重に定義せず、適用し直しの途中を観測したい呼び出し元（[`crate::lo_observe`]）のための口である。
-/// `pre` は `apply` の直前に操作の前の状態と操作を受け取り、小さな値 `P` を返す。`post` は `apply` の直後に
+/// `before_apply` は `apply` の直前に操作の前の状態と操作を受け取り、小さな値 `P` を返す。`after_apply` は `apply` の直後に
 /// その `P` と、その操作が出したイベントを受け取る。操作の前の状態を丸ごと複製せずに済ませるため、
-/// 状態の読み取りは `pre` の中で済ませる（全体で `ops` の件数に線形）。
+/// 状態の読み取りは `before_apply` の中で済ませる（全体で `ops` の件数に線形）。
 ///
 /// hook を呼ぶのは `apply` を通す操作（`Engine`・`Submit`）だけである。`Draft` は下書きだけを変え、
 /// `Reload` は `Reloaded` だけを出し、どちらも確認の観測を生まないため hook を呼ばない。
@@ -117,8 +117,8 @@ pub fn replay_with<P>(
     ir: &Ir,
     initial: SessionState,
     ops: &[SessionOp],
-    mut pre: impl FnMut(&SessionState, &Op) -> P,
-    mut post: impl FnMut(P, &[Event]),
+    mut before_apply: impl FnMut(&SessionState, &Op) -> P,
+    mut after_apply: impl FnMut(P, &[Event]),
 ) -> Result<SessionState, ReplayError> {
     let profile = read_profile(ir.pack.profile.as_ref()).map_err(ReplayError::Profile)?;
     let prefix = profile.command_prefix;
@@ -127,10 +127,10 @@ pub fn replay_with<P>(
     for (index, op) in ops.iter().enumerate() {
         match op {
             HistoryOp::Engine(op) => {
-                let p = pre(&state, op);
+                let p = before_apply(&state, op);
                 let (next, events) = apply(ir, state, op.clone());
                 state = next;
-                post(p, &events);
+                after_apply(p, &events);
             }
             HistoryOp::Draft(text) => record_draft(&mut state, &mut rec, text.clone()),
             HistoryOp::Submit(text) => {
@@ -138,10 +138,10 @@ pub fn replay_with<P>(
                     return Err(ReplayError::BlankSubmit { index });
                 }
                 let op = Op::Input(submit_input(&prefix, text.clone()));
-                let p = pre(&state, &op);
+                let p = before_apply(&state, &op);
                 let (next, events) = apply(ir, state, op);
                 state = next;
-                post(p, &events);
+                after_apply(p, &events);
             }
             HistoryOp::Reload => state = reload(state).0,
         }
