@@ -10085,6 +10085,10 @@ L1 で進めた履歴が L2 から見えず、L2 で操作しても L1 の状態
   - 検討中の理由の「置き場所は Phase 4 の設計で決める」を「`testdata/` に決まった（TASK-30）」に改める。状態を「確定」にするかは spec 側の判断
 - 確かめていないこと: arm64・podman・メモリ 2 GiB 以下（BUILD-21）。CI の関門として加えること（`check-sibling-free` の step）の人の承認（spec の人間の承認点。既存ジョブへの step 追加にとどめ、ruleset は変えていない）
 - 範囲外: `make clean-room` を CI の関門にするか（TASK-96）、5.354 の番号の重複・5.357 と 5.358 の順序（既存）
+- CI での初回の実行と許可一覧の修正（2026-11-04。#2045）: `clean-room.yml` の手動実行 run 41891672614（main `9fcd3589`・ubuntu-latest・1,222 秒）は失敗した。cargo の結果は `[default]` 2631 passed・failed 0・ignored 3、`[workspace]` 4114 passed・failed 0・ignored 4、`[pack]` ok で、試験の失敗ではなく judge の `ignored test not in allow list` 2 件（`emit_broken_histories_for_browser`・`emit_ops_rewrites_for_browser`）だった。PR #1902・#1903（TASK-332）が `#[ignore]` の試験を足したときに `ALLOWED_IGNORED` を直していなかった。上の「現物の 2 件」は当時の記録で、現物は 4 件になった
+  - 直したこと: `ALLOWED_IGNORED` を 4 件にした。`scripts/check-ignored-tests.sh` を `make check` に入れ、一覧と `crates/` の `#[ignore]` の現物のずれ（足りない・余り・重複）を静的に検出する（回帰テストは `scripts/test-check-ignored-tests.sh`）。修正前は同検査が 2 件を名指しして終了コード 1、修正後は 0
+  - run 41891672614 の artifact `clean-room-logs` を修正後の judge で再判定して 0（`[default]`・`[workspace]`・`[pack]` すべて ok）
+  - 未実施: 手元での `make clean-room` の全区間（CI で 1,222 秒かかり前景の上限を超える）。マージ後の `clean-room.yml` の手動実行で確かめる
 
 ### 5.361 WASM の大きさの基点そろえ（TASK-126。DLV-27・DLV-4）
 

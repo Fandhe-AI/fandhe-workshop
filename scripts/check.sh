@@ -5,6 +5,7 @@
 # - check-testdata-refs.sh: repo の外（兄弟の 03-poc/・prototype/ 等）への相対参照が 0 件であること
 #   （testdata/ は写したデータのため、editorconfig-checker と shellcheck の対象外）
 # - check-mutation-defs.sh: 変異の定義の find が 1 回だけ現れ、expect-fail の名前が試験に実在すること（静的。cargo 不要）
+# - check-ignored-tests.sh: clean-room の ALLOWED_IGNORED が crates/ の #[ignore] の現物と一致すること（静的。cargo・docker 不要）
 # ツールが無い場合は「未検査で成功」にせず失敗させる。
 # 言語固有のチェック（fmt --check・lint・test 等）は派生リポジトリで追記する。
 set -euo pipefail
@@ -26,3 +27,4 @@ find scripts tools -type f -name "*.sh" -print0 | xargs -0 shellcheck
 
 "${DIR}/check-testdata-refs.sh"
 "${DIR}/check-mutation-defs.sh"
+"${DIR}/check-ignored-tests.sh"
