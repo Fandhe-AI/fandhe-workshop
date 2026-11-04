@@ -35,6 +35,26 @@
 - `validate` が調べるのは、秘密情報らしい形（`E-SECRET-SHAPE`）と、練習データの見出しの【架空】の印の欠け（`E-FICTIONAL-MARK`）だけである。印があっても内容が本物でないことの保証にはならない。
 - 教材 repo の練習データは、TASK-794 の照合の対象に含める。
 
+### 記録 2（2026-11-04。社内固有の語の照合の初回。TASK-794 の準備）
+
+記録 1 より後の版（記録 1 は `8b8d5070`、本記録は `8272d193`）で、語の一覧ができたため社内固有の語の照合を初めて流した。
+教材 repo（Pages に載るもの）と講師資料はまだ無く、TASK-794 の照合の全体ではない（#844）。
+
+| 欄 | 内容 |
+|---|---|
+| 確かめた版 | エンジン repo: `8272d193528cf7bc6b2696ac94e138a43fda32aa`（照合のときの `main`）。`docs/spec` の submodule: `3e6b2058a55bc62a1b304fca4d1121318eaee217` |
+| 日付 | 2026-11-04 |
+| 照合のスクリプト | `tools/check-internal-info.mjs`（回帰テストは `make test-check-internal-info`。12 件が通った）。実行したコマンドは `make check-internal-info WORDS=docs/spec/checks/internal-terms.txt` |
+| 語の一覧 | private の spec repo の `checks/internal-terms.txt`。`list: terms=124 sha256=b79cb63dd5fe31480c22cbbaf4ec0b430d42642b3136b9110a2e268f4058ca49`。語は private の repo の名前だけで、runner・手順・人名の語は無い（ユーザーの判断）。語そのものは本 repo に書かない |
+| 対象 | 社内固有の語: `docs/examples/**`・`testdata/**`・`crates/web/static/**`・`.github/workflows/**` の 542 ファイル。認証情報の形: 追跡中の全ファイル 4,214 件 |
+| 社内固有の語 | 終了コード 0（違反 0 件） |
+| 認証情報の形 | 違反 0 件（記録 1 と同じ固定の例外を適用） |
+| 対象の外の洗い出し | `--all`（追跡中の全ファイル）では 9 件が当たった。すべて外部取得のスキル `.agents/skills/**` の中で、upstream の repo で直す必要がある（本 repo では編集しない）。照合の前に `.claude/rules/github-actions.md` で当たった 2 件は、#2027 で名前を出さない書き方に直した |
+| 確かめた人 | AI（Claude Code）による機械の照合。人の確認は未実施 |
+| 紛らわしい名前の人の判断 | 未実施（記録 1 の下見のまま） |
+| 承認 | 未承認（承認者: ユーザー（リポジトリの管理者）） |
+| 次回 | 教材 repo の配信物と講師資料ができたら、TASK-794 で公開する版について照合をやり直す |
+
 ## LIC-1 エンジン repo のライセンス表記の確認（TASK-129）
 
 ライセンスは D-6 で `MIT OR Apache-2.0` と決まっている。機械が `cargo metadata` で全 crate の `license` を、直下のファイルで 2 つの本文を確かめる（`make check-license`）。公開は TASK-122 で行う。
