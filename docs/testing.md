@@ -12606,7 +12606,7 @@ Rust・`Cargo.*` は変えない。
 
 **目的**: ビューの種類の綴り 7 種の二重の定義（web の `ViewKind` と contract の `VIEW_KINDS`）をなくし、正を contract に寄せる。一致の試験だけで守る案は採らなかった。綴りが 1 か所になり、pack の検査と画面の受理の集合が型の上でずれなくなるため。web は contract に既に依存しており、依存は増えない。
 
-**変更**: `ViewKind::as_str` は `VIEW_KINDS[self as usize]` を返し、`ALL` の型は `[ViewKind; VIEW_KINDS.len()]`。`parse` は `as_str` を通るので間接的に導かれる。enum の宣言順・`ALL` の順・`VIEW_KINDS` の順の一致は `artifact_view.rs` の const の表明（コンパイル時）が持つ。enum・`ALL` の並び・`parse` の fail-closed（一覧外は `None`）は変えない。
+**変更**: `ViewKind::as_str` は `VIEW_KINDS[self as usize]` を返し、`ALL` の型は `[ViewKind; VIEW_KINDS.len()]`。`parse` は `as_str` を通るので間接的に導かれる。`artifact_view.rs` の const の表明（コンパイル時）が守るのは enum の宣言順・`ALL` の順・判別子と長さの一致だけである。`VIEW_KINDS` の綴りの並びの入れ替えはコンパイルを通り、綴りの固定表を持つ `view_kind_spellings_match_contract` などの試験が検出する。enum・`ALL` の並び・`parse` の fail-closed（一覧外は `None`）は変えない。
 
 **試験**: 新しい試験は足さない。既存の `artifact_view_contract.rs`（綴りの表・往復・一覧外は none・`view_kind_spellings_match_contract`）、`artifact_view_binding_contract.rs`、`crates/contract/tests/view_kind_contract.rs`、`crates/pack/tests/view_kind.rs` がそのまま通る。
 
