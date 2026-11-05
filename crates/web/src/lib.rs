@@ -91,6 +91,7 @@ pub mod motion;
 pub mod next_chapter;
 pub mod offers;
 pub mod parts;
+pub mod product_rows;
 pub mod profile;
 pub mod run_status;
 pub mod save_notice;

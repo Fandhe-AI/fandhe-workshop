@@ -5,6 +5,7 @@
  * <style> 要素と style 属性は使えず、見た目はこのファイルのクラスと属性セレクタだけで決める。
  * クラス名は crates/web/src/artifact_mark.rs の定数（MARK_GLYPH_CLASS・MARK_TEXT_CLASS・DEPTH_CLASSES）と
  * 一致させる。ずれは crates/web/tests/artifact_mark_contract.rs が検出する。
+ * ビューの種類ごとの規則は、末尾の種類ごとの節にだけ足す（ファイルの末尾には足さない。並列の変更が衝突しないため）。
  * 色の十分なコントラストと見え方は検査しない（TASK-490・ART-20 の担当）。外部の URL は書かない。
  */
 
@@ -262,3 +263,31 @@
 /* 文書ビューの練習データの本文（ART-18）。クラスだけで装飾し、style 属性は使わない。 */
 .artifact-doc-body { margin: 0.25rem 0 0.25rem 1rem; overflow-wrap: anywhere; }
 .artifact-doc-body table { display: block; max-width: 100%; overflow-x: auto; }
+
+/* ==== 左のビュー: ファイルツリー（file_tree）。種類ごとの結線の規則はこの節にだけ足す ==== */
+
+/* ==== ここまで file_tree ==== */
+
+/* ==== 左のビュー: 文書（document）。種類ごとの結線の規則はこの節にだけ足す ==== */
+
+/* ==== ここまで document ==== */
+
+/* ==== 左のビュー: 差分（diff）。種類ごとの結線の規則はこの節にだけ足す ==== */
+
+/* ==== ここまで diff ==== */
+
+/* ==== 左のビュー: タスクツリー（task_tree）。種類ごとの結線の規則はこの節にだけ足す ==== */
+
+/* ==== ここまで task_tree ==== */
+
+/* ==== 左のビュー: カードの一覧（card_list）。種類ごとの結線の規則はこの節にだけ足す ==== */
+
+/* ==== ここまで card_list ==== */
+
+/* ==== 左のビュー: チェックの一覧（check_list）。種類ごとの結線の規則はこの節にだけ足す ==== */
+
+/* ==== ここまで check_list ==== */
+
+/* ==== 左のビュー: アプリのデモ（app_demo）。種類ごとの結線の規則はこの節にだけ足す ==== */
+
+/* ==== ここまで app_demo ==== */

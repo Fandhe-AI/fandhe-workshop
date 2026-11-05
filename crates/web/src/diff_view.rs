@@ -1,5 +1,7 @@
 //! 左の成果物エリアの差分のビュー、変種 (b)（TASK-475 1/2。ART-1・ART-8）。
 //!
+//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれるが、今は共通の経路の行を返し、本体の部品はまだ使わない。
+//!
 //! 変種 (a) の `wireframe-ui` の `text` は空白を畳むため、コードのインデントが失われる（PoC-8 の G-4）。
 //! (b) は自作の部品（`pre`・行番号・記号の列）で描き、インデントを保つ。(a) は対照専用で、製品の構成では選べない
 //! （[`diff_item_a`]。TASK-475 2/2）。
@@ -233,4 +235,13 @@ pub fn diff_list(
     items: Vec<(String, Node)>,
 ) -> Result<Node, ListError> {
     view_list(tag, ViewKind::Diff, selected, items)
+}
+
+/// 製品の左エリアからの差し替え口。今は共通の経路の行を返し、本体の部品はまだ使わない。
+///
+/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。種類ごとの結線（後続の子）は、この関数だけを書き換えて行う。
+pub(crate) fn product_items(
+    ctx: &crate::product_rows::ProductCtx<'_>,
+) -> crate::product_rows::ProductItems {
+    crate::product_rows::path_rows(ctx)
 }

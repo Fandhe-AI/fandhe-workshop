@@ -1,5 +1,7 @@
 //! 左の成果物エリアの文書のビュー、変種 (b)（TASK-476 1/2。ART-1・ART-7）。
 //!
+//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれるが、今は共通の経路の行を返し、本体の部品はまだ使わない。
+//!
 //! 文書の行の中身は、ビルド時に安全な木へ変えた Markdown（`contract::doc::Block`）である。このモジュールは
 //! その木を、`doc_view::render_block_node`（TASK-149・TASK-150 のスキームの許可・外部画像の拒否・深さの上限）で描き、
 //! keyed list の項目 1 件にする。Markdown を実行時に解釈する処理は持たない（方式 (c)。web の通常の依存に
@@ -230,4 +232,13 @@ pub fn doc_list(
     items: Vec<(String, Node)>,
 ) -> Result<Node, ListError> {
     view_list(tag, ViewKind::Document, selected, items)
+}
+
+/// 製品の左エリアからの差し替え口。今は共通の経路の行を返し、本体の部品はまだ使わない。
+///
+/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。種類ごとの結線（後続の子）は、この関数だけを書き換えて行う。
+pub(crate) fn product_items(
+    ctx: &crate::product_rows::ProductCtx<'_>,
+) -> crate::product_rows::ProductItems {
+    crate::product_rows::path_rows(ctx)
 }

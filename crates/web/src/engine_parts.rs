@@ -20,7 +20,7 @@
 //! - ログと復習は、1 リストが約 1,000 項目を超えないよう古い側を要約行へ畳む（TASK-360 1/2。
 //!   `list_policy::plan_fold`）。4,096 件の安全弁は残り、超えたら先頭の 4,095 件と状態の行（`data-list-limit`）に打ち切り、
 //!   親の `data-bind-list` を保って全再描画を避ける（`list_policy::keyed_view_or_notice`。TASK-360 2/2）。
-//!   左の成果物も、行が目安を超えたら古い Step の行を要約へ畳む（`artifact_fold`。最新の Step の行は畳まない。TASK-484 1/2）。
+//!   左の成果物の行の組み立ては `product_rows` と各ビューの差し替え口が持つ（TASK-799）。行が目安を超えたら古い Step の行を要約へ畳む（`artifact_fold`。最新の Step の行は畳まない。TASK-484 1/2）。
 //!
 //! 経路・Step の ID は教材由来の信頼できない文字列である。属性値・文字ノードとして `render` の既定の
 //! エスケープに通し、生 HTML の経路は使わない（SAFE-11）。
@@ -34,17 +34,18 @@ use fandhe_workshop_core::projection::{Mark, MarkKind, ReviewItem};
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::Session;
 
-use fandhe_workshop_contract::doc::Doc;
-use fandhe_workshop_contract::view_body::body_doc;
-
 use crate::a11y::{ChangeMark, TESTID_ATTR};
-use crate::artifact_fold::{fold_rows, ArtifactRow};
-use crate::artifact_mark::{point_all, pointed_item};
+use crate::app_demo_view;
+use crate::artifact_fold::fold_rows;
 use crate::artifact_view::{
-    declared_kinds, list_attrs, RowId, Variant, ViewKind, ACTION_ATTR, PAYLOAD_ATTR,
-    VIEW_LIST_FIELDS,
+    declared_kinds, list_attrs, ViewKind, ACTION_ATTR, PAYLOAD_ATTR, VIEW_LIST_FIELDS,
 };
+use crate::card_view;
+use crate::check_view;
+use crate::diff_view;
+use crate::document_view;
 use crate::export_notice::{export_notice_text, EXPORT_NOTICE_FIELD};
+use crate::file_tree_view;
 use crate::host::HostModel;
 use crate::limit_notice::limit_notice;
 pub use crate::list_policy::LIST_ERROR_ATTR;
@@ -54,6 +55,7 @@ use crate::list_policy::{
 use crate::log_lines::{line_from_event, line_kind_from_event, line_node};
 use crate::offers::OffersPart;
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
+use crate::product_rows::{current_target_paths, ProductCtx, ProductItems};
 use crate::profile::ViewTabs;
 use crate::run_status::run_status;
 use crate::secret_notice::{
@@ -63,6 +65,7 @@ use crate::secret_notice::{
 };
 use crate::stale_notice::{stale_notice_text, STALE_NOTICE_FIELD};
 use crate::step_status::step_status;
+use crate::task_tree;
 use crate::terminal_area::{step_status_word, RUN_STATUS_TESTID, STATE_ATTR, STEP_STATUS_TESTID};
 use crate::view_only_notice::{view_only_notice_text, VIEW_ONLY_NOTICE_FIELD};
 use crate::view_select::{
@@ -512,56 +515,8 @@ fn secret_choice_list(model: &HostModel) -> Node {
 /// `F_LOG` の中の `secret_choice` の位置。
 const LOG_SECRET_CHOICE: usize = 9;
 
-/// 経路をそのまま行のキーにしてよい長さの上限（バイト）。
-const ARTIFACT_KEY_PATH_MAX: usize = 256;
-
-/// 今の Step の `input`・`confirm` の宣言にある `targets` のうち、ビュー `view` を指す経路を集める。
-/// 宣言の形（`ui_action`・`point_at`）に依らず `targets` の配列だけを読む。読めない宣言は何も足さない。
-fn current_target_paths(session: &Session, view: &str) -> BTreeSet<String> {
-    let mut out = BTreeSet::new();
-    let Some(uid) = session.state().run.current.as_ref() else {
-        return out;
-    };
-    let Some(node) = session.ir().nodes.iter().find(|n| n.uid == uid.0) else {
-        return out;
-    };
-    for decl in [&node.step.input, &node.step.confirm].into_iter().flatten() {
-        let targets = decl.get("targets").and_then(|t| t.as_array());
-        for t in targets.into_iter().flatten() {
-            if t.get("view").and_then(|v| v.as_str()) == Some(view) {
-                if let Some(path) = t.get("path").and_then(|p| p.as_str()) {
-                    out.insert(path.to_owned());
-                }
-            }
-        }
-    }
-    out
-}
-
-/// 本文の区画の `data-testid`（ART-18。`shell-` で始めず、`role`・`aria-*`・`style` を付けない）。
-const DOC_BODY_TESTID: &str = "artifact-doc-body";
-
-/// 成果物の行の子。経路の `span` に、本文の木があれば区画を続ける。
-///
-/// `ArtifactPart::view` から呼ばれる。木の描画は `doc_view`（リンクのスキーム・外部画像・深さの検査を持つ）に任せ、
-/// 生 HTML は使わない。
-fn row_children(path: &str, body: Option<&Doc>) -> Vec<Node> {
-    let mut kids = vec![el("span", vec![], vec![text(path)])];
-    if let Some(doc) = body {
-        kids.push(el(
-            "div",
-            vec![
-                (TESTID_ATTR, DOC_BODY_TESTID),
-                ("class", "artifact-doc-body"),
-            ],
-            crate::doc_view::render_doc(doc),
-        ));
-    }
-    kids
-}
-
-/// 左の成果物。世界状態の経路と、変化の印を並べる。文書ビューでは、行の要素の練習データの本文も出す
-/// （ART-18・EP-13。`body_doc` が `Some` のときだけ）。
+/// 左の成果物。選ばれたビューの種類で、行の組み立てを種類ごとの差し替え口（各 `*_view.rs` の `product_items`）へ振り分ける。
+/// 親の一覧・畳み・選択のボタンはここで持つ。行の組み立て（経路の行・文書の本文）は `product_rows` にある。
 struct ArtifactPart;
 
 impl DisplayPart<HostModel> for ArtifactPart {
@@ -594,47 +549,27 @@ impl DisplayPart<HostModel> for ArtifactPart {
         } else {
             Vec::new()
         };
-        let rows: Vec<ArtifactRow> = world_rows
-            .into_iter()
-            .enumerate()
-            .map(|(i, (path, mark))| {
-                // 仮置きの規則（TASK-358 2/2）: 選ばれたビューの宣言 ID が引ける行はすべて指せる行にする。
-                // 規則の確定は TASK-470・TASK-347 の後続と TASK-739 の担当で、受理と判定は core に任せる。
-                // `PointTarget::new` が拒否する行（空・上限超過）は表示だけに倒す。
-                let target = declared_id
-                    .as_deref()
-                    .and_then(|id| point_all(id)(&RowId::new(path.as_str()).ok()?));
-                // 文書ビューの本文（ART-18・EP-13）。`body: shown` の宣言と要素の `fixture` と木がそろうときだけ `Some`。
-                // 上限の判断（2026-10-24）: 木の大きさ・深さは IR の読み込みの関門と `doc_view` の深さの上限が、行数は
-                // 畳み（`fold_rows`）と 4,096 の安全弁が抑えるので、ここでは追加の上限を置かない。
-                let body = (selected == ViewKind::Document)
-                    .then_some(declared_id.as_deref())
-                    .flatten()
-                    .zip(model.session())
-                    .zip(model.world().get(&path))
-                    .and_then(|((id, s), element)| {
-                        body_doc(s.ir(), id, element.fixture.as_deref())
-                    });
-                let node = pointed_item(
-                    "li",
-                    Variant::B,
-                    mark,
-                    None,
-                    vec![("data-path", path.as_str())],
-                    target.as_ref(),
-                    row_children(path.as_str(), body),
-                );
-                // 経路は一意（BTreeMap のキー）なので、挿入で後続の行の同一性がずれないよう経路をキーにする。
-                // 教材由来の長い文字列はキーに使わず、位置のキーへ退く（接頭辞が違うので衝突しない）。
-                let key = if path.len() <= ARTIFACT_KEY_PATH_MAX {
-                    format!("p{path}")
-                } else {
-                    format!("i{i}")
-                };
-                let pinned = target.is_some() && pinned_paths.contains(path.as_str());
-                (path, key, node, pinned)
-            })
-            .collect();
+        let ctx = ProductCtx {
+            world: model.world(),
+            world_rows: &world_rows,
+            selected,
+            declared_id: declared_id.as_deref(),
+            session: model.session(),
+            pinned_paths: &pinned_paths,
+        };
+        // 種類ごとの差し替え口への振り分けはここ 1 か所だけにする。種類が増えたらコンパイルで気づけるよう `_` の腕は置かない。
+        let ProductItems {
+            rows,
+            list_attrs: selected_attrs,
+        } = match selected {
+            ViewKind::FileTree => file_tree_view::product_items(&ctx),
+            ViewKind::Document => document_view::product_items(&ctx),
+            ViewKind::Diff => diff_view::product_items(&ctx),
+            ViewKind::TaskTree => task_tree::product_items(&ctx),
+            ViewKind::CardList => card_view::product_items(&ctx),
+            ViewKind::CheckList => check_view::product_items(&ctx),
+            ViewKind::AppDemo => app_demo_view::product_items(&ctx),
+        };
         // 目安を超えたときだけ、古い Step の行を要約 1 行へ畳む（TASK-484 1/2。D-46）。
         let log = model.session().map_or(&[][..], |s| {
             let l = s.log();
@@ -666,7 +601,11 @@ impl DisplayPart<HostModel> for ArtifactPart {
             // 件数以外の `Err` は通知の行と `data-list-error` に倒す。どちらも `data-bind-list` は保つ。
             let list = keyed_view_or_notice(
                 "ul",
-                list_attrs(kind, is_selected),
+                if is_selected {
+                    selected_attrs.clone()
+                } else {
+                    list_attrs(kind, is_selected)
+                },
                 &kind.list_part_field(),
                 view_rows,
             );
