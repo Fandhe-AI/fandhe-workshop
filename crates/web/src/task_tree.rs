@@ -1,13 +1,21 @@
 //! タスクツリーの変種 (a)・(b) の本体（TASK-474。ART-1・ART-9・ART-13・A11Y-22・PoC-8）。
 //!
-//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれるが、今は共通の経路の行を返し、本体の部品はまだ使わない。
+//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれ、(b) の部品（ラベル・補足・状態のバッジ・
+//! 木の属性）で行を描く。行の種類は `task`（`data-kind`）、深さは経路の `/` の数、キーは `p<経路>`（長い経路は `i<位置>`）で、
+//! `li` に `data-path` を付ける。親の `role=tree` は `tree_list_attrs` の条件（選択中・項目 1 件以上）に従う。
+//! 状態は `TaskState::parse` のまま読み、語彙の外の値は「不明」になる（語彙は spec の判断。記録は #2059）。
+//!
+//! # 畳みが働く行数の扱い（fail-closed）
+//!
+//! 行数が `LIST_ITEMS_TARGET` を超えると `fold_rows` が古い側を要約の行に畳む。要約の行は木の項目ではなく、
+//! 畳む前の全行で数えた `aria-posinset`・`aria-setsize`・`aria-expanded` は見えている行と食い違う。
+//! a11y の検査はこの食い違いを見つけないため、畳みが働くときは親の `role=tree` と項目の木の属性を同じ判定で両方外す
+//! （親だけ外すと `treeitem` が木の外に出る）。行の中身・`data-path`・`data-kind` は残す。
 //!
 //! (a) は wireframe 系のチェックボックス（完了をチェック済みで示す）・状態の文字・入れ子のクラスで描き、木の意味
 //! （`role=tree`・`treeitem`）を持たない。(b) は木の意味を持つ。
 //!
-//! 呼び出し元は今のところ `view_fixture`（試験の設定だけ）で、検査器の枠が (a)・(b) の本体を通る。製品の画面
-//! （`engine_parts`）への結線は、世界状態からタスクのラベルと状態を読む `read` と前後の切り替えの口が決まる
-//! 後続の作業で行う。
+//! (a) と前後の切り替え（ART-2）は製品から呼ばれない。`view_fixture`（試験の設定だけ）の検査器の枠が (a)・(b) の本体を通る。
 //!
 //! # 信頼境界
 //!
@@ -31,9 +39,15 @@ use crate::list_policy::ListError;
 use fandhe_frontend_core::{el, text, Node};
 
 use crate::a11y::TESTID_ATTR;
-use crate::artifact_mark::{pointed_item, PointOf};
-use crate::artifact_view::{tree_view_list, Cell, ItemRow, Phase, Variant, ViewKind};
-use crate::tree_attrs::shown_tree_attrs;
+use crate::artifact_fold::ArtifactRow;
+use crate::artifact_mark::{point_all, pointed_item, PointOf};
+use crate::artifact_view::{
+    tree_list_attrs, tree_view_list, Cell, ItemRow, Phase, PointTarget, RowKind, Variant, ViewKind,
+};
+use crate::list_policy::LIST_ITEMS_TARGET;
+use crate::product_rows::{item_rows, path_rows, ProductCtx, ProductItems, ARTIFACT_KEY_PATH_MAX};
+use crate::tree_attrs::{shown_tree_attrs, TreeItemAttrs, TreePos};
+use std::collections::HashMap;
 
 /// ラベルの `data-testid`。
 pub const TASK_LABEL_TESTID: &str = "task-label";
@@ -272,11 +286,160 @@ pub fn task_tree_list_a(
     task_tree_list(rows, phase, Variant::A, selected, point)
 }
 
-/// 製品の左エリアからの差し替え口。今は共通の経路の行を返し、本体の部品はまだ使わない。
+/// このビューの種類。
+const KIND: ViewKind = ViewKind::TaskTree;
+
+/// (b) の行 1 件を作る。`lead` は属性の先頭に置く製品の属性、`tree` は木の属性（畳みが働くときは `None`）。
+/// その状態で出ない行は `None`。
+#[must_use]
+pub fn task_item_b(
+    row: &ItemRow,
+    phase: Phase,
+    tree: Option<&TreeItemAttrs>,
+    lead: Vec<(&'static str, &str)>,
+    target: Option<&PointTarget>,
+) -> Option<Node> {
+    let shown = row.shown(phase)?;
+    let mut attrs = lead;
+    if let Some(t) = tree {
+        attrs.extend(t.pairs());
+    }
+    Some(pointed_item(
+        "li",
+        Variant::B,
+        shown.mark,
+        Some(row.depth()),
+        attrs,
+        target,
+        task_content(shown.content),
+    ))
+}
+
+/// 経路 `i` の親（`/` の境界で切った経路のうち、行として存在する最も近い祖先）の添字。
+fn parent_of(paths: &[&str], index: &HashMap<&str, usize>, i: usize) -> Option<usize> {
+    let mut rest = paths[i];
+    while let Some(cut) = rest.rfind('/') {
+        rest = &rest[..cut];
+        if let Some(&p) = index.get(rest) {
+            if p != i {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
+/// 経路の並びを、木の深さ優先順（親の直後にその子孫、兄弟は入力の順）にした添字の列。
+/// 辞書順のままだと `a`・`a-b`・`a/x` のように親子の間に別の根の行が入るため、属性と描画行の両方をこの順から作る。
+fn dfs_order(paths: &[&str]) -> Vec<usize> {
+    let index: HashMap<&str, usize> = paths.iter().enumerate().map(|(i, p)| (*p, i)).collect();
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); paths.len() + 1];
+    for i in 0..paths.len() {
+        let slot = parent_of(paths, &index, i).map_or(0, |p| p + 1);
+        children[slot].push(i);
+    }
+    let mut out = Vec::with_capacity(paths.len());
+    let mut stack: Vec<usize> = children[0].iter().rev().copied().collect();
+    while let Some(i) = stack.pop() {
+        out.push(i);
+        stack.extend(children[i + 1].iter().rev().copied());
+    }
+    out
+}
+
+/// 経路の並び（辞書順）から、実在する祖先だけを親とした木の属性を求める。入力と同じ長さで返す。
 ///
-/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。種類ごとの結線（後続の子）は、この関数だけを書き換えて行う。
-pub(crate) fn product_items(
-    ctx: &crate::product_rows::ProductCtx<'_>,
-) -> crate::product_rows::ProductItems {
-    crate::product_rows::path_rows(ctx)
+/// 親は `/` の境界で切った経路のうち、行として存在する最も近い祖先である。途中の祖先が無い経路は、その外側の
+/// 実在する祖先の子になる（無ければ根の子）。深さの数だけで直前の浅い行を親にすると、無関係な行を親にしてしまう。
+/// `aria-level` は実在する祖先の数 + 1、`aria-posinset`・`aria-setsize` は同じ親を持つ兄弟の中で数える。
+fn path_tree_attrs<'a>(paths: impl Iterator<Item = &'a str>) -> Vec<Option<TreeItemAttrs>> {
+    let paths: Vec<&str> = paths.collect();
+    let index: HashMap<&str, usize> = paths.iter().enumerate().map(|(i, p)| (*p, i)).collect();
+    // 親の枠は「親の添字 + 1」（0 は根）。
+    let mut slot_of: Vec<usize> = Vec::with_capacity(paths.len());
+    let mut level: Vec<usize> = Vec::with_capacity(paths.len());
+    let mut child_count: Vec<usize> = vec![0; paths.len() + 1];
+    let mut posinset: Vec<usize> = Vec::with_capacity(paths.len());
+    let mut has_children: Vec<bool> = vec![false; paths.len()];
+    for i in 0..paths.len() {
+        let parent = parent_of(&paths, &index, i);
+        let (slot, parent_level) = match parent {
+            Some(p) => {
+                has_children[p] = true;
+                (p + 1, level[p])
+            }
+            None => (0, 0),
+        };
+        child_count[slot] += 1;
+        slot_of.push(slot);
+        posinset.push(child_count[slot]);
+        level.push(parent_level + 1);
+    }
+    (0..paths.len())
+        .map(|i| {
+            Some(TreeItemAttrs::from(TreePos {
+                level: level[i],
+                posinset: posinset[i],
+                setsize: child_count[slot_of[i]],
+                has_children: has_children[i],
+            }))
+        })
+        .collect()
+}
+
+/// 製品の左エリアからの差し替え口。(b) の部品で行を描く。
+///
+/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。行の検査に通らない経路（空・重複）や、出ない行が
+/// あるときは行を黙って落とさず、共通の経路の行に退く。畳みが働く行数の扱いは冒頭の説明を参照。
+pub(crate) fn product_items(ctx: &ProductCtx<'_>) -> ProductItems {
+    let order = dfs_order(
+        &ctx.world_rows
+            .iter()
+            .map(|(p, _)| p.as_str())
+            .collect::<Vec<_>>(),
+    );
+    let world_rows: Vec<(String, Option<crate::a11y::ChangeMark>)> =
+        order.iter().map(|&i| ctx.world_rows[i].clone()).collect();
+    let Ok(rows) = item_rows(ctx.world, &world_rows, |_| RowKind::Task) else {
+        return path_rows(ctx);
+    };
+    let folded = rows.len() > LIST_ITEMS_TARGET;
+    let attrs: Vec<Option<TreeItemAttrs>> = if folded {
+        vec![None; rows.len()]
+    } else {
+        path_tree_attrs(world_rows.iter().map(|(p, _)| p.as_str()))
+    };
+    let mut out: Vec<ArtifactRow> = Vec::with_capacity(rows.len());
+    for (i, ((path, _), (row, tree))) in world_rows
+        .iter()
+        .zip(rows.iter().zip(attrs.iter()))
+        .enumerate()
+    {
+        let target = ctx.declared_id.and_then(|id| point_all(id)(row.id()));
+        let Some(node) = task_item_b(
+            row,
+            Phase::After,
+            tree.as_ref(),
+            vec![
+                ("data-path", path.as_str()),
+                ("data-kind", RowKind::Task.as_str()),
+            ],
+            target.as_ref(),
+        ) else {
+            return path_rows(ctx);
+        };
+        let key = if path.len() <= ARTIFACT_KEY_PATH_MAX {
+            format!("p{path}")
+        } else {
+            format!("i{i}")
+        };
+        let pinned = target.is_some() && ctx.pinned_paths.contains(path.as_str());
+        out.push((path.clone(), key, node, pinned));
+    }
+    let has_tree = !out.is_empty() && !folded;
+    let list_attrs = tree_list_attrs(KIND, Variant::B, true, has_tree);
+    ProductItems {
+        rows: out,
+        list_attrs,
+    }
 }
