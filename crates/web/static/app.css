@@ -292,6 +292,8 @@
 
 /* ==== 左のビュー: チェックの一覧（check_list）。種類ごとの結線の規則はこの節にだけ足す ==== */
 
+[data-view="check_list"] > li { margin-left: 0; overflow-wrap: anywhere; }
+
 /* ==== ここまで check_list ==== */
 
 /* ==== 左のビュー: アプリのデモ（app_demo）。種類ごとの結線の規則はこの節にだけ足す ==== */
