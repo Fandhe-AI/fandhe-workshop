@@ -1,14 +1,14 @@
 //! 左の成果物エリアの文書のビュー、変種 (b)（TASK-476 1/2。ART-1・ART-7）。
 //!
-//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれるが、今は共通の経路の行を返し、本体の部品はまだ使わない。
+//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれ、世界状態の経路ごとの行（`doc_element_item`。
+//! 題・状態・補足の 3 つの `span`）を返す。ブロックの行の部品（`doc_item`・`doc_items`・変種 (a)）は製品からは呼ばれない。
 //!
 //! 文書の行の中身は、ビルド時に安全な木へ変えた Markdown（`contract::doc::Block`）である。このモジュールは
 //! その木を、`doc_view::render_block_node`（TASK-149・TASK-150 のスキームの許可・外部画像の拒否・深さの上限）で描き、
 //! keyed list の項目 1 件にする。Markdown を実行時に解釈する処理は持たない（方式 (c)。web の通常の依存に
 //! Markdown の解釈器は無く、`tests/no_runtime_markdown.rs` が機械で確かめる）。
 //!
-//! 呼び出し元は、今は検査器の代役の部品（`view_fixture`）だけである。製品の `view()`（`engine_parts::ArtifactPart`）へは
-//! まだ結線しない。製品には前後の切り替え（ART-2）の口が無く、世界状態から `Vec<Block>` を読む規則も未決のためである。
+//! ブロックの行の呼び出し元は、検査器の代役の部品（`view_fixture`）と試験だけである。製品へは結線しない。製品には前後の切り替え（ART-2）の口が無く、世界状態から `Vec<Block>` を読む規則も未決のためである。
 //! 変種 (a) は製品の契約が拒否する（`ViewKind::allows`）。(a) は下の「変種 (a)」の対照としてだけ持つ（TASK-476 2/2）。
 //!
 //! # 固定するもの
@@ -21,6 +21,8 @@
 //! - `role`・`aria-*` は付けない。指せる行の属性（`data-row`・`data-action`・`data-payload`・`tabindex`）は `pointed_item` で、宛先のある行にだけ付ける（TASK-480 1/2）。
 //!   宛先は呼び出し側が注入する。行の識別子（文書の経路 + `#` + 位置）と `Input::Ui.path` の対応は固定しない（spec 側の確認事項。`docs/testing.md` の 5.111）
 //! - key は `k` + 行の識別子で、検査器の `keyOf` と同じ形である
+//! - 経路ごとの行（製品）の根の子は、変化の印、題・状態・補足の `span`（値が空でも必ず出す）、本文の区画（条件つき）の順で、
+//!   `data-kind="item"` を持つ。`state` は閉じた語彙に読まず文字のまま出す
 //!
 //! # 変種 (a)（対照専用）
 //!
@@ -37,15 +39,23 @@
 //! `render` の既定のエスケープを通る（SAFE-11）。タグ・属性名・クラス・testid・`data-block` の値は、
 //! 閉じた集合の `&'static str` だけである。
 
-use fandhe_frontend_core::{el, Node};
+use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_wireframe_ui::{paragraph as wire_paragraph, text as wire_text, Bold, Size};
-use fandhe_workshop_contract::doc::{Block, Inline};
+use fandhe_workshop_contract::doc::{Block, Doc, Inline};
+use fandhe_workshop_contract::view_body::body_doc;
+use fandhe_workshop_core::world::Element;
 
-use crate::a11y::TESTID_ATTR;
-use crate::artifact_mark::{pointed_item, PointOf};
-use crate::artifact_view::{view_list, DocRow, Phase, PointTarget, Variant, ViewKind};
-use crate::doc_view::{render_block_node, DEPTH_OMITTED_TEXT, MAX_RENDER_DEPTH};
+use crate::a11y::{ChangeMark, TESTID_ATTR};
+use crate::artifact_fold::ArtifactRow;
+use crate::artifact_mark::{point_all, pointed_item, PointOf};
+use crate::artifact_view::{
+    list_attrs, view_list, DocRow, Phase, PointTarget, RowId, RowKind, Variant, ViewKind,
+};
+use crate::doc_view::{render_block_node, render_doc, DEPTH_OMITTED_TEXT, MAX_RENDER_DEPTH};
 use crate::list_policy::ListError;
+use crate::product_rows::{
+    read_cell, ProductCtx, ProductItems, ARTIFACT_KEY_PATH_MAX, DOC_BODY_TESTID,
+};
 
 /// ブロックの包みの `data-testid`。
 pub const DOC_BLOCK_TESTID: &str = "doc-block";
@@ -234,11 +244,97 @@ pub fn doc_list(
     view_list(tag, ViewKind::Document, selected, items)
 }
 
-/// 製品の左エリアからの差し替え口。今は共通の経路の行を返し、本体の部品はまだ使わない。
+/// 経路ごとの行の題の `span` の `data-testid`。
+pub const DOC_ROW_TITLE_TESTID: &str = "doc-row-title";
+/// 経路ごとの行の状態の `span` の `data-testid`。
+pub const DOC_ROW_STATE_TESTID: &str = "doc-row-state";
+/// 経路ごとの行の補足の `span` の `data-testid`。
+pub const DOC_ROW_DETAIL_TESTID: &str = "doc-row-detail";
+/// 題の `span` のクラス。
+pub const DR_TITLE_CLASS: &str = "dr-title";
+/// 状態の `span` のクラス。
+pub const DR_STATE_CLASS: &str = "dr-state";
+/// 補足の `span` のクラス。
+pub const DR_DETAIL_CLASS: &str = "dr-detail";
+
+/// 経路ごとの行 1 件を作る（製品の差し替え口 `product_items` が呼ぶ）。
 ///
-/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。種類ごとの結線（後続の子）は、この関数だけを書き換えて行う。
-pub(crate) fn product_items(
-    ctx: &crate::product_rows::ProductCtx<'_>,
-) -> crate::product_rows::ProductItems {
-    crate::product_rows::path_rows(ctx)
+/// 根の子は、変化の印（`pointed_item` が付ける 2 つ）、題・状態・補足の `span`、本文の区画（条件つき）の順である。
+/// 3 つの `span` は値が空でも必ず出し、印・前後で子の形を変えない。属性の値は教材由来で、`text()` の文字ノードにだけ入る。
+#[must_use]
+pub fn doc_element_item(
+    path: &str,
+    element: Option<&Element>,
+    mark: Option<ChangeMark>,
+    target: Option<&PointTarget>,
+    body: Option<&Doc>,
+) -> Node {
+    let cell = read_cell(path, element);
+    let span = |testid: &'static str, class: &'static str, value: &str| {
+        el(
+            "span",
+            vec![(TESTID_ATTR, testid), ("class", class)],
+            vec![text(value)],
+        )
+    };
+    let mut kids = vec![
+        span(DOC_ROW_TITLE_TESTID, DR_TITLE_CLASS, &cell.label),
+        span(DOC_ROW_STATE_TESTID, DR_STATE_CLASS, &cell.state),
+        span(DOC_ROW_DETAIL_TESTID, DR_DETAIL_CLASS, &cell.detail),
+    ];
+    if let Some(doc) = body {
+        kids.push(el(
+            "div",
+            vec![
+                (TESTID_ATTR, DOC_BODY_TESTID),
+                ("class", "artifact-doc-body"),
+            ],
+            render_doc(doc),
+        ));
+    }
+    let variant = Variant::B;
+    pointed_item(
+        "li",
+        variant,
+        mark,
+        None,
+        vec![("data-path", path), ("data-kind", RowKind::Item.as_str())],
+        target,
+        kids,
+    )
+}
+
+/// 製品の左エリアからの差し替え口。世界状態の経路ごとに 1 行を返し、行に題・状態・補足を出す。
+///
+/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。宛先・本文・キー・固定の規則は
+/// `product_rows::path_rows` と同じ（TASK-358 2/2・ART-18。上限の判断 2026-10-24）で、行の中身だけが違う。
+pub(crate) fn product_items(ctx: &ProductCtx<'_>) -> ProductItems {
+    let rows: Vec<ArtifactRow> = ctx
+        .world_rows
+        .iter()
+        .enumerate()
+        .map(|(i, (path, mark))| {
+            let target = ctx
+                .declared_id
+                .and_then(|id| point_all(id)(&RowId::new(path.as_str()).ok()?));
+            let element = ctx.world.get(path);
+            let body = ctx
+                .declared_id
+                .zip(ctx.session)
+                .zip(element)
+                .and_then(|((id, s), e)| body_doc(s.ir(), id, e.fixture.as_deref()));
+            let node = doc_element_item(path, element, *mark, target.as_ref(), body);
+            let key = if path.len() <= ARTIFACT_KEY_PATH_MAX {
+                format!("p{path}")
+            } else {
+                format!("i{i}")
+            };
+            let pinned = target.is_some() && ctx.pinned_paths.contains(path.as_str());
+            (path.clone(), key, node, pinned)
+        })
+        .collect();
+    ProductItems {
+        rows,
+        list_attrs: list_attrs(ViewKind::Document, true),
+    }
 }
