@@ -6,8 +6,8 @@
 // update・view() の構築・keyed list の差分・DOM への反映を含む同期区間で、log-redraw と同じ形。view-redraw（委譲を含まない）の値とは
 // 測る量が違うため直接は比べない。操作は switch（別の種類から対象へ。行がすべて入れ替わる）だけ。製品には前後の切り替え（toggle）が無く、
 // 代わりの操作は作らない（該当なしとして記録する）。
-// 限界: 種類ごとの描画部品（diff_view など）は製品の view() に結線されていない。測る行は世界状態の経路の行で、文書のブロックでも
-// 差分の hunk でもない。結線した後に測り直しが要る（docs/views.md の 1 節）。CPU 4 倍の記録（ART-15。TASK-485 3/3）は measureProductRedrawCpu4x で、判定に使わない。
+// 限界: 種類ごとの描画部品（diff_view など）は製品の view() に結線済み（2026-11-05。#2062〜#2068）だが、測る行は属性の無い世界状態の経路の行で、文書のブロックでも
+// 差分の hunk でもない。各部品の実際の形は通らない（docs/views.md の 1 節。測り直しは docs/testing.md 5.471）。CPU 4 倍の記録（ART-15。TASK-485 3/3）は measureProductRedrawCpu4x で、判定に使わない。
 //
 // 安全: ページへ渡すのは固定の関数で、データは引数で渡す。ボタンは getAttribute の完全一致で選び、文字列から選択子を組み立てない。
 // 配信は tools/serve.mjs の 127.0.0.1 だけ。外部へは通信しない。
@@ -207,7 +207,7 @@ export async function measureProductRedraw(browser, dir, deps) {
         sample_diff_rows: diffRows,
         trial_rotation: 'case order rotated by the trial index; a new context per case',
         base: BASE,
-        scope_note: 'product view(); per-kind renderers are not wired, rows are world-state paths; not comparable with view-redraw',
+        scope_note: 'product view(); product view() with the 7 per-kind renderers wired (2026-11-05); fixture rows are attribute-less world-state paths, so renderer-specific shapes are not exercised; not comparable with view-redraw',
       },
     };
   } finally {

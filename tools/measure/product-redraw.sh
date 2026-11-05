@@ -5,7 +5,7 @@
 #
 # 固定データ（artifact-redraw。世界状態の経路の行を件数ぶん積み、7 種のビューを宣言した教材）で、選択のボタンの click 1 回の同期処理を測る。
 # タスク 50・文書 200・差分 500 が判定の対象、ファイルツリー 200・カード 20・チェック 20・アプリのデモ 9 が参考。10 試行 × 20 操作 = 200 値。
-# 種類ごとの描画部品は製品に結線されておらず、前後の切り替え（toggle）も無い。測るのは switch だけで、値は 1/3（view-redraw.sh）の値と比べない（docs/measurement.md）。
+# 種類ごとの描画部品は製品の view() に結線済み（2026-11-05。#2062〜#2068）だが、固定データの行は属性の無い経路の行で、各部品の実際の形は通らない。前後の切り替え（toggle）も無い。測るのは switch だけで、値は 1/3（view-redraw.sh）の値と比べない（docs/measurement.md）。
 # 基点は commit・教材（min-3step.json。pack.id だけを変えて使う）・端末の 3 つ。16ms を超えても失敗にせず値を出す（合否は docs/testing.md に書く）。
 # `make measure` の束には入れない。結果の JSON は標準出力に 1 つだけ、進行状況とログは標準エラーへ出す。出力は lib.sh の measure_emit だけが行う。
 # 前提: npm ci && npx playwright install chromium（Playwright は package-lock.json で固定済み）。
