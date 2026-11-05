@@ -1,0 +1,14 @@
+# product_view_pack（形式 B）。製品の左エリアの 7 種のビューの HTML の期待値（tests/product_rows.rs）の試験用で、架空の内容だけを持つ。
+pack: {id: product-view-pack, title: 左エリアの 7 種, version: '0.0.1', ir_format: 1, guidance: A, vocab: '1.4'}
+views:
+  v-files: {kind: file_tree}
+  v-doc: {kind: document, body: shown}
+  v-diff: {kind: diff}
+  v-tasks: {kind: task_tree}
+  v-cards: {kind: card_list}
+  v-checks: {kind: check_list}
+  v-demo: {kind: app_demo}
+fixtures:
+  doc-a: {path: fixtures/doc-a.md, kind: document}
+rejections:
+  rj-decline: {category: not_in_this_step, message: まだ公開しません。, next_action: もう一度決めます。}

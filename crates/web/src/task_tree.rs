@@ -1,5 +1,7 @@
 //! タスクツリーの変種 (a)・(b) の本体（TASK-474。ART-1・ART-9・ART-13・A11Y-22・PoC-8）。
 //!
+//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれるが、今は共通の経路の行を返し、本体の部品はまだ使わない。
+//!
 //! (a) は wireframe 系のチェックボックス（完了をチェック済みで示す）・状態の文字・入れ子のクラスで描き、木の意味
 //! （`role=tree`・`treeitem`）を持たない。(b) は木の意味を持つ。
 //!
@@ -268,4 +270,13 @@ pub fn task_tree_list_a(
     point: PointOf,
 ) -> Result<Node, ListError> {
     task_tree_list(rows, phase, Variant::A, selected, point)
+}
+
+/// 製品の左エリアからの差し替え口。今は共通の経路の行を返し、本体の部品はまだ使わない。
+///
+/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。種類ごとの結線（後続の子）は、この関数だけを書き換えて行う。
+pub(crate) fn product_items(
+    ctx: &crate::product_rows::ProductCtx<'_>,
+) -> crate::product_rows::ProductItems {
+    crate::product_rows::path_rows(ctx)
 }

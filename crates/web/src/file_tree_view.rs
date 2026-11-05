@@ -1,5 +1,7 @@
 //! 左の成果物エリアのファイルツリーのビュー、変種 (b)（TASK-473 1/2）と変種 (a)（TASK-473 2/2）。ART-1・ART-2・ART-3・ART-9・ART-13。
 //!
+//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれるが、今は共通の経路の行を返し、本体の部品はまだ使わない。
+//!
 //! 項目の根は `artifact_mark::pointed_item`（`marked_item` に指せる行の 4 属性を足す）で作る。宛先は呼び出し側が `PointOf` で注入し、
 //! 宛先の無い行には 4 属性が付かない（TASK-480 1/2。不変条件は `artifact_mark` の doc）。
 //!
@@ -194,4 +196,13 @@ pub fn file_tree_list_a(
     items: Vec<(String, Node)>,
 ) -> Result<Node, ListError> {
     tree_view_list(tag, ViewKind::FileTree, Variant::A, selected, items)
+}
+
+/// 製品の左エリアからの差し替え口。今は共通の経路の行を返し、本体の部品はまだ使わない。
+///
+/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。種類ごとの結線（後続の子）は、この関数だけを書き換えて行う。
+pub(crate) fn product_items(
+    ctx: &crate::product_rows::ProductCtx<'_>,
+) -> crate::product_rows::ProductItems {
+    crate::product_rows::path_rows(ctx)
 }
