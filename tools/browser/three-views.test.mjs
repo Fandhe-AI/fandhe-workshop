@@ -80,7 +80,17 @@ async function readBoth(page) {
         paths: li.textContent === '' ? [] : li.textContent.split(', '),
       })),
       consumed: [text('part-log-consumed'), text('part-artifact-consumed'), text('part-review-consumed')],
-      html: ['part-log', 'part-artifact-view', 'part-review'].map((id) => q(id).outerHTML),
+      // 差分更新で後から付いた属性は、作り直しの属性とは並びだけが違いうる（親の role=tree など）。
+      // 値の一致を見るので、属性は名前順にそろえてから比べる。
+      html: ['part-log', 'part-artifact-view', 'part-review'].map((id) => {
+        const clone = q(id).cloneNode(true);
+        for (const el of [clone, ...clone.querySelectorAll('*')]) {
+          const attrs = [...el.attributes].map((a) => [a.name, a.value]).sort((x, y) => (x[0] < y[0] ? -1 : 1));
+          for (const [n] of attrs) el.removeAttribute(n);
+          for (const [n, v] of attrs) el.setAttribute(n, v);
+        }
+        return clone.outerHTML;
+      }),
     };
     return { engine, dom };
   });

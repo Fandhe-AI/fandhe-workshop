@@ -37,6 +37,8 @@ const ENGINE_LISTS = [
     sel: viewList('file_tree'),
     field: 'view_file_tree',
     attrs: { 'data-testid': 'view-list', 'data-view': 'file_tree' },
+    // 行が 1 件以上あるときだけ親に role=tree が付く（tree_list_attrs の条件。#2056）。
+    treeWhenRows: true,
   },
   {
     sel: viewList('document'),
@@ -104,11 +106,17 @@ async function inspect(page, sel) {
       same: window.__pinned[id] === el,
       connected: window.__pinned[id].isConnected,
       attrs,
+      rows: el.querySelectorAll(':scope > li').length,
     };
   }, sel);
 }
 
-function assertParent(info, { sel: testid, field, attrs, untouched }, detail) {
+function expectedAttrs({ attrs, field, treeWhenRows }, rows) {
+  return { ...attrs, ...(treeWhenRows && rows > 0 ? { role: 'tree' } : {}), 'data-bind-list': field };
+}
+
+function assertParent(info, l, detail) {
+  const { sel: testid, untouched } = l;
   assert.equal(info.same, true, `same element ${testid} ${detail}`);
   assert.equal(info.connected, true, `connected ${testid} ${detail}`);
   if (untouched) {
@@ -120,7 +128,7 @@ function assertParent(info, { sel: testid, field, attrs, untouched }, detail) {
   for (const injected of ['aria-live', 'class', 'data-injected']) {
     assert.equal(injected in info.attrs, false, `${injected} should be gone on ${testid} ${detail}`);
   }
-  assert.deepEqual(info.attrs, { ...attrs, 'data-bind-list': field }, `${testid} ${detail}`);
+  assert.deepEqual(info.attrs, expectedAttrs(l, info.rows), `${testid} ${detail}`);
 }
 
 async function assertSafe(page, rec) {
@@ -156,11 +164,14 @@ test('エンジンの 3 リストの親は、更新の後も同じ要素で、�
     // view() から作り直した結果とも一致する。
     assert.equal(await page.evaluate(() => window.__fandheTest.rerender()), true);
     for (const l of ENGINE_LISTS) {
-      const attrs = await page.evaluate((i) => {
+      const { attrs, rows } = await page.evaluate((i) => {
         const el = document.querySelector(i);
-        return Object.fromEntries([...el.attributes].map((a) => [a.name, a.value]));
+        return {
+          attrs: Object.fromEntries([...el.attributes].map((a) => [a.name, a.value])),
+          rows: el.querySelectorAll(':scope > li').length,
+        };
       }, l.sel);
-      assert.deepEqual(attrs, { ...l.attrs, 'data-bind-list': l.field }, `rerender ${l.sel}`);
+      assert.deepEqual(attrs, expectedAttrs(l, rows), `rerender ${l.sel}`);
     }
     await assertSafe(page, rec);
     await context.close();
