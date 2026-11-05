@@ -4,7 +4,8 @@
 //! 左が右に出した文字列（ログの行・拒否の文面の控え）を読んだりする経路を作ると、
 //! 「表示層が描画の結果を読んで状態を作る」経路になるため、ソースの静的な検査で 0 件に固定する。
 //!
-//! 対象のモジュールは下の固定の一覧で持つ。`host.rs`・`engine_parts.rs` は両側を組み立てる層のため、
+//! 対象のモジュールは下の固定の一覧で持つ。左の成果物の畳み（`artifact_fold`）は左の状態の導出の一部で、
+//! 右からの参照が 0 件の左だけのモジュールのため、左として検査する（2026-11-05。`docs/testing.md` 5.472）。`host.rs`・`engine_parts.rs` は両側を組み立てる層のため、
 //! ファイル単位ではなく impl・関数の単位で検査する（R3）。`a11y`・`list_policy`・`parts`・`profile`・`learner_text`・
 //! `doc_view`・`shell*` と試験の設定だけのファイルは、両側が共有する部品または枠のため対象外である。
 //! 他の検査との分担: DOM の文字列の読み取りは `tools/check-deps.sh`、状態を変える経路は `no_progress.rs`・
@@ -33,6 +34,7 @@ const RIGHT_FILES: &[&str] = &[
 /// 左（成果物エリアの状態の導出と描画）のモジュール。
 const LEFT_FILES: &[&str] = &[
     "artifact_view.rs",
+    "artifact_fold.rs",
     "artifact_rows.rs",
     "artifact_doc_rows.rs",
     "artifact_mark.rs",
@@ -496,6 +498,28 @@ fn 負例_product_rows_も左として検査し_右からの参照も検出す�
         ))
         .is_empty(),
         "右からの product_rows の参照を検出できない"
+    );
+}
+
+#[test]
+fn 負例_artifact_fold_も左として検査し_右からの参照も検出する() {
+    assert!(
+        !violations(&with(
+            base(),
+            "artifact_fold.rs",
+            "use crate::log_lines::line_node;"
+        ))
+        .is_empty(),
+        "artifact_fold.rs からの右の参照を検出できない"
+    );
+    assert!(
+        !violations(&with(
+            base(),
+            "offers.rs",
+            "use crate::artifact_fold::fold_rows;"
+        ))
+        .is_empty(),
+        "右からの artifact_fold の参照を検出できない"
     );
 }
 

@@ -6,8 +6,9 @@
 // update・view() の構築・keyed list の差分・DOM への反映を含む同期区間で、log-redraw と同じ形。view-redraw（委譲を含まない）の値とは
 // 測る量が違うため直接は比べない。操作は switch（別の種類から対象へ。行がすべて入れ替わる）だけ。製品には前後の切り替え（toggle）が無く、
 // 代わりの操作は作らない（該当なしとして記録する）。
-// 限界: 種類ごとの描画部品（diff_view など）は製品の view() に結線済み（2026-11-05。#2062〜#2068）だが、測る行は属性の無い世界状態の経路の行で、文書のブロックでも
-// 差分の hunk でもない。各部品の実際の形は通らない（docs/views.md の 1 節。測り直しは docs/testing.md 5.471）。CPU 4 倍の記録（ART-15。TASK-485 3/3）は measureProductRedrawCpu4x で、判定に使わない。
+// 限界: 種類ごとの描画部品（diff_view など）は製品の view() に結線済み（2026-11-05。#2062〜#2068）だが、この測定（product-redraw）の行は属性の無い
+// 世界状態の経路の行で、文書のブロックでも差分の hunk でもない。各部品の実際の形は通らない（docs/views.md の 1 節。測り直しは docs/testing.md 5.471）。
+// 実際の形の行（hunk・dir と file・入れ子・文書の本文など）の測り直しは measureProductRedrawShaped（--kind product-redraw-shaped。#2074。docs/testing.md 5.472）。CPU 4 倍の記録（ART-15。TASK-485 3/3）は measureProductRedrawCpu4x で、判定に使わない。
 //
 // 安全: ページへ渡すのは固定の関数で、データは引数で渡す。ボタンは getAttribute の完全一致で選び、文字列から選択子を組み立てない。
 // 配信は tools/serve.mjs の 127.0.0.1 だけ。外部へは通信しない。
@@ -74,7 +75,7 @@ export function sampleDiffRows() {
 // ページ内の 1 試行。固定の関数で、データは引数で受け取る。時間を測るのは対象のボタンの click 1 回の同期処理だけ。
 // 各操作の後に、選んだ list の行数・ほかの list が空で hidden・全行が指せる行の属性を持つこと・状態が変わらないこと・root が
 // 置き換わっていないことを検査する。外れたら例外にする（何もしない更新を速いと誤読しない）。
-export async function productRedrawInPage({ kind, from, rows, samples, gapMs }) {
+export async function productRedrawInPage({ kind, from, rows, samples, gapMs, shape = false }) {
   const api = window.__fandheTest;
   const part = () => document.querySelector('#app [data-testid="part-artifact-view"]');
   const part0 = part();
@@ -92,6 +93,18 @@ export async function productRedrawInPage({ kind, from, rows, samples, gapMs }) 
     return `${s.engine.logLen}|${s.engine.current}`;
   };
   const state0 = snap();
+  // 形つきの固定データだけ: 描画部品の実際の形（hunk・dir と file・入れ子・本文の区画・kind の混在）が出ていること。
+  // 外れたら例外にする（別の経路に退いた描画を速いと誤読しない）。カードとチェックは語彙が属性の値で、形の検査を持たない。
+  const checkShape = (l, items) => {
+    const kinds = new Set(items.map((li) => li.getAttribute('data-kind')));
+    if (kind === 'diff' && !kinds.has('hunk')) throw new Error('diff: no hunk row');
+    if (kind === 'file_tree' && !(kinds.has('dir') && kinds.has('file'))) throw new Error('file_tree: dir and file rows are not both present');
+    if (kind === 'app_demo' && kinds.size < 2) throw new Error('app_demo: fewer than 2 row kinds');
+    if (kind === 'task_tree' && ![...l.querySelectorAll('[aria-level]')].some((e) => Number(e.getAttribute('aria-level')) >= 2)) {
+      throw new Error('task_tree: no nested row');
+    }
+    if (kind === 'document' && l.querySelectorAll('[data-testid="artifact-doc-body"]').length < 1) throw new Error('document: no body block');
+  };
   const check = () => {
     let found = false;
     for (const l of document.querySelectorAll('#app [data-testid="view-list"]')) {
@@ -104,6 +117,7 @@ export async function productRedrawInPage({ kind, from, rows, samples, gapMs }) 
           (li) => li.hasAttribute('data-action') && li.hasAttribute('data-payload') && li.hasAttribute('data-row') && li.hasAttribute('tabindex'),
         ).length;
         if (pointed !== rows) throw new Error(`${kind}: ${pointed} of ${rows} rows have the pointing attributes`);
+        if (shape) checkShape(l, items);
       } else if (l.children.length !== 0 || !l.hasAttribute('hidden')) {
         throw new Error('a list that is not selected is not empty and hidden');
       }
@@ -208,6 +222,110 @@ export async function measureProductRedraw(browser, dir, deps) {
         trial_rotation: 'case order rotated by the trial index; a new context per case',
         base: BASE,
         scope_note: 'product view(); product view() with the 7 per-kind renderers wired (2026-11-05); fixture rows are attribute-less world-state paths, so renderer-specific shapes are not exercised; not comparable with view-redraw',
+      },
+    };
+  } finally {
+    await srv.close();
+  }
+}
+
+// ---- 形つきの固定データでの測り直し（#2074）----
+
+export function shapedMeasurementName(c, stat) {
+  return `product_redraw_shaped_${c.kind}_${c.rows}_switch_${stat}`;
+}
+
+// 形つきの固定データのクエリ。cases() の 7 組だけを受ける（native 側の完全一致の表と同じ）。
+export function shapedFixtureQuery(c) {
+  return `artifact-redraw-shaped-${c.kind}-${c.rows}`;
+}
+
+// 種類ごとの行の形の要約（結果の conditions に残す。値は native の shaped_seed と対応する）。
+export const SHAPED_ROW_SHAPES = {
+  file_tree: 'nested paths: dir and file rows mixed (20 dirs x sub dir, files, readme)',
+  document: 'title, state and detail on every row; first row carries an 80-block body (fixture_docs, body: shown)',
+  diff: 'hunk row every 20 rows; others cycle ctx/add/del with a one-line detail',
+  task_tree: 'depth 0-2 nested paths; state cycles open/progress/done',
+  card_list: 'state cycles draft/open/merged/closed with title and detail',
+  check_list: 'state cycles success/failure/running/pending/skipped with title and detail',
+  app_demo: 'kind cycles heading/tab/field/button/item/text; state empty/active/disabled',
+};
+
+// 流れは measureProductRedraw と同じで、固定データのクエリと形の検査（shape: true）だけが違う。判定は同じ judge（閾値は緩めない）。
+export async function measureProductRedrawShaped(browser, dir, deps) {
+  const { newPage, installMountObserver, median, p95, toMicros, progress } = deps;
+  const list = cases();
+  const diffRows = sampleDiffRows();
+  const srv = await startServer({ dir, base: BASE, port: 0, gzip: true, gzipLevel: GZIP_LEVEL });
+  try {
+    const all = {};
+    for (let t = 0; t < PR_TRIALS; t++) {
+      for (let k = 0; k < list.length; k++) {
+        const c = list[(k + trialRotation(t, list.length)) % list.length];
+        const { context, page } = await newPage(browser, false);
+        try {
+          await page.addInitScript(installMountObserver);
+          await page.goto(`${srv.url}?fixture=${shapedFixtureQuery(c)}`, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
+          await page.waitForFunction(() => window.__mountedValue !== undefined, null, { timeout: NAV_TIMEOUT_MS });
+          const state = await page.evaluate(() => ({
+            mounted: window.__mountedValue,
+            hooks: typeof window.__fandheTest?.stateJson === 'function',
+          }));
+          if (state.mounted !== 'true') throw new Error(`data-mounted is "${state.mounted}" (mount failed)`);
+          if (!state.hooks) throw new Error('window.__fandheTest.stateJson is missing (not a test-hooks build?)');
+          const v = await page.evaluate(productRedrawInPage, {
+            kind: c.kind, from: c.from, rows: c.rows, samples: PR_SAMPLES, gapMs: PR_GAP_MS, shape: true,
+          });
+          if (!Array.isArray(v) || v.length !== PR_SAMPLES) throw new Error(`unexpected sample count: ${c.kind}`);
+          (all[`${c.kind}:${c.rows}`] ??= []).push(...v);
+        } finally {
+          await context.close();
+        }
+      }
+      progress(`product-redraw-shaped trial ${t + 1}/${PR_TRIALS} done`);
+    }
+    const measurements = [];
+    const p95Us = {};
+    for (const c of list) {
+      const key = `${c.kind}:${c.rows}`;
+      const v = all[key];
+      if (!v || v.length !== PR_TRIALS * PR_SAMPLES) throw new Error(`unexpected value count: ${key}`);
+      const p = toMicros(p95(v), `${key} p95`);
+      p95Us[key] = p;
+      measurements.push({ name: shapedMeasurementName(c, 'median'), unit: 'us', value: toMicros(median(v), `${key} median`) });
+      measurements.push({ name: shapedMeasurementName(c, 'p95'), unit: 'us', value: p });
+      measurements.push({ name: shapedMeasurementName(c, 'max'), unit: 'us', value: toMicros(Math.max(...v), `${key} max`) });
+      progress(`product-redraw-shaped ${key}: p95 ${p} us`);
+    }
+    const judgement = judge(p95Us);
+    for (const [kind, j] of Object.entries(judgement)) {
+      progress(`product-redraw-shaped ${kind}${j.judged ? '' : ' (reference)'}: ${j.within ? 'within' : 'over'} ${PR_THRESHOLD_US} us`);
+    }
+    return {
+      measurements,
+      compression: {
+        command: `tools/serve.mjs gzip level ${GZIP_LEVEL} (Content-Encoding: gzip)`,
+        implementation: `node ${process.version} zlib ${process.versions.zlib}`,
+      },
+      conditions: {
+        network: 'unthrottled',
+        cache: 'default',
+        cpu_throttle: 1,
+        trials: PR_TRIALS,
+        samples_per_trial: PR_SAMPLES,
+        threshold_p95_us: PR_THRESHOLD_US,
+        op_trigger: 'click on the view-select-button (includes click delegation, attribute reads, update, view() build, keyed list diff and DOM apply; synchronous)',
+        ops: { switch: 'measured', toggle: 'not_applicable (no before/after toggle in the product view())' },
+        switch_from: Object.fromEntries(list.map((c) => [c.kind, c.from])),
+        sizes: Object.fromEntries(list.map((c) => [c.kind, { fixture: shapedFixtureQuery(c), rows: c.rows }])),
+        judged: list.filter((c) => c.judged).map((c) => c.kind),
+        judgement,
+        point_attrs: 'all rows (7 kinds declared on main/st-1)',
+        seed: { pack_id: 'artifact-redraw-shaped', row_shapes: SHAPED_ROW_SHAPES, step: 'main/st-1' },
+        sample_diff_rows: diffRows,
+        trial_rotation: 'case order rotated by the trial index; a new context per case',
+        base: BASE,
+        scope_note: 'product view() with per-kind shaped rows (hunk, dir/file, nested tasks, document body, app demo kinds); same op, sizes and threshold as product-redraw but not the same rows, so not directly comparable with it',
       },
     };
   } finally {

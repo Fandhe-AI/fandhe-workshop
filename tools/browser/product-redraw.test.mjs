@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import {
   launchBrowser, channelFromEnv, withServer, openPage, waitMounted, collectSafety, nonZero,
 } from './harness.mjs';
-import { cases, productRedrawInPage } from '../measure/product-redraw.mjs';
+import { cases, productRedrawInPage, shapedFixtureQuery } from '../measure/product-redraw.mjs';
 
 const BASE = '/fandhe-product-redraw/';
 const SIZES = [9, 20, 50, 200, 500];
@@ -90,5 +90,43 @@ test('PR3: 未知の件数は既定の教材に倒れ、測定の関数は行数
         page.evaluate(productRedrawInPage, { kind: 'diff', from: 'document', rows: 100, samples: 1, gapMs: 5 }),
       );
     }
+  });
+});
+
+// ---- 形つきの固定データ（#2074。?fixture=artifact-redraw-shaped-<種類>-<件数>） ----
+
+for (const c of cases()) {
+  test(`PS1: ${shapedFixtureQuery(c)} は選んだ種類の list が ${c.rows} 行で全行が指せる行`, async () => {
+    await withFixture(`?fixture=${shapedFixtureQuery(c)}`, async (page) => {
+      // 既定の選択はファイルツリー。種類を切り替えて行数と指せる行の数を数える。
+      await page.locator(`#app [data-testid="view-select-button"][data-payload="${c.kind}"]`).click();
+      const r = await shownRows(page);
+      assert.equal(r.view, c.kind);
+      assert.equal(r.rows, c.rows);
+      assert.equal(r.pointed, c.rows);
+    });
+  });
+}
+
+test('PS2: ページ内の測定の関数が形の検査つきで 7 組すべてで正の値を返す', async () => {
+  for (const c of cases()) {
+    await withFixture(`?fixture=${shapedFixtureQuery(c)}`, async (page) => {
+      const v = await page.evaluate(productRedrawInPage, {
+        kind: c.kind, from: c.from, rows: c.rows, samples: 2, gapMs: 5, shape: true,
+      });
+      assert.equal(v.length, 2);
+      for (const x of v) assert.ok(Number.isFinite(x) && x >= 0, `${c.kind}: ${x}`);
+    });
+  }
+});
+
+test('PS3: 形のない固定データでは形の検査が失敗する（負の対照）', async () => {
+  // 属性の無い経路の行（artifact-redraw-500）には hunk 行が無く、形の検査つきの測定は例外になる。
+  await withFixture('?fixture=artifact-redraw-500', async (page) => {
+    await assert.rejects(
+      page.evaluate(productRedrawInPage, {
+        kind: 'diff', from: 'document', rows: 500, samples: 1, gapMs: 5, shape: true,
+      }),
+    );
   });
 });
