@@ -17,6 +17,12 @@
       "expect": {
         "uid": "main/st-1",
         "status": "accepted"
+      },
+      "texts": {
+        "plan/release": ["アプリの公開", "まだ分けていません"],
+        "plan/release/data": ["データを用意する", "画面で使うデータ"],
+        "plan/release/screen": ["画面を作る", "データを使う画面"],
+        "plan/release/publish": ["公開する", "画面ができてから"]
       }
     },
     {
@@ -33,6 +39,9 @@
       "expect": {
         "uid": "main/st-2",
         "status": "accepted"
+      },
+      "texts": {
+        "plan/release": ["3 つのタスクに分けました"]
       }
     },
     {
@@ -49,6 +58,9 @@
       "expect": {
         "uid": "main/st-3",
         "status": "accepted"
+      },
+      "texts": {
+        "plan/release/data": ["最初に始めます"]
       }
     },
     {
@@ -149,6 +161,12 @@
       "plan/release/data",
       "plan/release/publish",
       "plan/release/screen"
-    ]
+    ],
+    "rowTexts": {
+      "plan/release": ["アプリの公開", "残りは公開だけです"],
+      "plan/release/data": ["データを用意する", "最初に始めます"],
+      "plan/release/screen": ["画面を作る", "データを使う画面"],
+      "plan/release/publish": ["公開する", "画面ができてから"]
+    }
   }
 }
