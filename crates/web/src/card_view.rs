@@ -1,13 +1,14 @@
 //! 左の成果物エリアのカードのビュー、変種 (a)・(b)（TASK-477）。ART-1・ART-17。
 //!
-//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれるが、今は共通の経路の行を返し、本体の部品はまだ使わない。
+//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれ、(b) の部品（ラベル・補足・状態のバッジ・
+//! `tags`）で行を描く。行の種類は `card`（`data-kind`）、`li` に `data-path` を付け、キーは `p<経路>`（長い経路は `i<位置>`）で、
+//! 親に `role` は付かない。状態は `CardState::parse` のまま読み、語彙の外の値は「不明」になる（語彙は spec の判断。記録は #2059）。
+//! `tags` は `read_cell` の規則で空である。
 //!
 //! 項目の根は `artifact_mark::pointed_item`（`marked_item` に指せる行の 4 属性を足す）で作る。宛先は呼び出し側が `PointOf` で注入し、
 //! 宛先の無い行には 4 属性が付かない（TASK-480 1/2。不変条件は `artifact_mark` の doc）。
 //!
-//! 呼び出し元は、今は検査器の代役の部品（`view_fixture`）だけである。製品の `view()`（`engine_parts::ArtifactPart`）へは
-//! まだ結線しない。製品には前後の切り替え（ART-2）の口が無く、世界状態から `Row<Cell>` を作る規則も未決のためである
-//! （TASK-470・TASK-347 の後続）。
+//! (a) と前後の切り替え（ART-2）は製品から呼ばれない。`view_fixture`（試験の設定だけ）の検査器の枠が (a)・(b) を通る。
 //!
 //! # 固定するもの
 //!
@@ -50,16 +51,21 @@
 //!
 //! ラベル・補足・状態・`tags` は教材由来で信頼できない。`text()` の文字のノードにだけ入れ、`render` の既定の
 //! エスケープを通す（SAFE-11）。属性・class に入るのは閉じた集合の `&'static str`（`data-kind` と部品の class）だけで、
-//! 状態の文字も教材の値ではなく [`CardState::text`] の固定の文字列である。
+//! 状態の文字も教材の値ではなく [`CardState::text`] の固定の文字列である。製品が足す `data-path` は経路の値で、属性の値として
+//! `render` のエスケープを通る（属性名は固定）。
 
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_headless_ui::marker::{self, MarkerRootProps, MarkerTone, MarkerVariant};
 use fandhe_frontend_wireframe_ui::{card_basic, tag, Primary, Size};
 
 use crate::a11y::TESTID_ATTR;
-use crate::artifact_mark::{pointed_item, PointOf};
-use crate::artifact_view::{view_list, Cell, ItemRow, Phase, PointTarget, Variant, ViewKind};
+use crate::artifact_fold::ArtifactRow;
+use crate::artifact_mark::{point_all, pointed_item, PointOf};
+use crate::artifact_view::{
+    list_attrs, view_list, Cell, ItemRow, Phase, PointTarget, RowKind, Variant, ViewKind,
+};
 use crate::list_policy::ListError;
+use crate::product_rows::{item_rows, path_rows, ProductCtx, ProductItems, ARTIFACT_KEY_PATH_MAX};
 
 /// ラベル（`tags`）を 1 個の `tag` にまとめるときの区切り。
 pub const TAGS_SEPARATOR: &str = "・";
@@ -237,13 +243,28 @@ fn card_content_b(cell: &Cell) -> Vec<Node> {
 /// 変種 (b) の行 1 件を作る。その状態で出ない行は `None`。
 #[must_use]
 pub fn card_item_b(row: &ItemRow, phase: Phase, target: Option<&PointTarget>) -> Option<Node> {
+    card_item_b_with(row, phase, Vec::new(), target)
+}
+
+/// [`card_item_b`] に、属性の先頭へ置く製品の属性（`data-path` など）を足せる形。`data-kind` はその後に続く。
+///
+/// `lead` が空なら属性列は [`card_item_b`] と同じで、代役の部品の出力は変わらない。
+#[must_use]
+pub fn card_item_b_with(
+    row: &ItemRow,
+    phase: Phase,
+    lead: Vec<(&'static str, &str)>,
+    target: Option<&PointTarget>,
+) -> Option<Node> {
     let shown = row.shown(phase)?;
+    let mut attrs = lead;
+    attrs.push(("data-kind", row.kind().as_str()));
     Some(pointed_item(
         "li",
         Variant::B,
         shown.mark,
         Some(row.depth()),
-        vec![("data-kind", row.kind().as_str())],
+        attrs,
         target,
         card_content_b(shown.content),
     ))
@@ -274,11 +295,36 @@ pub fn card_items(
     }
 }
 
-/// 製品の左エリアからの差し替え口。今は共通の経路の行を返し、本体の部品はまだ使わない。
+/// 製品の左エリアからの差し替え口。(b) の部品で行を描く。
 ///
-/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。種類ごとの結線（後続の子）は、この関数だけを書き換えて行う。
-pub(crate) fn product_items(
-    ctx: &crate::product_rows::ProductCtx<'_>,
-) -> crate::product_rows::ProductItems {
-    crate::product_rows::path_rows(ctx)
+/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。行の検査に通らない経路（空・重複）や、出ない行が
+/// あるときは行を黙って落とさず、共通の経路の行に退く（fail-closed）。行の順は経路の辞書順のままで、木ではないので
+/// 並べ替えや木の属性は要らない。
+pub(crate) fn product_items(ctx: &ProductCtx<'_>) -> ProductItems {
+    let Ok(rows) = item_rows(ctx.world, ctx.world_rows, |_| RowKind::Card) else {
+        return path_rows(ctx);
+    };
+    let mut out: Vec<ArtifactRow> = Vec::with_capacity(rows.len());
+    for (i, ((path, _), row)) in ctx.world_rows.iter().zip(rows.iter()).enumerate() {
+        let target = ctx.declared_id.and_then(|id| point_all(id)(row.id()));
+        let Some(node) = card_item_b_with(
+            row,
+            Phase::After,
+            vec![("data-path", path.as_str())],
+            target.as_ref(),
+        ) else {
+            return path_rows(ctx);
+        };
+        let key = if path.len() <= ARTIFACT_KEY_PATH_MAX {
+            format!("p{path}")
+        } else {
+            format!("i{i}")
+        };
+        let pinned = target.is_some() && ctx.pinned_paths.contains(path.as_str());
+        out.push((path.clone(), key, node, pinned));
+    }
+    ProductItems {
+        rows: out,
+        list_attrs: list_attrs(ViewKind::CardList, true),
+    }
 }

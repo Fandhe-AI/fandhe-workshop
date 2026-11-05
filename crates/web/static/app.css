@@ -285,6 +285,9 @@
 
 /* ==== 左のビュー: カードの一覧（card_list）。種類ごとの結線の規則はこの節にだけ足す ==== */
 
+[data-view="card_list"] > li { margin-left: 0; overflow-wrap: anywhere; }
+[data-view="card_list"] [data-testid="card-tags"] { list-style: none; margin: 0; padding: 0; }
+
 /* ==== ここまで card_list ==== */
 
 /* ==== 左のビュー: チェックの一覧（check_list）。種類ごとの結線の規則はこの節にだけ足す ==== */

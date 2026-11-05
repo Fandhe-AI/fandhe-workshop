@@ -47,7 +47,10 @@ test('attrOnlyVariant はパスを変えず、属性の値と set_attr の値だ
   assert.equal(ir.nodes.find((n) => n.uid === 'main/st-0-1').step.rules[0].outcome.effects[0].put.attrs.state, P);
 });
 
-const row = (p, over = {}) => ({ path: p, row: p, text: p, kids: 0, tags: ['span'], ...over });
+const row = (p, over = {}) => ({
+  path: p, row: p, labels: 1, text: p, kids: 0, articles: 1, shape: ['span', 'div', 'p', 'ul'], badge: '不明',
+  tags: ['article', 'div', 'li', 'p', 'span', 'ul'], ...over,
+});
 
 test('judgeRows は集合・文字・子の要素・タグの過不足を捉え、U+0000 の違いは許す', () => {
   const ok = { rows: [row('a'), row('b')], logs: [], notice: 0 };
@@ -56,6 +59,17 @@ test('judgeRows は集合・文字・子の要素・タグの過不足を捉え�
   assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { text: 'x' }), row('b')] }, ['a', 'b']), ['text']);
   assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { kids: 1 }), row('b')] }, ['a', 'b']), ['text']);
   assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { tags: ['span', 'img'] }), row('b')] }, ['a', 'b']), ['tags']);
+  for (const t of ['a', 'script', 'img']) {
+    assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { tags: ['article', 'li', 'span', t] }), row('b')] }, ['a', 'b']), ['tags']);
+  }
+  for (const labels of [0, 2]) {
+    assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { labels }), row('b')] }, ['a', 'b']), ['text']);
+  }
+  for (const over of [{ articles: 0 }, { articles: 2 }, { shape: ['span', 'p', 'div', 'ul'] }, { shape: ['span', 'div', 'p'] }]) {
+    assert.deepEqual(judgeRows({ ...ok, rows: [row('a', over), row('b')] }, ['a', 'b']), ['shape']);
+  }
+  assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { badge: 'a' }), row('b')] }, ['a', 'b']), ['state']);
+  assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { badge: null }), row('b')] }, ['a', 'b']), ['state']);
   assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { row: 'z' }), row('b')] }, ['a', 'b']), ['row']);
   assert.deepEqual(judgeRows({ ...ok, notice: 1 }, ['a', 'b']), ['notice']);
   assert.deepEqual(judgeRows({ rows: [row('a\u0000b')], logs: [], notice: 0 }, ['ab']), []);
