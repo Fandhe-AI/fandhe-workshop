@@ -12064,7 +12064,7 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 | `initial` | `{ uid, status }`（`status` は `entered`・`accepted`・`achieved`） |
 | `sequence[]` | `{ kind: choice(id) / row(path) / decide(decision: approve・reject・revise) / next, expect: { uid, status } }`。`expect` は各操作の後の期待 |
 | `expect` | `completed`（必須）・`stoppedAfter`・`reviewAchieved`・`nextChapter`・`inputAreaAbsent`・`viewSwitchVisible`。TASK-749 1/3 で `entryPorts`・`entryAtStart`・`inputGuidesAbsent`・`fileInputs`・`controls` を足した（5.445）。TASK-749 2/3 で `visibleViews`・`leftSwitchAbsent`・`rowPaths` と、操作ごとの `marks` を足した（5.447）。TASK-749 3/3 で `appearance`（`theme`・`bodyPx`・`lineHeightRatio`・`inlineStyleZero`）と `narrowTabs` を足した（5.449）。TASK-755 で `docBodyRows`（本文の区画を持つ行の数。0 以上の整数で、`rowPaths` があればその件数以下）を足した（5.454） |
-| `sequence[].texts` | 任意。`{ "<経路>": ["<含む文字>", ...] }`。その操作の後に、経路の行の文字（変化の印と本文の区画を除き、空白を詰めたもの。`measureLeft` の `rows[].text`）が各文字を含む。経路は `expect.rowPaths` の中に限る。空のオブジェクト・空の配列・文字列でない値・200 文字超・制御文字・空白を詰めていない文字・重複は拒否する。理由は `texts@op[i]`（観察が無ければ `textsMissing@op[i]`）で、期待の文字も測った文字も出さない。測定は行の `data-kind` も `rows[].kind` に持つが、今の製品の行は `data-kind` を持たず空文字になる（Issue #2052・TASK-799・D-100）。変化の印の文字は `markText` |
+| `sequence[].texts` | 任意。`{ "<経路>": ["<含む文字>", ...] }`。その操作の後に、経路の行の文字（変化の印と本文の区画を除き、空白を詰めたもの。`measureLeft` の `rows[].text`）が各文字を含む。経路は `expect.rowPaths` の中に限る。空のオブジェクト・空の配列・文字列でない値・200 文字超・制御文字・空白を詰めていない文字・重複は拒否する。理由は `texts@op[i]`（観察が無ければ `textsMissing@op[i]`）で、期待の文字も測った文字も出さない。測定は行の `data-kind` も `rows[].kind` に持つが、7 種の行はどれも `data-kind` を持つ（`item`・`task`・`card`・`dir`/`file`・`hunk`/`line`・`check`・アプリのデモの 6 語）。経路の行（`path_rows`）に退いた行だけが空文字になる（Issue #2052・TASK-799・D-100）。変化の印の文字は `markText` |
 | `expect.rowTexts` | 任意。`sequence[].texts` と同じ形で、終了の時点に見る。理由は `rowTexts@end` |
 | `csp` | 省略時 `[true, false]` |
 
@@ -12785,3 +12785,30 @@ IR の同一: web だけの変更で、`compile` の出力は変わらない。
 | ART5-1 | crates/web/src/artifact_view.rs: 選ばれていないビューに hidden を付けない（ART-12。隠すべきビューが見えたままになる） | 親の属性の表, view_list_の選択と件数 | view_list_の選択と件数, 親の属性の表 | DETECTED | - |
 
 限界: 文字列の一致は部分一致で、`target` のソースに現れる文字列だと無関係な失敗を検出と数えうる（3.3 節の規則で避ける。機械では検査しない）。`make check-mutations` の CI への組み込みは範囲外。
+
+### 5.469 左エリアの 7 種の結線の記録（#2059。TASK-799・D-100。#2051〜#2058）
+
+目的: 製品の左エリアを 7 種の描画部品へ結線した子 Issue の記録を 1 か所にまとめる。子の PR がそれぞれ末尾に節を足すとコンフリクトになるため、本 Issue でまとめて書く。コードと試験は変えていない。
+
+変更: 8 件の PR を 2026-11-05 にマージした。各 PR の差分の統計で照合した。
+
+| PR | Issue | commit | 確かめたこと | 使った試験・設定 |
+|---|---|---|---|---|
+| #2061 | #2052 | `1cc3c9cc` | choice-journey の左の測定に、行の文字（`texts`・`rowTexts`）と行の種類（`rows[].kind`）を足した | `choice-journey-config.mjs`・`.test.mjs`・`choice-journey.mjs`・`choice-journey.test.mjs`（場面 K） |
+| #2062 | #2051 | `53eb99b0` | `product_rows.rs` を新設し、`ArtifactPart::view` から 7 種の `product_items` へ振り分ける（`_` の腕なし） | `crates/web/tests/product_rows.rs`、`tests/data/product_view_html/*.html`、`product_view_pack/`、`FEND13-3.mutation` の対象を `product_rows` に変更 |
+| #2063 | #2053 | `032f4de3` | 文書: 経路ごとの行に題・状態・補足の 3 つの `span`（`data-kind="item"`）と本文の区画 | `document_element_rows.rs`、`doc_body_host.rs`、`review-request-derived.json`・`-derived-800.json`・`-body-shown.json` に `texts` |
+| #2064 | #2054 | `5014cac3` | タスクツリー: 変種 (b)、`data-kind="task"`、深さ優先の順、木の属性。畳みが働くと親と項目の両方から木の属性を外す | `task_tree_product.rs`、`task-breakdown.json`・`task-breakdown-tree.json` |
+| #2065 | #2055 | `a24ca722` | カード: 変種 (b)、`data-kind="card"`、`CardState::parse` | `card_list_product.rs`、`task-breakdown.json`・`task-breakdown-cards.json`、`e3-ir.mjs`・`e3-ir.test.mjs`、`practice-data-xss.test.mjs` |
+| #2066 | #2056 | `035b92b3` | ファイルツリー: 変種 (b)、`dir`/`file` は接頭辞で判定し、途中の行は合成しない。木の補助関数を `product_rows` に移した | `file_tree_product.rs`、`list_parent_attrs.rs`、`list-parent-attrs.test.mjs`、`three-views.test.mjs` |
+| #2067 | #2057 | `8c855691` | 差分（`hunk`/`line`）とチェックの一覧を変種 (b) に結線した | `check_list_product.rs`、`diff_product.rs` |
+| #2068 | #2058 | `93f6c998` | アプリのデモ: `kind` を 6 語で読み、変種 (b) で描く。パスワードの欄が出ない | `app_demo_product.rs`、変異 `ART24-1` |
+
+結果: 8 件とも 2026-11-05 にマージ済みで、CI の全チェックが成功した（macOS の hook の試験だけ skipped）。各 PR の本文に、手元で `make test-browser` を完了できなかったとある。ブラウザ試験は CI の `browser-test` に任せた。
+
+既存の試験の期待を直した箇所: `product_view_html/*.html` の各期待、`list_parent_attrs.rs`・`list-parent-attrs.test.mjs`（ファイルツリーの `role=tree`）、`three-views.test.mjs`、`practice-data-xss.test.mjs`・`e3-ir.mjs`（カードのラベルで判定する）、`doc_body_host.rs`、`choice-journey.test.mjs`、`FEND13-3.mutation`。
+
+WASM の gzip -9: #2065 の本文に基点 519646 bytes（`5014cac3`、`SKIP_WASM_OPT=1`）があり、#2067 は参考値として比べた（base では同条件で測っていない）。#2063 は測ったが数値を本文に書いていない。ほかの PR の本文には記録が無い（記録なし）。`make check-wasm-size` は本 Issue では流していない。試験の件数の期待値（`scripts/expected-test-counts.txt`）は版上げの PR でしか照合しないため更新していない。
+
+記録した文書: `docs/views.md`（版 5。1・4・5・8 節）、`docs/known-gaps.md`（SECOND-6・PACK-22・ART-17・ART-24・PACK-36・SECOND-14、新しい 2 行）、`docs/pack-authoring.md`（左エリア）。
+
+限界・持ち越し（本 Issue の範囲外）: 人が画面で見て確かめた件数は 0 件で、確認は #2060 で行う。状態の語彙は仮置きで、確定は spec の判断。前後の切り替え（ART-2）と変種 (a) を製品で選ぶ口は無い。`pane_isolation.rs` の `LEFT_FILES` に `product_rows.rs` が無い。`path_rows` の文書の本文の分岐は通常通らない。`choice-journey.mjs` と `practice-data-xss.test.mjs` に結線の前の前提のコメントが残る。`docs/measurement.md` の product-redraw の記述は経路の行の値のまま。
