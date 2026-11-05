@@ -35,6 +35,7 @@ make measure | jq .
 | 入力から描画まで（ログ 120〜158 項目。TASK-223 2/2） | `tools/measure/input-paint.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 左のビューの部品単位の再描画（固定データの画面。TASK-485 1/3。ART-4） | `tools/measure/view-redraw.sh` | 試験の設定（代役の部品 `view_fixture` が要る）。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 本体の画面の左のビューの再描画（TASK-485 2/3。ART-26） | `tools/measure/product-redraw.sh` | 試験の設定（`?fixture=artifact-redraw-<n>` が要る）。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
+| 本体の画面の左のビューの再描画を描画部品の実際の形の行で測り直す（#2074。ART-26） | `tools/measure/product-redraw-shaped.sh` | 試験の設定（`?fixture=artifact-redraw-shaped-<種類>-<件数>` が要る）。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 
 - release の設定で `tools/build-web.sh` を一時ディレクトリにビルドする（`dist/` は上書きしない）。結果の JSON を標準出力に 1 つだけ出し、
   進行状況とビルドログは標準エラーへ出す
@@ -283,6 +284,7 @@ make measure-ir-memory | jq .               # 直接: tools/measure/ir-memory.sh
 - `view-redraw` の値は固定データ（`baseline.data`）の代役の部品の画面の値で、教材の値・本体の画面の値と比べない
 - `conditions.cpu_throttle` が違う値どうしを比べない。CPU 4 倍の値（`view-redraw-cpu4x`・`product-redraw-cpu4x`）は記録だけで、判定に使わず、減速なしの値とも比べない
 - `product-redraw` の値は本体の画面の `switch`（選択のボタンの click の同期区間。委譲を含む）の値で、`view-redraw` の値（委譲を含まない）・教材の値と比べない。2026-11-05 の結線より前の値（`docs/testing.md` 5.318。`dirty: true` で §6 により基点として比べられない）は世界状態の経路の行の値、結線の後の値（5.471）は種類ごとの描画部品が属性の無い経路の行を描いた値である。測り方は同じだが描画の経路が違うため、両者の増減を論じない。固定データの行は各部品の実際の形（hunk・dir/file など）を通らない
+- `product-redraw-shaped` の値は描画部品の実際の形の行（hunk・dir/file・入れ子のタスク・文書の本文・アプリのデモの kind）の `switch` の値で、操作・行数・閾値は `product-redraw` と同じだが行の形が違う。`product-redraw` の値と同じ条件ではないため、増減は条件の違いを併記したうえで読む。文書の本文は先頭の 1 行にだけ 80 ブロックを付けており、仕様の前提（1 文書 80 ブロック）に近いが、全行に付けた量ではない
 - `history_*` の値（native の様式）は、PoC-6 の CSV の値と直接比べない（履歴の形が違い、誤入力が無く、`GoTo` で飛ばしているため）。WASM・ブラウザの側の値とも比べない。`baseline.ops_sequence.ops_sha256` が違う値どうしを比べない
 - `ir_memory_*` の値は、断った後の値であり上限を外した値ではない。chromium と chrome の値、Linux の値と基準端末 A の値を比べない。`conditions.cases[].ir_sha256` が違う値どうしを比べない
 - Hello の値は最小の画面の値で、教材全体の値ではない
