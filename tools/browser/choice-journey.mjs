@@ -261,7 +261,7 @@ export async function measureLeft(page, timeout = 2000) {
         glyph: (li.querySelector(':scope > ' + tid('mark-glyph'))?.textContent ?? '').trim(),
         markText: (li.querySelector(':scope > ' + tid('mark-text'))?.textContent ?? '').trim(),
         // 行の文字（Issue #2052・TASK-799・D-100）。変化の印と本文の区画を除き、空白を詰める。
-        // 今の製品の行は data-kind を持たず、文字も経路だけなので kind は空文字になる（属性の結線は後続の子が確かめる）。
+        // 文書のビューの行は data-kind="item" を持ち、文字は題・状態・補足の連結になる（Issue #2053）。他の種類の行は kind が空文字のことがある。
         text: (() => {
           const c = li.cloneNode(true);
           for (const e of q([tid('mark-glyph'), tid('mark-text'), tid('artifact-doc-body')].join(','), c)) e.remove();

@@ -36,6 +36,18 @@
         "review/scope": "add",
         "review/focus": "add",
         "review/due": "add"
+      },
+      "texts": {
+        "review/to": [
+          "宛先",
+          "未入力",
+          "（まだ決めていません）"
+        ],
+        "review/status": [
+          "依頼文の下書き",
+          "下書き",
+          "これから 4 つの項目を決めます"
+        ]
       }
     },
     {
@@ -59,6 +71,13 @@
       "marks": {
         "review/status": "change",
         "review/to": "change"
+      },
+      "texts": {
+        "review/to": [
+          "宛先",
+          "入力済み",
+          "この部分に詳しい 1 人に頼みます"
+        ]
       }
     },
     {
@@ -82,6 +101,13 @@
       "marks": {
         "review/status": "change",
         "review/scope": "change"
+      },
+      "texts": {
+        "review/scope": [
+          "頼む範囲",
+          "入力済み",
+          "今回直した差分だけです"
+        ]
       }
     },
     {
@@ -105,6 +131,13 @@
       "marks": {
         "review/status": "change",
         "review/focus": "change"
+      },
+      "texts": {
+        "review/focus": [
+          "見てほしい点",
+          "入力済み",
+          "入力チェックの抜けがないかを見てください"
+        ]
       }
     },
     {
@@ -151,6 +184,13 @@
       "marks": {
         "review/status": "change",
         "review/due": "change"
+      },
+      "texts": {
+        "review/due": [
+          "期限",
+          "入力済み",
+          "明日の 17 時までです"
+        ]
       }
     },
     {
@@ -193,6 +233,12 @@
       },
       "marks": {
         "review/status": "change"
+      },
+      "texts": {
+        "review/status": [
+          "送信可",
+          "宛先・範囲・見てほしい点・期限が揃った依頼文です"
+        ]
       }
     },
     {
@@ -244,7 +290,34 @@
       "inlineStyleZero": true
     },
     "narrowTabs": true,
-    "docBodyRows": 0
+    "docBodyRows": 0,
+    "rowTexts": {
+      "review/status": [
+        "依頼文の下書き",
+        "送信可",
+        "宛先・範囲・見てほしい点・期限が揃った依頼文です"
+      ],
+      "review/to": [
+        "宛先",
+        "入力済み",
+        "この部分に詳しい 1 人に頼みます"
+      ],
+      "review/scope": [
+        "頼む範囲",
+        "入力済み",
+        "今回直した差分だけです"
+      ],
+      "review/focus": [
+        "見てほしい点",
+        "入力済み",
+        "入力チェックの抜けがないかを見てください"
+      ],
+      "review/due": [
+        "期限",
+        "入力済み",
+        "明日の 17 時までです"
+      ]
+    }
   },
   "viewport": {
     "width": 800,
