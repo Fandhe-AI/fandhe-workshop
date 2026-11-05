@@ -2,7 +2,7 @@
 //
 // 役割: 元にする IR（crates/web/tests/data/ch0_3/ir.json。実行時に読むだけで書き換えない）から、試験用入力 1 件を入れた IR を作る。
 //   - e3Variant: `put` のパスと、`put` の属性の値と、`set_attr` の値を入力にした IR
-//   - attrOnlyVariant: パスは元のまま、属性の値と `set_attr` の値だけを入力にした IR（属性の値を画面に出す経路が無いことの固定に使う）
+//   - attrOnlyVariant: パスは元のまま、属性の値と `set_attr` の値だけを入力にした IR（この IR のビュー（カード・ファイルツリー）では属性の値が画面に出ないことの固定に使う）
 //   - observeRows: 左の成果物の行（カードの変種 (b)。ラベルは data-testid=card-label）と右のログの最後の行を読む（ページ内で動く自己完結の関数。評価はしない）
 //   - judgeRows・judgeReceived: 読んだ値が「文字として出ている」かを判定する（ノード側の純関数）
 // 方法は PoC-7（docs/spec/prototype/tools/browser-test-poc7.mjs の injectE3）に合わせる。同じパスの全出現を置き換え、
