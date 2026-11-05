@@ -282,7 +282,7 @@ make measure-ir-memory | jq .               # 直接: tools/measure/ir-memory.sh
 - 教材（`baseline.pack`）・端末（`baseline.device`）が違う値どうしを比べない。`log-redraw`・`log-slope`・`log-rounds`・`input-paint` の値は最小教材の値で、教材全体を代表しない
 - `view-redraw` の値は固定データ（`baseline.data`）の代役の部品の画面の値で、教材の値・本体の画面の値と比べない
 - `conditions.cpu_throttle` が違う値どうしを比べない。CPU 4 倍の値（`view-redraw-cpu4x`・`product-redraw-cpu4x`）は記録だけで、判定に使わず、減速なしの値とも比べない
-- `product-redraw` の値は本体の画面の `switch`（選択のボタンの click の同期区間。委譲を含む）の値で、`view-redraw` の値（委譲を含まない）・教材の値と比べない。種類ごとの描画部品が製品に結線されるまでは経路の行の値である（`docs/testing.md` 5.318）
+- `product-redraw` の値は本体の画面の `switch`（選択のボタンの click の同期区間。委譲を含む）の値で、`view-redraw` の値（委譲を含まない）・教材の値と比べない。2026-11-05 の結線より前の値（`docs/testing.md` 5.318。`dirty: true` で §6 により基点として比べられない）は世界状態の経路の行の値、結線の後の値（5.471）は種類ごとの描画部品が属性の無い経路の行を描いた値である。測り方は同じだが描画の経路が違うため、両者の増減を論じない。固定データの行は各部品の実際の形（hunk・dir/file など）を通らない
 - `history_*` の値（native の様式）は、PoC-6 の CSV の値と直接比べない（履歴の形が違い、誤入力が無く、`GoTo` で飛ばしているため）。WASM・ブラウザの側の値とも比べない。`baseline.ops_sequence.ops_sha256` が違う値どうしを比べない
 - `ir_memory_*` の値は、断った後の値であり上限を外した値ではない。chromium と chrome の値、Linux の値と基準端末 A の値を比べない。`conditions.cases[].ir_sha256` が違う値どうしを比べない
 - Hello の値は最小の画面の値で、教材全体の値ではない
