@@ -823,8 +823,9 @@ fn shaped_seed(shape: Shaped) -> Vec<serde_json::Value> {
                     shaped_changed(&path, "", "hunk", &title, "", None)
                 } else {
                     let state = ["ctx", "add", "del"][i % 3];
-                    let detail = format!("line {i} of sample text");
-                    shaped_changed(&path, "", state, "", &detail, None)
+                    let text = format!("line {i} of sample text");
+                    let numbers = format!("{}:{}", i + 1, i + 1);
+                    shaped_changed(&path, "", state, &text, &numbers, None)
                 }
             })
             .collect(),
