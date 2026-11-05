@@ -25,12 +25,10 @@
 use std::collections::{BTreeSet, HashMap};
 
 use fandhe_frontend_core::{el, text, Node};
-use fandhe_workshop_contract::doc::Doc;
-use fandhe_workshop_contract::view_body::body_doc;
 use fandhe_workshop_core::world::{Element, World};
 use fandhe_workshop_core::Session;
 
-use crate::a11y::{ChangeMark, TESTID_ATTR};
+use crate::a11y::ChangeMark;
 use crate::artifact_fold::ArtifactRow;
 use crate::artifact_mark::{point_all, pointed_item};
 use crate::artifact_rows::DeriveError;
@@ -92,26 +90,14 @@ pub(crate) fn current_target_paths(session: &Session, view: &str) -> BTreeSet<St
     out
 }
 
-/// 成果物の行の子。経路の `span` に、本文の木があれば区画を続ける。
+/// 成果物の行の子。経路の `span` 1 つ。
 ///
-/// [`path_rows`] から呼ばれる。木の描画は `doc_view`（リンクのスキーム・外部画像・深さの検査を持つ）に任せ、
-/// 生 HTML は使わない。
-pub(crate) fn row_children(path: &str, body: Option<&Doc>) -> Vec<Node> {
-    let mut kids = vec![el("span", vec![], vec![text(path)])];
-    if let Some(doc) = body {
-        kids.push(el(
-            "div",
-            vec![
-                (TESTID_ATTR, DOC_BODY_TESTID),
-                ("class", "artifact-doc-body"),
-            ],
-            crate::doc_view::render_doc(doc),
-        ));
-    }
-    kids
+/// [`path_rows`] から呼ばれる。文書のビューの本文の区画は `document_view::product_items` だけが持つ。
+pub(crate) fn row_children(path: &str) -> Vec<Node> {
+    vec![el("span", vec![], vec![text(path)])]
 }
 
-/// 7 種の差し替え口が、行の検査に通らないときに退く先の経路の行。世界状態の経路 1 つが `li` 1 つで、文書のビューでは本文の区画も続ける。
+/// 7 種の差し替え口が、行の検査に通らないときに退く先の経路の行。世界状態の経路 1 つが `li` 1 つ。
 pub(crate) fn path_rows(ctx: &ProductCtx<'_>) -> ProductItems {
     let selected = ctx.selected;
     let rows: Vec<ArtifactRow> = ctx
@@ -125,15 +111,6 @@ pub(crate) fn path_rows(ctx: &ProductCtx<'_>) -> ProductItems {
             let target = ctx
                 .declared_id
                 .and_then(|id| point_all(id)(&RowId::new(path.as_str()).ok()?));
-            // 文書ビューの本文（ART-18・EP-13）。`body: shown` の宣言と要素の `fixture` と木がそろうときだけ `Some`。
-            // 上限の判断（2026-10-24）: 木の大きさ・深さは IR の読み込みの関門と `doc_view` の深さの上限が、行数は
-            // 畳み（`fold_rows`）と 4,096 の安全弁が抑えるので、ここでは追加の上限を置かない。
-            let body = (selected == ViewKind::Document)
-                .then_some(ctx.declared_id)
-                .flatten()
-                .zip(ctx.session)
-                .zip(ctx.world.get(path))
-                .and_then(|((id, s), element)| body_doc(s.ir(), id, element.fixture.as_deref()));
             let node = pointed_item(
                 "li",
                 Variant::B,
@@ -141,7 +118,7 @@ pub(crate) fn path_rows(ctx: &ProductCtx<'_>) -> ProductItems {
                 None,
                 vec![("data-path", path.as_str())],
                 target.as_ref(),
-                row_children(path.as_str(), body),
+                row_children(path.as_str()),
             );
             // 経路は一意（BTreeMap のキー）なので、挿入で後続の行の同一性がずれないよう経路をキーにする。
             // 教材由来の長い文字列はキーに使わず、位置のキーへ退く（接頭辞が違うので衝突しない）。

@@ -42,6 +42,7 @@ const LEFT_FILES: &[&str] = &[
     "diff_view.rs",
     "document_view.rs",
     "file_tree_view.rs",
+    "product_rows.rs",
     "task_tree.rs",
     "tree_attrs.rs",
     "view_select.rs",
@@ -474,6 +475,28 @@ fn 負例_左から右のモジュールを参照すると検出する() {
             "{bad} を検出できない"
         );
     }
+}
+
+#[test]
+fn 負例_product_rows_も左として検査し_右からの参照も検出する() {
+    assert!(
+        !violations(&with(
+            base(),
+            "product_rows.rs",
+            "use crate::log_lines::line_node;"
+        ))
+        .is_empty(),
+        "product_rows.rs からの右の参照を検出できない"
+    );
+    assert!(
+        !violations(&with(
+            base(),
+            "offers.rs",
+            "use crate::product_rows::path_rows;"
+        ))
+        .is_empty(),
+        "右からの product_rows の参照を検出できない"
+    );
 }
 
 #[test]

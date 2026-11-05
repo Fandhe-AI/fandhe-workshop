@@ -516,7 +516,7 @@ fn secret_choice_list(model: &HostModel) -> Node {
 const LOG_SECRET_CHOICE: usize = 9;
 
 /// 左の成果物。選ばれたビューの種類で、行の組み立てを種類ごとの差し替え口（各 `*_view.rs` の `product_items`）へ振り分ける。
-/// 親の一覧・畳み・選択のボタンはここで持つ。行の組み立て（経路の行・文書の本文）は `product_rows` にある。
+/// 親の一覧・畳み・選択のボタンはここで持つ。経路の行の組み立ては `product_rows`、文書の本文は `document_view` にある。
 struct ArtifactPart;
 
 impl DisplayPart<HostModel> for ArtifactPart {

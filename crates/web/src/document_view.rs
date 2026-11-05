@@ -306,8 +306,8 @@ pub fn doc_element_item(
 
 /// 製品の左エリアからの差し替え口。世界状態の経路ごとに 1 行を返し、行に題・状態・補足を出す。
 ///
-/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。宛先・本文・キー・固定の規則は
-/// `product_rows::path_rows` と同じ（TASK-358 2/2・ART-18。上限の判断 2026-10-24）で、行の中身だけが違う。
+/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。宛先・キー・固定の規則は
+/// `product_rows::path_rows` と同じ（TASK-358 2/2・ART-18。上限の判断 2026-10-24）で、行の中身と本文の区画（文書のビューだけが持つ）が違う。
 pub(crate) fn product_items(ctx: &ProductCtx<'_>) -> ProductItems {
     let rows: Vec<ArtifactRow> = ctx
         .world_rows

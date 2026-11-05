@@ -12812,3 +12812,17 @@ WASM の gzip -9: #2065 の本文に基点 519646 bytes（`5014cac3`、`SKIP_WAS
 記録した文書: `docs/views.md`（版 5。1・4・5・8 節）、`docs/known-gaps.md`（SECOND-6・PACK-22・ART-17・ART-24・PACK-36・SECOND-14、新しい 2 行）、`docs/pack-authoring.md`（左エリア）。
 
 限界・持ち越し（本 Issue の範囲外）: 人が画面で見て確かめた件数は 0 件で、確認は #2060 で行う。状態の語彙は仮置きで、確定は spec の判断。前後の切り替え（ART-2）と変種 (a) を製品で選ぶ口は無い。`pane_isolation.rs` の `LEFT_FILES` に `product_rows.rs` が無い。`path_rows` の文書の本文の分岐は通常通らない。`choice-journey.mjs` と `practice-data-xss.test.mjs` に結線の前の前提のコメントが残る。`docs/measurement.md` の product-redraw の記述は経路の行の値のまま。
+
+### 5.470 左エリアの結線の後に残った分離の検査の漏れと古い記述の整理（#2070。5.469 の持ち越し）
+
+目的: 5.469 が持ち越した項目のうち、分離の検査の漏れ・死んだ分岐・古い記述を直す。画面の見た目・動作と、試験の判定・期待値は変えない。
+
+変更（2026-11-05）:
+
+- `crates/web/tests/pane_isolation.rs` の `LEFT_FILES` に `product_rows.rs` を足した（左 14 ファイルになった。5.273 の「13」は当時の記録として残す）。負例を 1 件足した（`product_rows.rs` から右の参照、右から `product_rows` の参照の両方を検出）。足しても合格した（右の描画の語・右のモジュールへの経路が無かったため）
+- `product_rows::path_rows` の文書の本文の分岐を削った。到達不能の根拠: `ProductCtx` を組むのは `ArtifactPart::view` の 1 か所だけで、文書は `document_view::product_items` に振り分けられ `path_rows` を呼ばない。`path_rows` を呼ぶ他の 6 種では `ctx.selected` が文書にならない。`row_children` は経路の `span` だけを返す。本文は `document_view` だけが持つ
+- コメントを直した: `engine_parts.rs`・`document_view.rs`・`tools/browser/choice-journey.mjs`（`data-kind` が空になるのは経路の行だけ）
+- `practice-data-xss.test.mjs`・`e3-ir.mjs` の「属性の値を画面に出す経路が無い」を、この IR のビュー（カード・ファイルツリー）に範囲を絞った。確かめた結果: ch0_3 の IR の属性は `state` だけで、カードは閉じた語彙で読み（外は「不明」）、ファイルツリーは `state` を出さないため、試験の主張は今も成り立つ。古かったのは一般化の部分だけ
+- 第 3 教材の `workshop.yaml`・`docs/requirements.md` のコメント・文書を、`docs/views.md` 版 5 の 4 節の仮置きの読み方と、状態語がバッジで「不明」になる事実（`docs/known-gaps.md`）に合わせた。Step・規則・IR は変えていない
+
+限界: `artifact_fold.rs` も `LEFT_FILES` に無い（本 Issue では触らない）。product-redraw の測り直し・`scripts/expected-test-counts.txt` の更新・状態の語彙の確定・変種 (a) の口・ART-2・人の画面確認（#2060）は範囲外。ブラウザ試験は手元で流さず CI に任せる。作成者と実装が同じ AI で、人の確認は無い。
