@@ -1,14 +1,15 @@
 //! 左の成果物エリアの差分のビュー、変種 (b)（TASK-475 1/2。ART-1・ART-8）。
 //!
-//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれるが、今は共通の経路の行を返し、本体の部品はまだ使わない。
+//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれ、(b) の部品で行を描く。行の種類（`data-kind`）は
+//! `state` が `hunk` なら `hunk`、それ以外は `line`、`li` に `data-path` を付け、キーは `p<経路>`（長い経路は `i<位置>`）で、
+//! 親に `role` は付かない。深さのクラスは付けない（`pre` がインデントを持つ）。`detail` が「旧:新」の形でなければ行番号は空で、
+//! 語彙の外の `state` は `?` になる（語彙は spec の判断。記録は #2059）。
 //!
 //! 変種 (a) の `wireframe-ui` の `text` は空白を畳むため、コードのインデントが失われる（PoC-8 の G-4）。
 //! (b) は自作の部品（`pre`・行番号・記号の列）で描き、インデントを保つ。(a) は対照専用で、製品の構成では選べない
 //! （[`diff_item_a`]。TASK-475 2/2）。
 //!
-//! 呼び出し元は、今は検査器の代役の部品（`view_fixture`）だけである。製品の `view()`（`engine_parts::ArtifactPart`）へは
-//! まだ結線しない。製品には前後の切り替え（ART-2）の口が無く、世界状態から差分の行（`Row<Cell>`）を作る規則も
-//! 未決のためである。
+//! (a) と前後の切り替え（ART-2）は製品から呼ばれない。`view_fixture`（試験の設定だけ）の検査器の枠が (a)・(b) を通る。
 //!
 //! # 変種 (a)（対照専用）
 //!
@@ -39,7 +40,7 @@
 //!   生の値を番号の列に出さない（fail-closed）
 //! - 未知の `state` は `?` にする。追加・削除とは主張しない（fail-closed）。生の値は出さない
 //! - `tags` は出さない（件数で子の数が変わり、項目の形が変わるため）。指せる行の属性は `pointed_item` で、宛先のある行にだけ付ける（TASK-480 1/2）
-//! - key は `k` + 行の識別子で、検査器の `keyOf` と同じ形である。計算量は行数に対して O(n)
+//! - key は `k` + 行の識別子で、検査器の `keyOf` と同じ形である。製品の差し替え口はキー `p<経路>` を使う。計算量は行数に対して O(n)
 //!
 //! `pre` の注意: HTML の構文解析では `pre` の直後の改行 1 つが落ちる。今の経路は CSR で文字ノードを直接作るため
 //! 当たらないが、SSR の文字列を構文解析する経路を足すときは注意が要る。
@@ -48,15 +49,22 @@
 //!
 //! `label`・`detail`・`state` は教材由来の信頼できない値である。`label` と行番号は `text()` の文字ノードにだけ入れ、
 //! `render` の既定のエスケープを通す（SAFE-11）。`state` は完全一致で閉じた [`DiffSign`] に読む。
-//! タグ・属性名・クラス・testid・`data-kind` の値は閉じた集合の `&'static str` だけである。
+//! タグ・属性名・クラス・testid・`data-kind` の値は閉じた集合の `&'static str` だけである。製品が足す `data-path` は経路の値で、
+//! 属性の値として `render` のエスケープを通る（属性名は固定）。
 
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_wireframe_ui::{text as wire_text, Bold, Size};
 
 use crate::a11y::TESTID_ATTR;
-use crate::artifact_mark::{pointed_item, PointOf};
-use crate::artifact_view::{view_list, ItemRow, Phase, PointTarget, Variant, ViewKind};
+use crate::artifact_fold::ArtifactRow;
+use crate::artifact_mark::{point_all, pointed_item, PointOf};
+use crate::artifact_view::{
+    list_attrs, view_list, ItemRow, Phase, PointTarget, RowKind, Variant, ViewKind,
+};
 use crate::list_policy::ListError;
+use crate::product_rows::{
+    item_rows, path_rows, read_cell, ProductCtx, ProductItems, ARTIFACT_KEY_PATH_MAX,
+};
 
 /// 旧の行番号の `data-testid`。
 pub const DIFF_OLD_NO_TESTID: &str = "diff-old-no";
@@ -146,10 +154,25 @@ fn cell_span(testid: &'static str, class: &'static str, value: &str) -> Node {
 /// 行 1 件を作る。その状態で出ない行は `None`。
 #[must_use]
 pub fn diff_item(row: &ItemRow, phase: Phase, target: Option<&PointTarget>) -> Option<Node> {
+    diff_item_with(row, phase, Vec::new(), target)
+}
+
+/// [`diff_item`] に、属性の先頭へ置く製品の属性（`data-path` など）を足せる形。`data-kind` はその後に続く。
+///
+/// `lead` が空なら属性列は [`diff_item`] と同じで、代役の部品の出力は変わらない。
+#[must_use]
+pub fn diff_item_with(
+    row: &ItemRow,
+    phase: Phase,
+    lead: Vec<(&'static str, &str)>,
+    target: Option<&PointTarget>,
+) -> Option<Node> {
     let shown = row.shown(phase)?;
     let cell = shown.content;
     let (old, new) = line_numbers(cell.detail.as_str());
     let sign = DiffSign::parse(cell.state.as_str()).glyph();
+    let mut attrs = lead;
+    attrs.push(("data-kind", row.kind().as_str()));
     let content = vec![
         cell_span(DIFF_OLD_NO_TESTID, DF_OLD_CLASS, old),
         cell_span(DIFF_NEW_NO_TESTID, DF_NEW_CLASS, new),
@@ -165,7 +188,7 @@ pub fn diff_item(row: &ItemRow, phase: Phase, target: Option<&PointTarget>) -> O
         Variant::B,
         shown.mark,
         None,
-        vec![("data-kind", row.kind().as_str())],
+        attrs,
         target,
         content,
     ))
@@ -237,11 +260,44 @@ pub fn diff_list(
     view_list(tag, ViewKind::Diff, selected, items)
 }
 
-/// 製品の左エリアからの差し替え口。今は共通の経路の行を返し、本体の部品はまだ使わない。
+/// 製品の左エリアからの差し替え口。(b) の部品で行を描く。
 ///
-/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。種類ごとの結線（後続の子）は、この関数だけを書き換えて行う。
-pub(crate) fn product_items(
-    ctx: &crate::product_rows::ProductCtx<'_>,
-) -> crate::product_rows::ProductItems {
-    crate::product_rows::path_rows(ctx)
+/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。行の種類は `read_cell` で読んだ `state` が `hunk` のものだけ `Hunk`、
+/// それ以外（世界状態から消えた行を含む）は `Line` である。行の検査に通らない経路（空・重複）や、出ない行があるときは
+/// 行を黙って落とさず、共通の経路の行に退く（fail-closed）。行の順は経路の辞書順のままで、木ではないので並べ替えない。
+pub(crate) fn product_items(ctx: &ProductCtx<'_>) -> ProductItems {
+    let kind_of = |path: &str| {
+        let state = read_cell(path, ctx.world.get(path)).state;
+        if DiffSign::parse(state.as_str()) == DiffSign::Hunk {
+            RowKind::Hunk
+        } else {
+            RowKind::Line
+        }
+    };
+    let Ok(rows) = item_rows(ctx.world, ctx.world_rows, kind_of) else {
+        return path_rows(ctx);
+    };
+    let mut out: Vec<ArtifactRow> = Vec::with_capacity(rows.len());
+    for (i, ((path, _), row)) in ctx.world_rows.iter().zip(rows.iter()).enumerate() {
+        let target = ctx.declared_id.and_then(|id| point_all(id)(row.id()));
+        let Some(node) = diff_item_with(
+            row,
+            Phase::After,
+            vec![("data-path", path.as_str())],
+            target.as_ref(),
+        ) else {
+            return path_rows(ctx);
+        };
+        let key = if path.len() <= ARTIFACT_KEY_PATH_MAX {
+            format!("p{path}")
+        } else {
+            format!("i{i}")
+        };
+        let pinned = target.is_some() && ctx.pinned_paths.contains(path.as_str());
+        out.push((path.clone(), key, node, pinned));
+    }
+    ProductItems {
+        rows: out,
+        list_attrs: list_attrs(ViewKind::Diff, true),
+    }
 }
