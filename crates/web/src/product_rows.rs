@@ -1,9 +1,9 @@
 //! 製品の左エリアの行の組み立てと、ビューの種類ごとの差し替え口が共有する部品（TASK-799・D-100）。
 //!
 //! 呼び出し元は `engine_parts::ArtifactPart::view`（種類で振り分ける `match` を 1 か所だけ持つ）と、
-//! 各 `*_view.rs` の `product_items`（種類ごとの差し替え口）である。7 つの差し替え口は今どれも [`path_rows`]
-//! を呼び、画面の出力は振り分けを入れる前と 1 バイトも変わらない。種類ごとの結線（ファイルツリー・文書・差分など）は
-//! 後続の子が、自分の種類の `product_items` だけを書き換えて行う。
+//! 各 `*_view.rs` の `product_items`（種類ごとの差し替え口）である。差し替え口のうち、まだ結線していない種類は [`path_rows`]
+//! を呼ぶ。木を描く種類（タスクツリー・ファイルツリー）は [`path_dfs_order`]・[`path_tree_attrs`] で行の並びと木の属性を求める。
+//! 種類ごとの結線は、自分の種類の `product_items` だけを書き換えて行う。
 //!
 //! # 変えないもの
 //!
@@ -22,7 +22,7 @@
 //! 経路と属性の値は教材由来で信頼できない。運ぶだけで、属性名・クラス名には使わない。画面へは文字ノードと
 //! `render` の既定のエスケープだけを通す（SAFE-11）。全域（panic しない）で、誤りの文面に入力値を含めない。
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_workshop_contract::doc::Doc;
@@ -37,6 +37,7 @@ use crate::artifact_rows::DeriveError;
 use crate::artifact_view::{
     check_unique_ids, list_attrs, Cell, ItemRow, Row, RowId, RowKind, Variant, ViewKind,
 };
+use crate::tree_attrs::{TreeItemAttrs, TreePos};
 
 /// 差し替え口へ渡す狭い文脈。`HostModel` は渡さない（`*_view.rs` から `host` を参照させないため）。
 pub(crate) struct ProductCtx<'a> {
@@ -227,4 +228,78 @@ pub fn item_rows(
     }
     check_unique_ids(&rows)?;
     Ok(rows)
+}
+
+/// 経路 `i` の親（`/` の境界で切った経路のうち、行として存在する最も近い祖先）の添字。
+fn parent_of(paths: &[&str], index: &HashMap<&str, usize>, i: usize) -> Option<usize> {
+    let mut rest = paths[i];
+    while let Some(cut) = rest.rfind('/') {
+        rest = &rest[..cut];
+        if let Some(&p) = index.get(rest) {
+            if p != i {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
+/// 経路の並びを、木の深さ優先順（親の直後にその子孫、兄弟は入力の順）にした添字の列。
+/// 辞書順のままだと `a`・`a-b`・`a/x` のように親子の間に別の根の行が入るため、属性と描画行の両方をこの順から作る。
+pub(crate) fn path_dfs_order(paths: &[&str]) -> Vec<usize> {
+    let index: HashMap<&str, usize> = paths.iter().enumerate().map(|(i, p)| (*p, i)).collect();
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); paths.len() + 1];
+    for i in 0..paths.len() {
+        let slot = parent_of(paths, &index, i).map_or(0, |p| p + 1);
+        children[slot].push(i);
+    }
+    let mut out = Vec::with_capacity(paths.len());
+    let mut stack: Vec<usize> = children[0].iter().rev().copied().collect();
+    while let Some(i) = stack.pop() {
+        out.push(i);
+        stack.extend(children[i + 1].iter().rev().copied());
+    }
+    out
+}
+
+/// 経路の並び（辞書順）から、実在する祖先だけを親とした木の属性を求める。入力と同じ長さで返す。
+///
+/// 親は `/` の境界で切った経路のうち、行として存在する最も近い祖先である。途中の祖先が無い経路は、その外側の
+/// 実在する祖先の子になる（無ければ根の子）。深さの数だけで直前の浅い行を親にすると、無関係な行を親にしてしまう。
+/// `aria-level` は実在する祖先の数 + 1、`aria-posinset`・`aria-setsize` は同じ親を持つ兄弟の中で数える。
+pub(crate) fn path_tree_attrs<'a>(
+    paths: impl Iterator<Item = &'a str>,
+) -> Vec<Option<TreeItemAttrs>> {
+    let paths: Vec<&str> = paths.collect();
+    let index: HashMap<&str, usize> = paths.iter().enumerate().map(|(i, p)| (*p, i)).collect();
+    // 親の枠は「親の添字 + 1」（0 は根）。
+    let mut slot_of: Vec<usize> = Vec::with_capacity(paths.len());
+    let mut level: Vec<usize> = Vec::with_capacity(paths.len());
+    let mut child_count: Vec<usize> = vec![0; paths.len() + 1];
+    let mut posinset: Vec<usize> = Vec::with_capacity(paths.len());
+    let mut has_children: Vec<bool> = vec![false; paths.len()];
+    for i in 0..paths.len() {
+        let parent = parent_of(&paths, &index, i);
+        let (slot, parent_level) = match parent {
+            Some(p) => {
+                has_children[p] = true;
+                (p + 1, level[p])
+            }
+            None => (0, 0),
+        };
+        child_count[slot] += 1;
+        slot_of.push(slot);
+        posinset.push(child_count[slot]);
+        level.push(parent_level + 1);
+    }
+    (0..paths.len())
+        .map(|i| {
+            Some(TreeItemAttrs::from(TreePos {
+                level: level[i],
+                posinset: posinset[i],
+                setsize: child_count[slot_of[i]],
+                has_children: has_children[i],
+            }))
+        })
+        .collect()
 }

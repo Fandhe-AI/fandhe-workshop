@@ -126,7 +126,9 @@ fn 親の属性列は_view_に書かれ_操作の前後で変わらない() {
             "data-testid=view-list".to_owned(),
             format!("data-view={}", kind.as_str()),
         ];
-        if kind != fandhe_workshop_web::artifact_view::ViewKind::FileTree {
+        if kind == fandhe_workshop_web::artifact_view::ViewKind::FileTree {
+            // 行が 1 件以上ある選択中のファイルツリーの親だけ `role=tree` が付く（`check` が行の有無で足す。#2056）。
+        } else {
             attrs.push("hidden=".to_owned());
         }
         expected.push((kind.list_field(), attrs));
@@ -136,6 +138,11 @@ fn 親の属性列は_view_に書かれ_操作の前後で変わらない() {
         for (field, attrs) in &expected {
             let mut want: Vec<String> = attrs.clone();
             want.push(format!("data-bind-list={field}"));
+            if field == &"view_file_tree"
+                && (html.contains("data-kind=\"file\"") || html.contains("data-kind=\"dir\""))
+            {
+                want.push("role=tree".to_owned());
+            }
             want.sort();
             assert_eq!(parent_attrs(&html, field), vec![want], "{field}");
         }
