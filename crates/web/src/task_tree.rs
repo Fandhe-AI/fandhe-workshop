@@ -315,6 +315,38 @@ pub fn task_item_b(
     ))
 }
 
+/// 経路 `i` の親（`/` の境界で切った経路のうち、行として存在する最も近い祖先）の添字。
+fn parent_of(paths: &[&str], index: &HashMap<&str, usize>, i: usize) -> Option<usize> {
+    let mut rest = paths[i];
+    while let Some(cut) = rest.rfind('/') {
+        rest = &rest[..cut];
+        if let Some(&p) = index.get(rest) {
+            if p != i {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
+/// 経路の並びを、木の深さ優先順（親の直後にその子孫、兄弟は入力の順）にした添字の列。
+/// 辞書順のままだと `a`・`a-b`・`a/x` のように親子の間に別の根の行が入るため、属性と描画行の両方をこの順から作る。
+fn dfs_order(paths: &[&str]) -> Vec<usize> {
+    let index: HashMap<&str, usize> = paths.iter().enumerate().map(|(i, p)| (*p, i)).collect();
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); paths.len() + 1];
+    for i in 0..paths.len() {
+        let slot = parent_of(paths, &index, i).map_or(0, |p| p + 1);
+        children[slot].push(i);
+    }
+    let mut out = Vec::with_capacity(paths.len());
+    let mut stack: Vec<usize> = children[0].iter().rev().copied().collect();
+    while let Some(i) = stack.pop() {
+        out.push(i);
+        stack.extend(children[i + 1].iter().rev().copied());
+    }
+    out
+}
+
 /// 経路の並び（辞書順）から、実在する祖先だけを親とした木の属性を求める。入力と同じ長さで返す。
 ///
 /// 親は `/` の境界で切った経路のうち、行として存在する最も近い祖先である。途中の祖先が無い経路は、その外側の
@@ -329,18 +361,8 @@ fn path_tree_attrs<'a>(paths: impl Iterator<Item = &'a str>) -> Vec<Option<TreeI
     let mut child_count: Vec<usize> = vec![0; paths.len() + 1];
     let mut posinset: Vec<usize> = Vec::with_capacity(paths.len());
     let mut has_children: Vec<bool> = vec![false; paths.len()];
-    for (i, path) in paths.iter().enumerate() {
-        let mut parent = None;
-        let mut rest = *path;
-        while let Some(cut) = rest.rfind('/') {
-            rest = &rest[..cut];
-            if let Some(&p) = index.get(rest) {
-                if p != i {
-                    parent = Some(p);
-                    break;
-                }
-            }
-        }
+    for i in 0..paths.len() {
+        let parent = parent_of(&paths, &index, i);
         let (slot, parent_level) = match parent {
             Some(p) => {
                 has_children[p] = true;
@@ -370,18 +392,25 @@ fn path_tree_attrs<'a>(paths: impl Iterator<Item = &'a str>) -> Vec<Option<TreeI
 /// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。行の検査に通らない経路（空・重複）や、出ない行が
 /// あるときは行を黙って落とさず、共通の経路の行に退く。畳みが働く行数の扱いは冒頭の説明を参照。
 pub(crate) fn product_items(ctx: &ProductCtx<'_>) -> ProductItems {
-    let Ok(rows) = item_rows(ctx.world, ctx.world_rows, |_| RowKind::Task) else {
+    let order = dfs_order(
+        &ctx.world_rows
+            .iter()
+            .map(|(p, _)| p.as_str())
+            .collect::<Vec<_>>(),
+    );
+    let world_rows: Vec<(String, Option<crate::a11y::ChangeMark>)> =
+        order.iter().map(|&i| ctx.world_rows[i].clone()).collect();
+    let Ok(rows) = item_rows(ctx.world, &world_rows, |_| RowKind::Task) else {
         return path_rows(ctx);
     };
     let folded = rows.len() > LIST_ITEMS_TARGET;
     let attrs: Vec<Option<TreeItemAttrs>> = if folded {
         vec![None; rows.len()]
     } else {
-        path_tree_attrs(ctx.world_rows.iter().map(|(p, _)| p.as_str()))
+        path_tree_attrs(world_rows.iter().map(|(p, _)| p.as_str()))
     };
     let mut out: Vec<ArtifactRow> = Vec::with_capacity(rows.len());
-    for (i, ((path, _), (row, tree))) in ctx
-        .world_rows
+    for (i, ((path, _), (row, tree))) in world_rows
         .iter()
         .zip(rows.iter().zip(attrs.iter()))
         .enumerate()

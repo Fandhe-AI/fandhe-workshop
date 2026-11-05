@@ -204,3 +204,21 @@ fn 祖先が欠けた経路は実在する祖先だけから木の位置を求�
     assert!(deep.contains("aria-setsize=\"2\""), "{deep}");
     assert!(!deep.contains("aria-expanded"), "{deep}");
 }
+
+#[test]
+fn 区切り文字と接頭辞が競合しても行は親の直後に子孫が続く深さ優先順で出る() {
+    // 文字列の辞書順では a・a-b・a/x となり、a/x が a-b の子に読まれてしまう。
+    let h = paths_host(&["a-b", "a/x", "a"]);
+    let (_, body) = list_of(&h);
+    let pos = |p: &str| body.find(&format!("data-path=\"{p}\"")).unwrap();
+    assert!(pos("a") < pos("a/x"), "{body}");
+    assert!(pos("a/x") < pos("a-b"), "子孫は親の直後に続く: {body}");
+    let parent = li_tag(&body, "a");
+    assert!(parent.contains("aria-expanded=\"true\""), "{parent}");
+    assert!(parent.contains("aria-level=\"1\""), "{parent}");
+    let child = li_tag(&body, "a/x");
+    assert!(child.contains("aria-level=\"2\""), "{child}");
+    let other = li_tag(&body, "a-b");
+    assert!(other.contains("aria-level=\"1\""), "{other}");
+    assert!(!other.contains("aria-expanded"), "{other}");
+}
