@@ -32,6 +32,8 @@
 //! 世界状態の経路を開始状態のログへ積む（`mount_seed_log`。件数は固定の 3 値だけで、任意の数は受けない。TASK-484 2/2）。
 //! 本体の画面の再描画の測定（`?fixture=artifact-redraw-9`・`-20`・`-50`・`-200`・`-500`。TASK-485 2/3）は、`pack.id` を分け、7 種のビューを
 //! 今の Step で宣言し、世界状態の経路を件数ぶん積む（`artifact_redraw_ir_bytes`。件数は固定の 5 値だけ）。
+//! 行の形つきの変種（`?fixture=artifact-redraw-shaped-<種類>-<件数>`。種類と件数の組は 7 つだけ。#2074）は、同じ測定を
+//! 差分の hunk・ファイルツリーの dir と file・入れ子のタスク・文書の本文などの描画部品の実際の形の行で行う（`shaped_seed`）。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
@@ -133,6 +135,27 @@ pub(crate) enum MountFixture {
     ArtifactRedraw200,
     /// 経路 500 件（同上）。
     ArtifactRedraw500,
+    /// 種類ごとの実際の形の行を積んだ開始状態（再描画の測り直し。#2074）。
+    ArtifactRedrawShaped(Shaped),
+}
+
+/// 形つきの再描画の測定で積む行の種類と件数の組（`tools/measure/product-redraw.mjs` の 7 組と同じ）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Shaped {
+    /// ファイルツリー 200 行（dir と file が混ざる入れ子の経路）。
+    FileTree200,
+    /// 文書 200 行（先頭の 1 行に 80 ブロックの本文）。
+    Document200,
+    /// 差分 500 行（20 行ごとに hunk）。
+    Diff500,
+    /// タスク 50 件（深さ 0〜2 の入れ子）。
+    TaskTree50,
+    /// カード 20 件。
+    CardList20,
+    /// チェック 20 件。
+    CheckList20,
+    /// アプリのデモ 9 行（6 種の kind）。
+    AppDemo9,
 }
 
 /// 未来の IR に足す未知の欄の値。画面・ログ・写しに出ないことを、ブラウザ試験がこの文字列の不在で確かめる（SAFE-11）。
@@ -544,6 +567,27 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
         "?fixture=artifact-redraw-50" => MountFixture::ArtifactRedraw50,
         "?fixture=artifact-redraw-200" => MountFixture::ArtifactRedraw200,
         "?fixture=artifact-redraw-500" => MountFixture::ArtifactRedraw500,
+        "?fixture=artifact-redraw-shaped-file_tree-200" => {
+            MountFixture::ArtifactRedrawShaped(Shaped::FileTree200)
+        }
+        "?fixture=artifact-redraw-shaped-document-200" => {
+            MountFixture::ArtifactRedrawShaped(Shaped::Document200)
+        }
+        "?fixture=artifact-redraw-shaped-diff-500" => {
+            MountFixture::ArtifactRedrawShaped(Shaped::Diff500)
+        }
+        "?fixture=artifact-redraw-shaped-task_tree-50" => {
+            MountFixture::ArtifactRedrawShaped(Shaped::TaskTree50)
+        }
+        "?fixture=artifact-redraw-shaped-card_list-20" => {
+            MountFixture::ArtifactRedrawShaped(Shaped::CardList20)
+        }
+        "?fixture=artifact-redraw-shaped-check_list-20" => {
+            MountFixture::ArtifactRedrawShaped(Shaped::CheckList20)
+        }
+        "?fixture=artifact-redraw-shaped-app_demo-9" => {
+            MountFixture::ArtifactRedrawShaped(Shaped::AppDemo9)
+        }
         _ => MountFixture::Default,
     }
 }
@@ -605,6 +649,7 @@ fn mount_ir_bytes(fixture: MountFixture) -> Option<Vec<u8>> {
         | MountFixture::ArtifactRedraw50
         | MountFixture::ArtifactRedraw200
         | MountFixture::ArtifactRedraw500 => artifact_redraw_ir_bytes()?,
+        MountFixture::ArtifactRedrawShaped(shape) => artifact_redraw_shaped_ir_bytes(shape)?,
     })
 }
 
@@ -688,6 +733,202 @@ fn artifact_redraw_ir_bytes() -> Option<Vec<u8>> {
     serde_json::to_vec(&value).ok()
 }
 
+/// 形つきの再描画の測定（#2074）の教材の `pack.id`。`artifact-redraw` と保存先の鍵を分ける。
+pub(crate) const ARTIFACT_REDRAW_SHAPED_PACK_ID: &str = "artifact-redraw-shaped";
+
+/// 文書の本文の練習データの ID（`fixture_docs` の鍵。形つきの文書の変種だけが使う）。
+const SHAPED_DOC_FIXTURE: &str = "shaped-doc";
+
+/// 形つきの測定の IR。`artifact_redraw_ir_bytes` と同じ形で `pack.id` だけを分け、文書の変種だけ
+/// 文書のビューを `body: "shown"` にして 80 ブロックの本文の木を `fixture_docs` に足す。
+fn artifact_redraw_shaped_ir_bytes(shape: Shaped) -> Option<Vec<u8>> {
+    let mut value: serde_json::Value = serde_json::from_slice(&artifact_redraw_ir_bytes()?).ok()?;
+    value
+        .get_mut("pack")?
+        .as_object_mut()?
+        .insert("id".to_owned(), ARTIFACT_REDRAW_SHAPED_PACK_ID.into());
+    if shape == Shaped::Document200 {
+        value
+            .get_mut("views")?
+            .get_mut("v-document")?
+            .as_object_mut()?
+            .insert("body".to_owned(), "shown".into());
+        let mut blocks = Vec::new();
+        for i in 0..80 {
+            blocks.push(match i % 4 {
+                0 => serde_json::json!({"t": "heading", "level": 2,
+                    "children": [{"t": "text", "text": format!("section {i}")}]}),
+                1 | 2 => serde_json::json!({"t": "paragraph",
+                    "children": [{"t": "text", "text": format!("paragraph {i} of sample body text")}]}),
+                _ => serde_json::json!({"t": "list", "ordered": false, "items": [
+                    [{"t": "paragraph", "children": [{"t": "text", "text": format!("item {i}a")}]}],
+                    [{"t": "paragraph", "children": [{"t": "text", "text": format!("item {i}b")}]}],
+                ]}),
+            });
+        }
+        // 本文の木（版 2 の欄）を載せるので、`format_version` と `pack.ir_format` を 2 にそろえる。
+        value
+            .get_mut("pack")?
+            .as_object_mut()?
+            .insert("ir_format".to_owned(), 2.into());
+        value
+            .as_object_mut()?
+            .insert("format_version".to_owned(), 2.into());
+        value.as_object_mut()?.insert(
+            "fixture_docs".to_owned(),
+            serde_json::json!({ SHAPED_DOC_FIXTURE: {"version": 1, "blocks": blocks} }),
+        );
+    }
+    serde_json::to_vec(&value).ok()
+}
+
+/// 経路・題・補足・属性を指定して `changed` を 1 件作る。`attrs` は `kind`・`state`・`title`・`detail` のうち空でないものだけ。
+fn shaped_changed(
+    path: &str,
+    kind: &str,
+    state: &str,
+    title: &str,
+    detail: &str,
+    fixture: Option<&str>,
+) -> serde_json::Value {
+    let mut attrs = serde_json::Map::new();
+    for (k, v) in [
+        ("kind", kind),
+        ("state", state),
+        ("title", title),
+        ("detail", detail),
+    ] {
+        if !v.is_empty() {
+            attrs.insert(k.to_owned(), v.into());
+        }
+    }
+    serde_json::json!({"changed": {
+        "at": {"generation": 1, "step": "main/st-1"},
+        "path": path,
+        "before": null,
+        "after": {"fixture": fixture, "attrs": attrs},
+        "cause": "input",
+    }})
+}
+
+/// 形つきの変種が積む `changed`。種類ごとに描画部品が読む属性の語彙を使い、件数は種類ごとに固定。
+/// 経路は辞書順で一意で、`ARTIFACT_KEY_PATH_MAX` より短い。文字列は汎用のダミーで教材固有の語を使わない。
+fn shaped_seed(shape: Shaped) -> Vec<serde_json::Value> {
+    match shape {
+        Shaped::Diff500 => (0..500)
+            .map(|i| {
+                let path = format!("p/{i:04}");
+                if i % 20 == 0 {
+                    let title = format!("@@ -{},20 +{},20 @@", i + 1, i + 1);
+                    shaped_changed(&path, "", "hunk", &title, "", None)
+                } else {
+                    let state = ["ctx", "add", "del"][i % 3];
+                    let text = format!("line {i} of sample text");
+                    let numbers = format!("{}:{}", i + 1, i + 1);
+                    shaped_changed(&path, "", state, &text, &numbers, None)
+                }
+            })
+            .collect(),
+        Shaped::FileTree200 => {
+            // 20 dir x (1 dir + 9 file)。dir 行も要素として積む（途中の dir は合成されない）。
+            let mut v = Vec::new();
+            for a in 0..20 {
+                let d = format!("d{a:02}");
+                v.push(shaped_changed(&d, "", "created", &d, "", None));
+                let sub = format!("{d}/s");
+                v.push(shaped_changed(&sub, "", "created", "s", "", None));
+                for c in 0..8 {
+                    let f = format!("{sub}/f{c:03}");
+                    v.push(shaped_changed(
+                        &f,
+                        "",
+                        "created",
+                        &format!("f{c:03}"),
+                        "",
+                        None,
+                    ));
+                }
+                v.push(shaped_changed(
+                    &format!("{d}/readme"),
+                    "",
+                    "created",
+                    "readme",
+                    "",
+                    None,
+                ));
+            }
+            // 1 組 11 行 x 20 = 220 になるので、先頭 200 行にそろえる。
+            v.truncate(200);
+            v
+        }
+        Shaped::TaskTree50 => (0..50)
+            .map(|i| {
+                let path = match i % 5 {
+                    0 => format!("t{:02}", i / 5),
+                    1 | 2 => format!("t{:02}/c{}", i / 5, i % 5),
+                    _ => format!("t{:02}/c1/g{}", i / 5, i % 5),
+                };
+                let state = ["open", "progress", "done"][i % 3];
+                shaped_changed(&path, "", state, &format!("task {i}"), "", None)
+            })
+            .collect(),
+        Shaped::CardList20 => (0..20)
+            .map(|i| {
+                let state = ["draft", "open", "merged", "closed"][i % 4];
+                shaped_changed(
+                    &format!("p/{i:04}"),
+                    "",
+                    state,
+                    &format!("card {i}"),
+                    "sample detail",
+                    None,
+                )
+            })
+            .collect(),
+        Shaped::CheckList20 => (0..20)
+            .map(|i| {
+                let state = ["success", "failure", "running", "pending", "skipped"][i % 5];
+                shaped_changed(
+                    &format!("p/{i:04}"),
+                    "",
+                    state,
+                    &format!("check {i}"),
+                    "sample detail",
+                    None,
+                )
+            })
+            .collect(),
+        Shaped::AppDemo9 => (0..9)
+            .map(|i| {
+                let kind = ["heading", "tab", "field", "button", "item", "text"][i % 6];
+                let state = ["", "active", "disabled"][i % 3];
+                shaped_changed(
+                    &format!("p/{i:04}"),
+                    kind,
+                    state,
+                    &format!("part {i}"),
+                    "",
+                    None,
+                )
+            })
+            .collect(),
+        Shaped::Document200 => (0..200)
+            .map(|i| {
+                let state = ["open", "done"][i % 2];
+                let fixture = (i == 0).then_some(SHAPED_DOC_FIXTURE);
+                shaped_changed(
+                    &format!("p/{i:04}"),
+                    "",
+                    state,
+                    &format!("doc {i}"),
+                    "sample detail",
+                    fixture,
+                )
+            })
+            .collect(),
+    }
+}
+
 /// 開始状態のログに積む `changed` を `n` 件作る。経路は `{prefix}/{i:04}` の固定の書式で、
 /// 印は `(generation, step)`。値は汎用のダミーで、教材固有の語を使わない。
 fn seed_changed(prefix: &str, n: usize, step: &str) -> Vec<serde_json::Value> {
@@ -719,6 +960,7 @@ fn mount_seed_log(fixture: MountFixture) -> Option<Vec<fandhe_workshop_core::eve
         MountFixture::ArtifactRedraw50 => seed_changed("p", 50, "main/st-1"),
         MountFixture::ArtifactRedraw200 => seed_changed("p", 200, "main/st-1"),
         MountFixture::ArtifactRedraw500 => seed_changed("p", 500, "main/st-1"),
+        MountFixture::ArtifactRedrawShaped(shape) => shaped_seed(shape),
         MountFixture::ArtifactFold => {
             let mut v = seed_changed("o", 1_100, "main/st-0");
             v.extend(seed_changed("p", 40, "main/st-1"));
@@ -2458,5 +2700,143 @@ mod tests {
         assert!(body.contains("data-fold"));
         assert!(!tag.contains("data-list-limit") && !tag.contains("data-list-error"));
         assert_eq!(body.matches("data-path=\"p/").count(), 40);
+    }
+
+    const SHAPED: [(&str, Shaped, crate::artifact_view::ViewKind, usize); 7] = [
+        (
+            "?fixture=artifact-redraw-shaped-file_tree-200",
+            Shaped::FileTree200,
+            crate::artifact_view::ViewKind::FileTree,
+            200,
+        ),
+        (
+            "?fixture=artifact-redraw-shaped-document-200",
+            Shaped::Document200,
+            crate::artifact_view::ViewKind::Document,
+            200,
+        ),
+        (
+            "?fixture=artifact-redraw-shaped-diff-500",
+            Shaped::Diff500,
+            crate::artifact_view::ViewKind::Diff,
+            500,
+        ),
+        (
+            "?fixture=artifact-redraw-shaped-task_tree-50",
+            Shaped::TaskTree50,
+            crate::artifact_view::ViewKind::TaskTree,
+            50,
+        ),
+        (
+            "?fixture=artifact-redraw-shaped-card_list-20",
+            Shaped::CardList20,
+            crate::artifact_view::ViewKind::CardList,
+            20,
+        ),
+        (
+            "?fixture=artifact-redraw-shaped-check_list-20",
+            Shaped::CheckList20,
+            crate::artifact_view::ViewKind::CheckList,
+            20,
+        ),
+        (
+            "?fixture=artifact-redraw-shaped-app_demo-9",
+            Shaped::AppDemo9,
+            crate::artifact_view::ViewKind::AppDemo,
+            9,
+        ),
+    ];
+
+    #[test]
+    fn 形つきの再描画の教材は完全一致のクエリだけが選ぶ() {
+        for (q, shape, _, _) in SHAPED {
+            assert_eq!(
+                mount_fixture_from_search(q),
+                MountFixture::ArtifactRedrawShaped(shape),
+                "{q}"
+            );
+        }
+        for other in [
+            "?fixture=artifact-redraw-shaped-diff-501",
+            "?fixture=artifact-redraw-shaped-diff-",
+            "?fixture=artifact-redraw-shaped-diff-500&x=1",
+            "?fixture=artifact-redraw-shaped-unknown-20",
+            "?fixture=artifact-redraw-shaped-diff-20",
+            "?fixture=artifact-redraw-shaped-Diff-500",
+            "?fixture=artifact-redraw-shaped-",
+        ] {
+            assert_eq!(
+                mount_fixture_from_search(other),
+                MountFixture::Default,
+                "{other}"
+            );
+        }
+    }
+
+    #[test]
+    fn 形つきの再描画の教材は鍵が別で件数どおりの一意な経路を持つ() {
+        for (_, shape, _, n) in SHAPED {
+            let seed = shaped_seed(shape);
+            assert_eq!(seed.len(), n, "{shape:?}");
+            let mut paths: Vec<&str> = seed
+                .iter()
+                .map(|v| v["changed"]["path"].as_str().unwrap())
+                .collect();
+            paths.sort_unstable();
+            paths.dedup();
+            assert_eq!(paths.len(), n, "{shape:?} の経路が重複");
+            let s = mount_session(MountFixture::ArtifactRedrawShaped(shape)).unwrap();
+            assert_eq!(s.ir().pack.id, ARTIFACT_REDRAW_SHAPED_PACK_ID);
+            assert_ne!(s.ir().pack.id, ARTIFACT_REDRAW_PACK_ID);
+            let host =
+                crate::host::EngineHost::with_session(s, crate::engine_parts::standard_registry())
+                    .unwrap();
+            assert_eq!(host.model().world().len(), n, "{shape:?}");
+        }
+    }
+
+    #[test]
+    fn 形つきの再描画の教材は全行が指せる行で種類ごとの形が出る() {
+        use crate::host::HostAction;
+        use fandhe_frontend_interactive::Component;
+        use fandhe_frontend_wasm_full::render_component_html;
+        for (_, shape, kind, n) in SHAPED {
+            let mut host = artifact_host(MountFixture::ArtifactRedrawShaped(shape));
+            host.update(HostAction::SelectView(kind));
+            let html = render_component_html(&host);
+            let (tag, _) = selected_list(&html);
+            // 文書の本文・カードの中の入れ子の `<ul>` が `selected_list` の切り出しを早く閉じるため、全体の行の印で数える。
+            // 選ばれていない list は空なので、全体を数えてよい。
+            let (rows, scope) = (html.matches("data-path=\"").count(), html.as_str());
+            assert_eq!(rows, n, "{shape:?}");
+            assert!(!tag.contains("data-list-error") && !tag.contains("data-list-limit"));
+            assert!(!scope.contains("data-fold"), "{shape:?}");
+            let pointed = scope.matches("data-action=").count();
+            assert!(pointed >= n, "{shape:?}: 指せる行が {pointed} 件");
+            match shape {
+                Shaped::Diff500 => assert_eq!(scope.matches("data-kind=\"hunk\"").count(), 25),
+                Shaped::FileTree200 => {
+                    assert!(
+                        scope.contains("data-kind=\"dir\"") && scope.contains("data-kind=\"file\"")
+                    );
+                }
+                Shaped::TaskTree50 => assert!(
+                    scope.contains("aria-level=\"2\"") || scope.contains("aria-level=\"3\"")
+                ),
+                Shaped::Document200 => {
+                    assert_eq!(
+                        html.matches("data-testid=\"artifact-doc-body\"").count(),
+                        1,
+                        "本文の区画"
+                    );
+                }
+                Shaped::AppDemo9 => {
+                    for k in ["heading", "tab", "field", "button", "item", "text"] {
+                        assert!(scope.contains(&format!("data-kind=\"{k}\"")), "{k}");
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 }

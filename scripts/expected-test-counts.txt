@@ -1,4 +1,4 @@
-# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-11-05・元にしたコミット: 10393de
+# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-11-05・元にしたコミット: 58339d2
 # 更新は `make update-test-counts`（遅い。ブラウザ試験も流す）。版上げ PR の中では変えない（CI が失敗する）。版を上げる前に別の PR で更新する。
 # 書式: rust|<試験の束>|passed=<n>|ignored=<n>。同じ束の記述が crate をまたいで重複する場合は合算する（限界）。
 rust|doc-tests fandhe_workshop_contract|passed=0|ignored=0
@@ -270,7 +270,7 @@ rust|tests/os_independent_ops.rs [os_independent_ops]|passed=5|ignored=0
 rust|tests/pack19_bare_step.rs [pack19_bare_step]|passed=5|ignored=0
 rust|tests/pack_dir_limits.rs [pack_dir_limits]|passed=10|ignored=0
 rust|tests/pack_size_limits.rs [pack_size_limits]|passed=7|ignored=0
-rust|tests/pane_isolation.rs [pane_isolation]|passed=20|ignored=0
+rust|tests/pane_isolation.rs [pane_isolation]|passed=21|ignored=0
 rust|tests/parts_contract.rs [parts_contract]|passed=8|ignored=0
 rust|tests/per_instance_guidance_gap.rs [per_instance_guidance_gap]|passed=4|ignored=0
 rust|tests/play_input_class.rs [play_input_class]|passed=10|ignored=0
@@ -412,10 +412,10 @@ rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=416|passed=4143|ignored=4
+rust|total|binaries=416|passed=4144|ignored=4
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=55|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=127|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_web]|passed=199|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
-browser|total|tests=1839|pass=1839|skipped=0|todo=0|cancelled=0
+browser|total|tests=1848|pass=1848|skipped=0|todo=0|cancelled=0

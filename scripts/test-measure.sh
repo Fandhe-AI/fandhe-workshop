@@ -256,6 +256,20 @@ else
   cat "${PRD}.err" >&2
 fi
 
+# --- (h2) product-redraw-shaped（描画部品の実際の形の行での測り直し。#2074。束には入れない単体の測定） ---
+check "product-redraw-shaped.sh: unknown argument exits 2" status_is 2 "${ROOT_DIR}/tools/measure/product-redraw-shaped.sh" --unknown
+check_fails "product-redraw-shaped: missing pack/device baseline is refused" measure_browser_result product-redraw-shaped "$(measure_commit_json)" "${TMP}" '{}'
+PRS="${TMP}/product-redraw-shaped.json"
+if SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/measure/product-redraw-shaped.sh" >"${PRS}" 2>"${PRS}.err"; then
+  check "product-redraw-shaped: passes the v1 validation" measure_validate "${PRS}"
+  check "product-redraw-shaped: 21 measurements with the shaped prefix" jq -e '(.measurements | length == 21) and (.measurements | all(.name | test("^product_redraw_shaped_[a-z_]+_[0-9]+_switch_(median|p95|max)$")))' "${PRS}"
+  check "product-redraw-shaped: seed pack id and the scope note" jq -e '.conditions.seed.pack_id == "artifact-redraw-shaped" and (.conditions.scope_note | startswith("product view()")) and (.conditions.scope_note | contains("per-kind shaped rows"))' "${PRS}"
+  check "product-redraw-shaped: same threshold and judged kinds as product-redraw" jq -e '.conditions.threshold_p95_us == 16000 and .conditions.judged == ["task_tree", "document", "diff"] and .conditions.judgement.diff.partial == true' "${PRS}"
+else
+  fail "product-redraw-shaped: product-redraw-shaped.sh failed (see ${PRS}.err)"
+  cat "${PRS}.err" >&2
+fi
+
 # --- (j) view-redraw-cpu4x（左のビューの CPU 4 倍の記録。TASK-485 3/3。記録だけで判定に使わない。束には入れない単体の測定） ---
 check "view-redraw-cpu4x.sh: unknown argument exits 2" status_is 2 "${ROOT_DIR}/tools/measure/view-redraw-cpu4x.sh" --unknown
 check_fails "view-redraw-cpu4x: missing data/device baseline is refused" measure_browser_result view-redraw-cpu4x "$(measure_commit_json)" "${TMP}" '{}'

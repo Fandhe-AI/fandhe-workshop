@@ -262,6 +262,18 @@ test('product-redraw sampleDiffRows: counts hunk and line rows of the sample', (
   assert.ok(r.hunk >= 1 && r.line >= 1);
 });
 
+test('product-redraw-shaped: names, fixture queries and row shapes cover the 7 cases', () => {
+  assert.equal(pr.shapedMeasurementName({ kind: 'diff', rows: 500 }, 'p95'), 'product_redraw_shaped_diff_500_switch_p95');
+  assert.equal(pr.shapedFixtureQuery({ kind: 'file_tree', rows: 200 }), 'artifact-redraw-shaped-file_tree-200');
+  assert.deepEqual(Object.keys(pr.SHAPED_ROW_SHAPES).sort(), pr.cases().map((c) => c.kind).sort());
+});
+
+test('cli: product-redraw-shaped without --dir exits 2 with empty stdout', () => {
+  const r = run(['--kind', 'product-redraw-shaped']);
+  assert.equal(r.status, 2);
+  assert.equal(r.stdout, '');
+});
+
 test('cli: product-redraw without --dir exits 2 with empty stdout', () => {
   const r = run(['--kind', 'product-redraw']);
   assert.equal(r.status, 2);
