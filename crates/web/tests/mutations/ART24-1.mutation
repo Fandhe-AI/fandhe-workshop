@@ -1,0 +1,8 @@
+id: ART24-1
+package: fandhe-workshop-web
+test: app_demo_product
+target: crates/web/src/app_demo_view.rs
+find:     match raw.and_then(RowKind::parse) {
+replace:     match raw.and_then(RowKind::parse).map(|k| if k == RowKind::Card { RowKind::Item } else { k }) {
+expect-fail: 行の種類は_6_語だけで読み語彙の外は文字のワイヤーになる
+note: 語彙の外の種類（card）を既知の項目の種類へ寄せる（fail-closed の退行。語彙の外が文字のワイヤーでなくなる）

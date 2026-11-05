@@ -1,7 +1,7 @@
 //! 製品の左エリアの行の組み立てと、ビューの種類ごとの差し替え口が共有する部品（TASK-799・D-100）。
 //!
 //! 呼び出し元は `engine_parts::ArtifactPart::view`（種類で振り分ける `match` を 1 か所だけ持つ）と、
-//! 各 `*_view.rs` の `product_items`（種類ごとの差し替え口）である。差し替え口のうち、まだ結線していない種類は [`path_rows`]
+//! 各 `*_view.rs` の `product_items`（種類ごとの差し替え口）である。7 種すべて結線済みで、行の検査に通らないときの退避先として [`path_rows`]
 //! を呼ぶ。木を描く種類（タスクツリー・ファイルツリー）は [`path_dfs_order`]・[`path_tree_attrs`] で行の並びと木の属性を求める。
 //! 種類ごとの結線は、自分の種類の `product_items` だけを書き換えて行う。
 //!
@@ -111,7 +111,7 @@ pub(crate) fn row_children(path: &str, body: Option<&Doc>) -> Vec<Node> {
     kids
 }
 
-/// 7 種の差し替え口が今共通に返す、経路の行。世界状態の経路 1 つが `li` 1 つで、文書のビューでは本文の区画も続ける。
+/// 7 種の差し替え口が、行の検査に通らないときに退く先の経路の行。世界状態の経路 1 つが `li` 1 つで、文書のビューでは本文の区画も続ける。
 pub(crate) fn path_rows(ctx: &ProductCtx<'_>) -> ProductItems {
     let selected = ctx.selected;
     let rows: Vec<ArtifactRow> = ctx

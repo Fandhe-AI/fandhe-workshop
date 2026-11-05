@@ -1,13 +1,14 @@
 //! 左の成果物エリアのアプリのデモのワイヤーのビュー、変種 (a)・(b)（TASK-479）。ART-1・ART-17。
 //!
-//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれるが、今は共通の経路の行を返し、本体の部品はまだ使わない。
+//! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれ、(b) の部品で行を描く。行の種類は要素の属性
+//! `kind` を 6 語（`heading`・`tab`・`field`・`button`・`item`・`text`）の閉じた語彙で読み、属性が無い・語彙の外の値は
+//! 文字のワイヤー（`text`）になる（語彙は仮置き。確定は #2059）。`li` に `data-path` を付け、キーは `p<経路>`（長い経路は
+//! `i<位置>`）で、親に `role` は付かない。(a) と前後の切り替え（ART-2）は製品から呼ばれない。
 //!
 //! 項目の根は `artifact_mark::pointed_item`（`marked_item` に指せる行の 4 属性を足す）で作る。宛先は呼び出し側が `PointOf` で注入し、
 //! 宛先の無い行には 4 属性が付かない（TASK-480 1/2。不変条件は `artifact_mark` の doc）。
 //!
-//! 呼び出し元は、今は検査器の代役の部品（`view_fixture`）だけである。製品の `view()`（`engine_parts::ArtifactPart`）へは
-//! まだ結線しない。製品には前後の切り替え（ART-2）の口が無く、世界状態から `Row<Cell>` を作る規則も未決のためである
-//! （TASK-470・TASK-347 の後続）。
+//! 変種 (a) の呼び出し元は、検査器の代役の部品（`view_fixture`。試験の設定だけ）である。
 //!
 //! # 固定するもの
 //!
@@ -55,6 +56,10 @@
 //! （SAFE-11）。属性・class に入るのは閉じた集合の `&'static str`（`data-kind` と部品の class）だけで、`data-state` は作らない。
 //! 状態の文字も教材の値ではなく [`WireState::text`] の固定の文字列である。
 //!
+//! 製品でも `data-path` は経路の値（属性名は固定）で、`render` のエスケープを通る。属性 `kind` の値は閉じた集合の
+//! `&'static str`（[`RowKind::as_str`]）に変換してから `data-kind` に入り、教材の文字列そのものは属性に入らない。
+//! 欄は常に `type=text` の読み取り専用で、パスワードの欄を出す経路が無い（ART-24）。
+//!
 //! 唯一の例外が変種 (b) の欄の `input` の `value`（= 補足）である。属性名は固定、`render` の既定のエスケープを通る、
 //! URL・イベントハンドラの属性ではない、の 3 点から許容し、エスケープの試験で確かめる。
 
@@ -66,11 +71,13 @@ use fandhe_frontend_wireframe_ui::{
 };
 
 use crate::a11y::TESTID_ATTR;
-use crate::artifact_mark::{pointed_item, PointOf};
+use crate::artifact_fold::ArtifactRow;
+use crate::artifact_mark::{point_all, pointed_item, PointOf};
 use crate::artifact_view::{
-    view_list, Cell, ItemRow, Phase, PointTarget, RowKind, Variant, ViewKind,
+    list_attrs, view_list, Cell, ItemRow, Phase, PointTarget, RowKind, Variant, ViewKind,
 };
 use crate::list_policy::ListError;
+use crate::product_rows::{item_rows, path_rows, ProductCtx, ProductItems, ARTIFACT_KEY_PATH_MAX};
 
 /// 欄の補足（入力済みの文字）が空のときに出す固定の文字。
 pub const EMPTY_FIELD_TEXT: &str = "（未入力）";
@@ -311,13 +318,29 @@ pub fn app_demo_item_b(
     phase: Phase,
     target: Option<&PointTarget>,
 ) -> Option<Node> {
+    app_demo_item_b_with(row, index, phase, Vec::new(), target)
+}
+
+/// [`app_demo_item_b`] に、属性の先頭へ置く製品の属性（`data-path` など）を足せる形。`data-kind` はその後に続く。
+///
+/// `lead` が空なら属性列は [`app_demo_item_b`] と同じで、代役の部品の出力は変わらない。
+#[must_use]
+pub fn app_demo_item_b_with(
+    row: &ItemRow,
+    index: usize,
+    phase: Phase,
+    lead: Vec<(&'static str, &str)>,
+    target: Option<&PointTarget>,
+) -> Option<Node> {
     let shown = row.shown(phase)?;
+    let mut attrs = lead;
+    attrs.push(("data-kind", row.kind().as_str()));
     Some(pointed_item(
         "li",
         Variant::B,
         shown.mark,
         Some(row.depth()),
-        vec![("data-kind", row.kind().as_str())],
+        attrs,
         target,
         content_b(row.kind(), shown.content, index),
     ))
@@ -349,11 +372,74 @@ pub fn app_demo_items(
     }
 }
 
-/// 製品の左エリアからの差し替え口。今は共通の経路の行を返し、本体の部品はまだ使わない。
+/// 行の種類を読む属性名。
+const ATTR_KIND: &str = "kind";
+
+/// 属性 `kind` の値から行の種類を決める。このビューの語彙（6 語）の外は、既知の別の種類へ寄せず `Text` にする（fail-closed）。
 ///
-/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。種類ごとの結線（後続の子）は、この関数だけを書き換えて行う。
-pub(crate) fn product_items(
-    ctx: &crate::product_rows::ProductCtx<'_>,
-) -> crate::product_rows::ProductItems {
-    crate::product_rows::path_rows(ctx)
+/// `match` は網羅で書く。種類が増えたときにコンパイルで気づけるようにするため。
+fn product_kind(raw: Option<&str>) -> RowKind {
+    match raw.and_then(RowKind::parse) {
+        Some(
+            k @ (RowKind::Heading
+            | RowKind::Tab
+            | RowKind::Field
+            | RowKind::Button
+            | RowKind::Item
+            | RowKind::Text),
+        ) => k,
+        Some(
+            RowKind::Dir
+            | RowKind::File
+            | RowKind::Hunk
+            | RowKind::Line
+            | RowKind::Task
+            | RowKind::Card
+            | RowKind::Check
+            | RowKind::Block,
+        )
+        | None => RowKind::Text,
+    }
+}
+
+/// 製品の左エリアからの差し替え口。(b) の部品で行を描く。
+///
+/// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。行の検査に通らない経路（空・重複）や、出ない行があるときは
+/// 行を黙って落とさず、共通の経路の行に退く（fail-closed）。行の順は経路の辞書順のままで、木ではないので並べ替えない。
+pub(crate) fn product_items(ctx: &ProductCtx<'_>) -> ProductItems {
+    let kind_of = |path: &str| {
+        product_kind(
+            ctx.world
+                .get(path)
+                .and_then(|e| e.attrs.get(ATTR_KIND))
+                .map(String::as_str),
+        )
+    };
+    let Ok(rows) = item_rows(ctx.world, ctx.world_rows, kind_of) else {
+        return path_rows(ctx);
+    };
+    let mut out: Vec<ArtifactRow> = Vec::with_capacity(rows.len());
+    for (i, ((path, _), row)) in ctx.world_rows.iter().zip(rows.iter()).enumerate() {
+        let target = ctx.declared_id.and_then(|id| point_all(id)(row.id()));
+        let Some(node) = app_demo_item_b_with(
+            row,
+            i,
+            Phase::After,
+            vec![("data-path", path.as_str())],
+            target.as_ref(),
+        ) else {
+            return path_rows(ctx);
+        };
+        let key = if path.len() <= ARTIFACT_KEY_PATH_MAX {
+            format!("p{path}")
+        } else {
+            format!("i{i}")
+        };
+        let pinned = target.is_some() && ctx.pinned_paths.contains(path.as_str());
+        out.push((path.clone(), key, node, pinned));
+    }
+    ProductItems {
+        rows: out,
+        list_attrs: list_attrs(ViewKind::AppDemo, true),
+    }
 }

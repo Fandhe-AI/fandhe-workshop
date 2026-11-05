@@ -298,4 +298,6 @@
 
 /* ==== 左のビュー: アプリのデモ（app_demo）。種類ごとの結線の規則はこの節にだけ足す ==== */
 
+[data-view="app_demo"] > li { margin-left: 0; overflow-wrap: anywhere; }
+
 /* ==== ここまで app_demo ==== */
