@@ -88,6 +88,13 @@
       "plan/launch",
       "plan/launch/build",
       "plan/launch/design"
-    ]
+    ],
+    "rowTexts": {
+      "plan/launch": ["公開の準備", "親のタスク"],
+      "plan/launch/design": ["画面を設計する", "子のタスク"],
+      "plan/launch/build": ["画面を作る", "子のタスク"],
+      "board/design": ["設計のカード", "設計の作業"],
+      "board/build": ["実装のカード", "実装の作業"]
+    }
   }
 }

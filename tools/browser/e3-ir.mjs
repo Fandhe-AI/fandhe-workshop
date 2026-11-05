@@ -3,7 +3,7 @@
 // 役割: 元にする IR（crates/web/tests/data/ch0_3/ir.json。実行時に読むだけで書き換えない）から、試験用入力 1 件を入れた IR を作る。
 //   - e3Variant: `put` のパスと、`put` の属性の値と、`set_attr` の値を入力にした IR
 //   - attrOnlyVariant: パスは元のまま、属性の値と `set_attr` の値だけを入力にした IR（属性の値を画面に出す経路が無いことの固定に使う）
-//   - observeRows: 左の成果物の行と右のログの最後の行を読む（ページ内で動く自己完結の関数。評価はしない）
+//   - observeRows: 左の成果物の行（カードの変種 (b)。ラベルは data-testid=card-label）と右のログの最後の行を読む（ページ内で動く自己完結の関数。評価はしない）
 //   - judgeRows・judgeReceived: 読んだ値が「文字として出ている」かを判定する（ノード側の純関数）
 // 方法は PoC-7（docs/spec/prototype/tools/browser-test-poc7.mjs の injectE3）に合わせる。同じパスの全出現を置き換え、
 // 異なるパスの 1 つ目は P、2 つ目以降は `P.i` にして BTreeMap の鍵を一意に保つ。属性の値と `set_attr` の値は P にする。
@@ -91,19 +91,28 @@ export function attrOnlyVariant(base, P) {
 
 /**
  * 画面を読む。ページ内で評価する自己完結の関数（外の名前を参照しない。Playwright が関数を文字列にして渡すため）。
- * rows: 左の成果物の各行の { path（data-path）, row（data-row。指せない行は null）, text（span の文字）, kids（span の子の要素の数）, tags（行の中の要素のタグ） }。
+ * rows: 左の成果物の各行（カードの変種 (b) の行）の
+ *   { path（data-path）, row（data-row。指せない行は null）, labels（行の直下の article の中のカードのラベルの数）,
+ *     text（そのラベルの文字）, kids（ラベルの子の要素の数）, articles（行の直下の article の数）,
+ *     shape（その article の子のタグの列）, badge（状態のバッジの文字）, tags（行の中の要素のタグ） }。
  * logs: 右のログの各行の { kind, text, tags }。
  */
 export function observeRows() {
   const tagsOf = (el) => [...new Set([...el.querySelectorAll('*')].map((e) => e.tagName.toLowerCase()))].sort();
   const rows = [...document.querySelectorAll('[data-testid="part-artifact-view"] li[data-path]')].map((li) => {
-    // 行の子の span のうち、変化の印の 2 つ（data-testid を持つ）を除いた、経路の文字を持つ 1 つ。
-    const span = li.querySelector(':scope > span:not([data-testid])');
+    const articles = li.querySelectorAll(':scope > article');
+    const article = articles[0] ?? null;
+    const labels = li.querySelectorAll(':scope > article > [data-testid="card-label"]');
+    const label = labels[0] ?? null;
     return {
       path: li.getAttribute('data-path'),
       row: li.getAttribute('data-row'),
-      text: span?.textContent ?? null,
-      kids: span ? span.children.length : -1,
+      labels: labels.length,
+      text: label?.textContent ?? null,
+      kids: label ? label.children.length : -1,
+      articles: articles.length,
+      shape: article ? [...article.children].map((e) => e.tagName.toLowerCase()) : [],
+      badge: article?.children[1]?.textContent ?? null,
       tags: tagsOf(li),
     };
   });
@@ -115,8 +124,14 @@ export function observeRows() {
   return { rows, logs, notice: document.querySelectorAll('[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]').length };
 }
 
+// カードの状態の閉じた語彙（CardState::text）。バッジの文字はこのどれかでなければならない。
+const CARD_STATES = ['下書き', 'オープン', 'マージ済み', 'クローズ', '不明'];
+const CARD_SHAPE = ['span', 'div', 'p', 'ul'];
+const CARD_TAGS = ['article', 'div', 'li', 'p', 'span', 'ul'];
+
 /**
- * 観察 obs の行が期待のパスの集合と等しく、各行の span が置き換え後の文字列そのもの（子の要素 0 個）かを判定し、
+ * 観察 obs の行が期待のパスの集合と等しく、各行のカードのラベルが置き換え後の文字列そのもの（子の要素 0 個）で、
+ * 行の形が (b) の閉じた形（article 1 個・子の列が span・div・p・ul・行の中のタグが閉じた集合・バッジが語彙の 5 語）かを判定し、
  * 満たさなかった項目の名前の一覧を返す（空が合格）。比較は両辺の U+0000 を除いて行う（DOM の文字列は NUL を保てない場合がある）。
  */
 export function judgeRows(obs, expectedPaths) {
@@ -125,9 +140,11 @@ export function judgeRows(obs, expectedPaths) {
   const got = obs.rows.map((r) => nul(r.path ?? '')).sort();
   if (JSON.stringify(want) !== JSON.stringify(got)) bad.push('set');
   for (const r of obs.rows) {
-    if (r.kids !== 0 || r.text === null || nul(r.text) !== nul(r.path ?? '')) bad.push('text');
+    if (r.labels !== 1 || r.kids !== 0 || r.text === null || nul(r.text) !== nul(r.path ?? '')) bad.push('text');
     if (r.row !== null && nul(r.row) !== nul(r.path ?? '')) bad.push('row');
-    if (r.tags.some((t) => t !== 'span')) bad.push('tags');
+    if (r.tags.some((t) => !CARD_TAGS.includes(t))) bad.push('tags');
+    if (r.articles !== 1 || JSON.stringify(r.shape) !== JSON.stringify(CARD_SHAPE)) bad.push('shape');
+    if (r.badge === null || !CARD_STATES.includes(r.badge)) bad.push('state');
   }
   if (obs.notice !== 0) bad.push('notice');
   return [...new Set(bad)];
