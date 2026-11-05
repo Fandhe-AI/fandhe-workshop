@@ -155,3 +155,24 @@ fn body_を宣言しない写しでは本文が出ず_経路の行は出る() {
         assert_eq!(html(&h).matches(BODY).count(), 0, "本文は出ない");
     }
 }
+
+#[test]
+fn 経路の行は_item_の種類と_3_つの_span_を持ち_本文は後ろに続く() {
+    let mut h = host(ir_of(&pack_dir()));
+    approve(&mut h);
+    let row = draft_row(&h).expect("経路の行がある");
+    assert!(row.contains("data-kind=\"item\""));
+    for id in ["doc-row-title", "doc-row-state", "doc-row-detail"] {
+        assert_eq!(row.matches(&format!("data-testid=\"{id}\"")).count(), 1);
+    }
+    let detail = row.find("doc-row-detail").unwrap();
+    assert!(row.find(BODY).unwrap() > detail, "本文は 3 つの span の後");
+
+    let t = Tmp::variant("{kind: document}");
+    let mut h = host(ir_of(&t.0));
+    approve(&mut h);
+    approve(&mut h);
+    let row = draft_row(&h).expect("経路の行がある");
+    assert_eq!(row.matches("data-testid=\"doc-row-").count(), 3);
+    assert_eq!(row.matches(BODY).count(), 0);
+}

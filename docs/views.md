@@ -16,7 +16,7 @@
 | 7 種の綴りと、Step が宣言したビューから種類を決める規則 | 実装済み | `crates/web/src/artifact_view.rs`・`view_select.rs`・`crates/contract/src/view_kind.rs`（綴りの正） |
 | 綴りの検査（`E-VIEW-KIND-UNKNOWN`） | 実装済み（2026-11-03） | `crates/pack/src/view_kind.rs`・`crates/contract/src/view_kind.rs`・`crates/pack/tests/view_kind.rs` |
 | 7 種ごとの描画部品（ファイルツリー・文書・差分・タスクツリー・カード・チェック・アプリのデモ） | 部品は実装済み。製品の画面へは未結線 | `crates/web/src/*_view.rs` の冒頭の説明、`engine_parts.rs` の `ArtifactPart` |
-| 製品の画面が見せる左エリア | 世界状態の経路の一覧と、変化の印。文書のビューで `body: shown` のときは練習データの本文も | `engine_parts.rs` の `ArtifactPart::view` |
+| 製品の画面が見せる左エリア | 世界状態の経路の一覧と、変化の印。文書のビューでは行ごとに題・状態・補足の文字（4 節の仮置きの読み方）、`body: shown` のときは練習データの本文も | `engine_parts.rs` の `ArtifactPart::view` |
 | 選択のボタン（ビューの切り替え） | `view_tabs` に従う（5 節）。既定の `all` は 7 種すべてを出して選べる | `view_select.rs`・`engine_parts.rs`（2026-10-25。TASK-481 1/2） |
 | `pack.left_pane` の画面への結線 | 結線済み（2026-10-25）。ホストが設定を読み、読めない設定は既定（`shown`・`all`）で動く | `host.rs`・`crates/web/tests/left_pane_view.rs`・`tools/browser/left-pane.test.mjs` |
 | 人が画面で見て確かめた件数 | 0 件 | 未確認 |
@@ -62,6 +62,7 @@ views:
 
 - 行の ID は、世界状態の経路そのものです。要素を置いた経路が、指せる行の宛先になります
 - 行が持つ中身は、ラベル・補足・状態・タグです（`crates/web/src/artifact_view.rs` の `Cell`）。要素のどの属性名を、どの中身として読むかは、2026-10-20 時点では製品の画面で決まっていません（各ビューの部品に渡す読み方は、結線のタスクが定めます。TASK-470・TASK-468 の説明）。属性名の約束をこの文書に書くのは、決まった後にします
+- 仮置きの読み方（2026-11-05 時点。確定は後続のタスク）: 製品の文書のビューの行は、要素の属性 `title` を題、`state` を状態、`detail` を補足として、文字のまま 3 つの `span` に出します（`crates/web/src/product_rows.rs` の `read_cell`、`document_view.rs` の `doc_element_item`）。`title` が無い要素は、題に世界状態の経路を出します（経路へのフォールバック）。`state`・`detail` が無い場合は空の `span` を出します。`state` は閉じた語彙に読みません。ほかのビューが同じ読み方を使うかは決まっていません
 - 練習データ（`fixtures`）の `kind` は、pack crate が値を検査しない文字列です。練習データの種別の約束も、2026-10-20 時点では決まった規則を確認できていません（未確認）
 - 要素の `fixture` 属性が、文書のビューの本文を決めます（3 節）
 

@@ -29,7 +29,7 @@
 //      5 本の行がそれぞれ本文の区画を 1 つ持つ。正の対照の期待を派生版の結果に当てると docBodyRows が不合格になる（数え方が空振りでない証拠）
 //   J  道具の対照（TASK-755。CSP ありの 1 回）。派生版で opt-start を押した後のページの行に偽の本文の区画を足すと、judge が docBodyRows の理由を返す
 //   K  道具の対照（Issue #2052。CSP ありの 1 回）。派生版で opt-start を押した後の行の文字（印と本文の区画を除く）を測り、含まれる文字の期待は合格、
-//      含まれない文字の期待は texts@op[0]・rowTexts@end の理由が出る。行に偽の本文の区画を足しても text は変わらない。今の製品の行は data-kind を持たず kind は空文字
+//      含まれない文字の期待は texts@op[0]・rowTexts@end の理由が出る。行に偽の本文の区画を足しても text は変わらない。文書のビューの行は data-kind="item" と属性の文字（題・状態・補足）を持つ（Issue #2053）
 // 確かめないこと: 本文の中身・4 つの選択が連結された依頼文（H-3 で作れない）、data-theme の値・文字の大きさ・行間の主張（製品の画面はまだ data-theme を付けない。第 2 教材の設定では主張せず、測った値を記録する。SECOND-10 は未達）、
 // 本物の第 2 教材、人が画面を見た評価。
 // 入力: FANDHE_PACK_BIN・FANDHE_WEB_AUTHOR_DIR。未設定・不在は skip にせず失敗にする。出力は名前・件数・合否・数値だけ。
@@ -477,13 +477,13 @@ test('K: 道具の対照。行の文字を測り、含まれる文字の期待�
       const m = await probe(null);
       const rows = m.left.rows;
       assert.equal(rows.length, 5);
-      assert.ok(rows.every((x) => x.text !== '' && x.text.includes(x.path)), 'every row has text that includes its path');
+      assert.ok(rows.every((x) => x.text !== '' && x.kind === 'item'), 'every row has text and the item kind');
+      assert.ok(rows.some((x) => x.text.includes('宛先')), 'attribute text (title) is shown');
       assert.ok(rows.every((x) => x.markText !== '' && !x.text.includes(x.markText)), 'mark text is excluded from the row text');
-      assert.ok(rows.every((x) => typeof x.kind === 'string'));
       const path0 = rows[0].path;
       const mk = (opTexts, endTexts) => ({
         ...cfgRrDerived,
-        sequence: cfgRrDerived.sequence.map(({ marks, ...op }, i) => (i === 0 ? { ...op, texts: opTexts } : op)),
+        sequence: cfgRrDerived.sequence.map(({ marks, texts, ...op }, i) => (i === 0 ? { ...op, texts: opTexts } : op)),
         expect: { ...cfgRrDerived.expect, rowTexts: endTexts },
       });
       const why = (cfg) => judge(cfg, { ...baseResult(), start: m.screen, end: m.screen, left: { start: m.left, ops: [{ index: 0, ...m.left }], end: m.left } })
