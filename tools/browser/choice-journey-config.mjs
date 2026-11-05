@@ -118,9 +118,10 @@ function parseSequence(v, where) {
     if (!isObj(op)) fail(w, 'must be an object');
     const kind = str(op.kind, `${w}.kind`, new RegExp(`^(${KINDS.join('|')})$`));
     const extra = { choice: 'id', row: 'path', decide: 'decision', next: null }[kind];
-    onlyKeys(op, ['kind', 'expect', 'marks', 'scene', 'rejection', 'category', ...(extra ? [extra] : [])], w);
+    onlyKeys(op, ['kind', 'expect', 'marks', 'texts', 'scene', 'rejection', 'category', ...(extra ? [extra] : [])], w);
     const out = { kind, expect: pair(op.expect, `${w}.expect`, OP_STATUSES) };
     if (op.marks !== undefined) out.marks = parseMarks(op.marks, `${w}.marks`);
+    if (op.texts !== undefined) out.texts = parseTexts(op.texts, `${w}.texts`);
     // 拒否の期待の操作だけが場面・拒否の ID・分類を持つ（3 欄とも必須）。それ以外の操作に書くと誤りとして拒否する。
     const rejected = out.expect.status === 'rejected';
     for (const k of ['scene', 'rejection', 'category']) if ((op[k] !== undefined) !== rejected) fail(`${w}.${k}`, rejected ? 'required with status rejected' : 'only with status rejected');
@@ -135,6 +136,33 @@ function parseSequence(v, where) {
     if (kind === 'decide') out.decision = str(op.decision, `${w}.decision`, new RegExp(`^(${DECISIONS.join('|')})$`));
     return out;
   });
+}
+
+const MAX_TEXTS_PER_PATH = 16;
+const TEXT_MAX = 200;
+
+/**
+ * 行の文字の期待（経路 → 含む文字の一覧。Issue #2052・TASK-799・D-100）。測る側が空白を詰めるので、詰めていない期待は
+ * 決して合わない誤りとして拒否する。空の宣言は何も主張しないので拒否する。エラーに期待の文字は出さない。
+ */
+function parseTexts(v, where) {
+  if (!isObj(v)) fail(where, 'must be an object');
+  const keys = Object.keys(v);
+  if (keys.length < 1 || keys.length > MAX_ROWS) fail(where, 'must have 1 to max entries');
+  return Object.fromEntries(keys.map((k) => {
+    str(k, `${where} key`, PATH_RE);
+    const w = `${where}[${JSON.stringify(k.slice(0, 40))}]`;
+    const a = v[k];
+    if (!Array.isArray(a) || a.length < 1 || a.length > MAX_TEXTS_PER_PATH) fail(w, 'must be a non-empty array of limited size');
+    a.forEach((t, j) => {
+      if (typeof t !== 'string' || t.length < 1 || t.length > TEXT_MAX) fail(`${w}[${j}]`, 'must be a string of 1 to 200 characters');
+      // eslint-disable-next-line no-control-regex
+      if (/[\u0000-\u001f\u007f]/.test(t)) fail(`${w}[${j}]`, 'must not contain control characters');
+      if (t !== t.replace(/\s+/g, ' ').trim()) fail(`${w}[${j}]`, 'must have collapsed whitespace and no edge whitespace');
+    });
+    if (new Set(a).size !== a.length) fail(w, 'must not repeat a text');
+    return [k, [...a]];
+  }));
 }
 
 /** 操作の後に左の行が持つ変化の印（経路 → add | remove | change）。載せない行は印なしの主張になる。`{}` は「印なし」。 */
@@ -197,7 +225,7 @@ function parseExpect(v, where) {
     'completed', 'stoppedAfter', 'reviewAchieved', 'nextChapter', 'inputAreaAbsent', 'viewSwitchVisible',
     'rejectScenes', 'rejectCategories', 'excluded',
     'entryPorts', 'entryAtStart', 'inputGuidesAbsent', 'fileInputs', 'controls',
-    'visibleViews', 'leftSwitchAbsent', 'rowPaths', 'appearance', 'narrowTabs', 'docBodyRows',
+    'visibleViews', 'leftSwitchAbsent', 'rowPaths', 'rowTexts', 'appearance', 'narrowTabs', 'docBodyRows',
   ], where);
   const out = { completed: bool(v.completed, `${where}.completed`) };
   if (v.stoppedAfter !== undefined) {
@@ -239,6 +267,7 @@ function parseExpect(v, where) {
   }
   if (v.leftSwitchAbsent !== undefined) out.leftSwitchAbsent = bool(v.leftSwitchAbsent, `${where}.leftSwitchAbsent`);
   if (v.rowPaths !== undefined) out.rowPaths = pathList(v.rowPaths, `${where}.rowPaths`);
+  if (v.rowTexts !== undefined) out.rowTexts = parseTexts(v.rowTexts, `${where}.rowTexts`);
   if (v.docBodyRows !== undefined) {
     out.docBodyRows = count(v.docBodyRows, `${where}.docBodyRows`);
     if (out.rowPaths !== undefined && out.docBodyRows > out.rowPaths.length) fail(`${where}.docBodyRows`, 'must not exceed expect.rowPaths');
@@ -324,6 +353,15 @@ export function parseConfig(raw, dir) {
     if (expect.rowPaths === undefined) fail(`sequence[${i}].marks`, 'needs expect.rowPaths');
     if (Object.keys(op.marks).some((k) => !expect.rowPaths.includes(k))) fail(`sequence[${i}].marks`, 'path is not in expect.rowPaths');
   });
+  sequence.forEach((op, i) => {
+    if (op.texts === undefined) return;
+    if (expect.rowPaths === undefined) fail(`sequence[${i}].texts`, 'needs expect.rowPaths');
+    if (Object.keys(op.texts).some((k) => !expect.rowPaths.includes(k))) fail(`sequence[${i}].texts`, 'path is not in expect.rowPaths');
+  });
+  if (expect.rowTexts !== undefined) {
+    if (expect.rowPaths === undefined) fail('expect.rowTexts', 'needs expect.rowPaths');
+    if (Object.keys(expect.rowTexts).some((k) => !expect.rowPaths.includes(k))) fail('expect.rowTexts', 'path is not in expect.rowPaths');
+  }
   checkRejectionDeclarations(sequence, expect);
   if (expect.narrowTabs !== undefined && expect.narrowTabs !== (viewport.width < TAB_BREAKPOINT)) fail('expect.narrowTabs', `must match viewport.width (tabs appear below ${TAB_BREAKPOINT}px)`);
   let csp = [true, false];
@@ -492,19 +530,29 @@ function judgeTabs(config, r) {
 /**
  * 左の領域（measureLeft の結果）の照合（TASK-749 2/3。SECOND-6・SECOND-8）。理由は欄名と時点（start・end・op[i]）だけ。
  * 見えるビューと切り替えの不在は測った全時点、行の集合は終了と marks のある操作、変化の印は marks のある操作で見る。
+ * 行の文字は texts のある操作（texts@op[i]）と終了（rowTexts@end）で見る（Issue #2052）。
  * 印の 3 手段（data-mark・記号・文字）の一致は、何も主張しない設定でも測った全時点の全行で見る。
  */
 function judgeLeft(config, r) {
   const e = config.expect;
   const why = [];
   const marked = config.sequence.some((op) => op.marks !== undefined);
-  const wants = e.visibleViews !== undefined || e.leftSwitchAbsent !== undefined || e.rowPaths !== undefined || e.docBodyRows !== undefined || marked;
+  const texted = config.sequence.some((op) => op.texts !== undefined);
+  const wants = e.visibleViews !== undefined || e.leftSwitchAbsent !== undefined || e.rowPaths !== undefined || e.docBodyRows !== undefined || e.rowTexts !== undefined || marked || texted;
   if (!wants) return why;
   const l = r.left;
   if (!l || !l.start || !l.end) return ['left-missing'];
   // 宣言した marks の操作に観察が無ければ不合格にする（観察の有無で素通りさせない）。
   config.sequence.forEach((op, i) => {
     if (op.marks !== undefined && !l.ops.some((o) => o.index === i)) why.push(`marksMissing@op[${i}]`);
+  });
+  config.sequence.forEach((op, i) => {
+    if (op.texts !== undefined && !l.ops.some((o) => o.index === i)) why.push(`textsMissing@op[${i}]`);
+  });
+  // 経路の行が無い、または期待の文字のどれかを含まなければ偽（部分一致。文字は理由に出さない）。
+  const textsOk = (rows, want) => Object.entries(want).every(([p, list]) => {
+    const row = rows.find((x) => x.path === p);
+    return row !== undefined && list.every((t) => typeof row.text === 'string' && row.text.includes(t));
   });
   const points = [['start', l.start, null], ...l.ops.map((o) => [`op[${o.index}]`, o, o.index]), ['end', l.end, null]];
   for (const [label, m, index] of points) {
@@ -518,13 +566,16 @@ function judgeLeft(config, r) {
     }
     if (m.rows.some((row) => {
       const want = MARK_TABLE[row.mark];
-      return want === undefined || row.glyph !== want[0] || row.text !== want[1];
+      return want === undefined || row.glyph !== want[0] || row.markText !== want[1];
     })) why.push(`markGlyphText@${label}`);
     const marks = index === null ? undefined : config.sequence[index].marks;
+    const texts = index === null ? undefined : config.sequence[index].texts;
     const paths = m.rows.map((row) => row.path);
     const setEq = (want) => paths.length === want.length && new Set(paths).size === paths.length && want.every((p) => paths.includes(p));
-    if (e.rowPaths !== undefined && (label === 'end' || marks !== undefined) && !setEq(e.rowPaths)) why.push(`rowPaths@${label}`);
+    if (e.rowPaths !== undefined && (label === 'end' || marks !== undefined || texts !== undefined) && !setEq(e.rowPaths)) why.push(`rowPaths@${label}`);
     if (marks !== undefined && m.rows.some((row) => row.mark !== (marks[row.path] ?? ''))) why.push(`marks@${label}`);
+    if (texts !== undefined && !textsOk(m.rows, texts)) why.push(`texts@${label}`);
+    if (label === 'end' && e.rowTexts !== undefined && !textsOk(m.rows, e.rowTexts)) why.push('rowTexts@end');
     // 本文の区画を持つ行の数と、左の領域全体の区画の数（行の外の区画は不一致にする）。TASK-755。
     // 0 件の主張は測った全時点で見る。正の件数は行が揃う時点（終了と marks のある操作）だけで見る（開始の時点は行が無い）。
     if (e.docBodyRows !== undefined && (e.docBodyRows === 0 || label === 'end' || marks !== undefined)) {

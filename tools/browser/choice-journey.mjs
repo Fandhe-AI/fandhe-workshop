@@ -227,6 +227,7 @@ export async function measureScreen(page) {
 /**
  * 左の領域（成果物のビュー）を測る。判定はしない（TASK-749 2/3。SECOND-6・SECOND-8）。ページ内の関数は固定で、設定の文字列から組み立てない。
  * 見えるビューは `hidden` の無い `view-list` の data-view（空の ul は箱が 0 なので箱の大きさでは測らない）。行は `li[data-path]`。
+ * 行には変化の印の文字（markText）と、印・本文を除いた行の文字（text）・行の種類（kind）も持つ（Issue #2052）。
  * 描画がログと揃うまで待ち、揃わなければ settled を偽にして返す（例外にしない）。
  */
 export async function measureLeft(page, timeout = 2000) {
@@ -258,7 +259,15 @@ export async function measureLeft(page, timeout = 2000) {
         path: li.getAttribute('data-path'),
         mark: li.getAttribute('data-mark') ?? '',
         glyph: (li.querySelector(':scope > ' + tid('mark-glyph'))?.textContent ?? '').trim(),
-        text: (li.querySelector(':scope > ' + tid('mark-text'))?.textContent ?? '').trim(),
+        markText: (li.querySelector(':scope > ' + tid('mark-text'))?.textContent ?? '').trim(),
+        // 行の文字（Issue #2052・TASK-799・D-100）。変化の印と本文の区画を除き、空白を詰める。
+        // 今の製品の行は data-kind を持たず、文字も経路だけなので kind は空文字になる（属性の結線は後続の子が確かめる）。
+        text: (() => {
+          const c = li.cloneNode(true);
+          for (const e of q([tid('mark-glyph'), tid('mark-text'), tid('artifact-doc-body')].join(','), c)) e.remove();
+          return (c.textContent ?? '').replace(/\s+/g, ' ').trim();
+        })(),
+        kind: li.getAttribute('data-kind') ?? '',
         // 行の中の本文の区画の件数（G-4・ART-18）。中身は読まない（件数だけ。TASK-755）。
         docBody: q(tid('artifact-doc-body'), li).length,
       })),
