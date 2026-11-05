@@ -46,7 +46,8 @@ use crate::artifact_view::{
 };
 use crate::list_policy::LIST_ITEMS_TARGET;
 use crate::product_rows::{item_rows, path_rows, ProductCtx, ProductItems, ARTIFACT_KEY_PATH_MAX};
-use crate::tree_attrs::{shown_tree_attrs, TreeItemAttrs};
+use crate::tree_attrs::{shown_tree_attrs, TreeItemAttrs, TreePos};
+use std::collections::HashMap;
 
 /// ラベルの `data-testid`。
 pub const TASK_LABEL_TESTID: &str = "task-label";
@@ -314,6 +315,56 @@ pub fn task_item_b(
     ))
 }
 
+/// 経路の並び（辞書順）から、実在する祖先だけを親とした木の属性を求める。入力と同じ長さで返す。
+///
+/// 親は `/` の境界で切った経路のうち、行として存在する最も近い祖先である。途中の祖先が無い経路は、その外側の
+/// 実在する祖先の子になる（無ければ根の子）。深さの数だけで直前の浅い行を親にすると、無関係な行を親にしてしまう。
+/// `aria-level` は実在する祖先の数 + 1、`aria-posinset`・`aria-setsize` は同じ親を持つ兄弟の中で数える。
+fn path_tree_attrs<'a>(paths: impl Iterator<Item = &'a str>) -> Vec<Option<TreeItemAttrs>> {
+    let paths: Vec<&str> = paths.collect();
+    let index: HashMap<&str, usize> = paths.iter().enumerate().map(|(i, p)| (*p, i)).collect();
+    // 親の枠は「親の添字 + 1」（0 は根）。
+    let mut slot_of: Vec<usize> = Vec::with_capacity(paths.len());
+    let mut level: Vec<usize> = Vec::with_capacity(paths.len());
+    let mut child_count: Vec<usize> = vec![0; paths.len() + 1];
+    let mut posinset: Vec<usize> = Vec::with_capacity(paths.len());
+    let mut has_children: Vec<bool> = vec![false; paths.len()];
+    for (i, path) in paths.iter().enumerate() {
+        let mut parent = None;
+        let mut rest = *path;
+        while let Some(cut) = rest.rfind('/') {
+            rest = &rest[..cut];
+            if let Some(&p) = index.get(rest) {
+                if p != i {
+                    parent = Some(p);
+                    break;
+                }
+            }
+        }
+        let (slot, parent_level) = match parent {
+            Some(p) => {
+                has_children[p] = true;
+                (p + 1, level[p])
+            }
+            None => (0, 0),
+        };
+        child_count[slot] += 1;
+        slot_of.push(slot);
+        posinset.push(child_count[slot]);
+        level.push(parent_level + 1);
+    }
+    (0..paths.len())
+        .map(|i| {
+            Some(TreeItemAttrs::from(TreePos {
+                level: level[i],
+                posinset: posinset[i],
+                setsize: child_count[slot_of[i]],
+                has_children: has_children[i],
+            }))
+        })
+        .collect()
+}
+
 /// 製品の左エリアからの差し替え口。(b) の部品で行を描く。
 ///
 /// `engine_parts::ArtifactPart::view` の振り分けだけが呼ぶ。行の検査に通らない経路（空・重複）や、出ない行が
@@ -326,7 +377,7 @@ pub(crate) fn product_items(ctx: &ProductCtx<'_>) -> ProductItems {
     let attrs: Vec<Option<TreeItemAttrs>> = if folded {
         vec![None; rows.len()]
     } else {
-        shown_tree_attrs(&rows, Phase::After)
+        path_tree_attrs(ctx.world_rows.iter().map(|(p, _)| p.as_str()))
     };
     let mut out: Vec<ArtifactRow> = Vec::with_capacity(rows.len());
     for (i, ((path, _), (row, tree))) in ctx

@@ -142,3 +142,65 @@ fn 畳みが働かない行数では木の意味が残り畳むと親と項目�
     assert_eq!(count(&body, "data-testid=\"task-label\""), 401);
     assert!(a11y::check_no_undefined(&h.view()).is_ok());
 }
+
+/// 経路をそのままログに積み、タスクツリーを選んだホスト。
+fn paths_host(paths: &[&str]) -> EngineHost {
+    let testdata = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../testdata");
+    let sample: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(testdata.join("contract/event-sequence.json")).unwrap(),
+    )
+    .unwrap();
+    let mut initial = sample["initial"].clone();
+    let log: Vec<serde_json::Value> = paths
+        .iter()
+        .map(|path| {
+            serde_json::json!({"changed": {
+                "at": {"generation": 1, "step": "main/st-1"},
+                "path": path,
+                "before": null,
+                "after": {"fixture": null, "attrs": {"title": "t", "state": "open"}},
+                "cause": "input",
+            }})
+        })
+        .collect();
+    initial["log"] = serde_json::Value::Array(log);
+    let state: SessionState = serde_json::from_value(initial).unwrap();
+    let mut h =
+        EngineHost::with_session(Session::from_state(pack_ir(), state), standard_registry())
+            .unwrap();
+    h.update(HostAction::SelectView(ViewKind::TaskTree));
+    h
+}
+
+/// 開始タグ（`<li ... data-path="<path>" ...>`）の文字列。
+fn li_tag(body: &str, path: &str) -> String {
+    let at = body.find(&format!("data-path=\"{path}\"")).unwrap();
+    let open = body[..at].rfind("<li").unwrap();
+    let end = at + body[at..].find('>').unwrap();
+    body[open..=end].to_owned()
+}
+
+#[test]
+fn 祖先が欠けた経路は実在する祖先だけから木の位置を求める() {
+    // work・work/deep・work/deep/leaf は行として無い。notes/draft と無関係な行を親子にしない。
+    let h = paths_host(&["notes/draft", "work/deep/leaf/item"]);
+    let (_, body) = list_of(&h);
+    assert_eq!(count(&body, "<li"), 2, "{body}");
+    for path in ["notes/draft", "work/deep/leaf/item"] {
+        let tag = li_tag(&body, path);
+        assert!(tag.contains("aria-level=\"1\""), "{tag}");
+        assert!(tag.contains("aria-setsize=\"2\""), "{tag}");
+        assert!(!tag.contains("aria-expanded"), "{tag}");
+    }
+
+    // 実在する祖先がある場合は、間の欠けた祖先を飛ばしてその子になる。
+    let h = paths_host(&["work", "work/deep/leaf/item", "work/x"]);
+    let (_, body) = list_of(&h);
+    let top = li_tag(&body, "work");
+    assert!(top.contains("aria-expanded=\"true\""), "{top}");
+    assert!(top.contains("aria-level=\"1\""), "{top}");
+    let deep = li_tag(&body, "work/deep/leaf/item");
+    assert!(deep.contains("aria-level=\"2\""), "{deep}");
+    assert!(deep.contains("aria-setsize=\"2\""), "{deep}");
+    assert!(!deep.contains("aria-expanded"), "{deep}");
+}
