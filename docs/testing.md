@@ -12064,6 +12064,8 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 | `initial` | `{ uid, status }`（`status` は `entered`・`accepted`・`achieved`） |
 | `sequence[]` | `{ kind: choice(id) / row(path) / decide(decision: approve・reject・revise) / next, expect: { uid, status } }`。`expect` は各操作の後の期待 |
 | `expect` | `completed`（必須）・`stoppedAfter`・`reviewAchieved`・`nextChapter`・`inputAreaAbsent`・`viewSwitchVisible`。TASK-749 1/3 で `entryPorts`・`entryAtStart`・`inputGuidesAbsent`・`fileInputs`・`controls` を足した（5.445）。TASK-749 2/3 で `visibleViews`・`leftSwitchAbsent`・`rowPaths` と、操作ごとの `marks` を足した（5.447）。TASK-749 3/3 で `appearance`（`theme`・`bodyPx`・`lineHeightRatio`・`inlineStyleZero`）と `narrowTabs` を足した（5.449）。TASK-755 で `docBodyRows`（本文の区画を持つ行の数。0 以上の整数で、`rowPaths` があればその件数以下）を足した（5.454） |
+| `sequence[].texts` | 任意。`{ "<経路>": ["<含む文字>", ...] }`。その操作の後に、経路の行の文字（変化の印と本文の区画を除き、空白を詰めたもの。`measureLeft` の `rows[].text`）が各文字を含む。経路は `expect.rowPaths` の中に限る。空のオブジェクト・空の配列・文字列でない値・200 文字超・制御文字・空白を詰めていない文字・重複は拒否する。理由は `texts@op[i]`（観察が無ければ `textsMissing@op[i]`）で、期待の文字も測った文字も出さない。測定は行の `data-kind` も `rows[].kind` に持つが、今の製品の行は `data-kind` を持たず空文字になる（Issue #2052・TASK-799・D-100）。変化の印の文字は `markText` |
+| `expect.rowTexts` | 任意。`sequence[].texts` と同じ形で、終了の時点に見る。理由は `rowTexts@end` |
 | `csp` | 省略時 `[true, false]` |
 
 外部通信 0・ページ内エラー 0・コンソールエラー 0・CSP 警告 0・安全の計数 0・`ir/main.json` が 1 回 200・実マウス操作で進めたことは、設定で外せない固定の主張。

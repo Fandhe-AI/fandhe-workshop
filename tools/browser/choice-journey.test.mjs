@@ -28,6 +28,8 @@
 //      派生版（vocab 1.3・`body` なし）は行 5 本のどの行にも本文の区画が 0 件。正の対照（派生版に vocab 1.4 と `body: shown` を足した review-request-body-shown）は
 //      5 本の行がそれぞれ本文の区画を 1 つ持つ。正の対照の期待を派生版の結果に当てると docBodyRows が不合格になる（数え方が空振りでない証拠）
 //   J  道具の対照（TASK-755。CSP ありの 1 回）。派生版で opt-start を押した後のページの行に偽の本文の区画を足すと、judge が docBodyRows の理由を返す
+//   K  道具の対照（Issue #2052。CSP ありの 1 回）。派生版で opt-start を押した後の行の文字（印と本文の区画を除く）を測り、含まれる文字の期待は合格、
+//      含まれない文字の期待は texts@op[0]・rowTexts@end の理由が出る。行に偽の本文の区画を足しても text は変わらない。今の製品の行は data-kind を持たず kind は空文字
 // 確かめないこと: 本文の中身・4 つの選択が連結された依頼文（H-3 で作れない）、data-theme の値・文字の大きさ・行間の主張（製品の画面はまだ data-theme を付けない。第 2 教材の設定では主張せず、測った値を記録する。SECOND-10 は未達）、
 // 本物の第 2 教材、人が画面を見た評価。
 // 入力: FANDHE_PACK_BIN・FANDHE_WEB_AUTHOR_DIR。未設定・不在は skip にせず失敗にする。出力は名前・件数・合否・数値だけ。
@@ -384,7 +386,7 @@ test('G: 道具の対照。印の文字・見えるビュー・切り替えの�
       assert.ok(base0.left.rows.every((x) => x.mark === 'add'), 'control: all rows are marked as added');
       assert.deepEqual(leftWhy(base0), [], 'control: untouched page has no left-area reason');
       const hands = [
-        ['markGlyphText', () => { const e = document.querySelector('[data-testid="mark-text"]'); e.textContent = ''; }, (b, a) => assert.notEqual(a.left.rows.filter((x) => x.text === '').length, 0)],
+        ['markGlyphText', () => { const e = document.querySelector('[data-testid="mark-text"]'); e.textContent = ''; }, (b, a) => assert.notEqual(a.left.rows.filter((x) => x.markText === '').length, 0)],
         ['visibleViews', () => {
           const other = document.querySelector('[data-testid="view-list"]:not([data-view="document"])');
           for (let e = other; e && e.getAttribute('data-testid') !== 'shell-left'; e = e.parentElement) e.removeAttribute('hidden');
@@ -448,6 +450,57 @@ test('J: 道具の対照。行に偽の本文の区画を足すと docBodyRows �
       });
       assert.equal(outside.left.docBodyTotal, 1);
       assert.ok(bodyWhy(outside).some((w) => w.startsWith('docBodyRows')), 'a body section outside the rows is reported');
+    }));
+  } finally {
+    cleanup();
+  }
+});
+
+test('K: 道具の対照。行の文字を測り、含まれる文字の期待は合格、含まれない文字は texts@・rowTexts@ の理由が出る（CSP あり）', { timeout: 120000 }, async () => {
+  const { dir: copy, cleanup } = prepareDelivery({ webDir, irText: irRrDerived });
+  try {
+    await withCspMode({ dir: copy, csp: true }, (dir) => withServer({ dir, base: cfgRrDerived.base }, async (srv) => {
+      const probe = async (hand) => {
+        const { page, context } = await openPage(browser, { origin: srv.origin, viewport: { width: 1280, height: 800 } });
+        try {
+          await page.goto(srv.url);
+          await waitMounted(page);
+          await page.waitForSelector('[data-testid="step-title"]', { timeout: 30000 });
+          await page.locator(choiceSel(cfgRrDerived.sequence[0].id)).first().click({ timeout: 4000 });
+          await page.waitForFunction(() => document.querySelectorAll('[data-testid="view-list"] > li[data-path]').length === 5, null, { timeout: 10000 });
+          if (hand) await page.evaluate(hand);
+          return { left: await measureLeft(page), screen: await measureScreen(page) };
+        } finally {
+          await context.close();
+        }
+      };
+      const m = await probe(null);
+      const rows = m.left.rows;
+      assert.equal(rows.length, 5);
+      assert.ok(rows.every((x) => x.text !== '' && x.text.includes(x.path)), 'every row has text that includes its path');
+      assert.ok(rows.every((x) => x.markText !== '' && !x.text.includes(x.markText)), 'mark text is excluded from the row text');
+      assert.ok(rows.every((x) => typeof x.kind === 'string'));
+      const path0 = rows[0].path;
+      const mk = (opTexts, endTexts) => ({
+        ...cfgRrDerived,
+        sequence: cfgRrDerived.sequence.map(({ marks, ...op }, i) => (i === 0 ? { ...op, texts: opTexts } : op)),
+        expect: { ...cfgRrDerived.expect, rowTexts: endTexts },
+      });
+      const why = (cfg) => judge(cfg, { ...baseResult(), start: m.screen, end: m.screen, left: { start: m.left, ops: [{ index: 0, ...m.left }], end: m.left } })
+        .filter((w) => /^(texts|rowTexts|textsMissing)/.test(w));
+      const own = Object.fromEntries(rows.map((x) => [x.path, [x.text]]));
+      assert.deepEqual(why(mk(own, own)), [], 'control: measured text as expectation passes');
+      const absent = { [path0]: [`${rows[0].text} #absent`] };
+      assert.deepEqual(why(mk(absent, undefined)), ['texts@op[0]']);
+      assert.deepEqual(why(mk(undefined, absent)), ['rowTexts@end']);
+      const withBody = await probe(() => {
+        const d = document.createElement('div');
+        d.setAttribute('data-testid', 'artifact-doc-body');
+        d.textContent = 'probe-body';
+        document.querySelector('[data-testid="view-list"] > li[data-path]').appendChild(d);
+      });
+      assert.deepEqual(withBody.left.rows.map((x) => x.text), rows.map((x) => x.text), 'body section text is excluded');
+      diag(`row-text rows=${rows.length} kindsEmpty=${rows.filter((x) => x.kind === '').length}`);
     }));
   } finally {
     cleanup();

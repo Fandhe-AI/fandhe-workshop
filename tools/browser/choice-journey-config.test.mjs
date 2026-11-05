@@ -317,7 +317,7 @@ const leftAt = (marks = {}) => ({
   absent: { 'world-list': 0, 'view-tabs': 0, 'view-tab': 0 },
   rows: ['r/b', 'r/a'].map((p) => {
     const mark = marks[p] ?? '';
-    return { path: p, mark, glyph: { '': '', change: '~', add: '+' }[mark], text: { '': '', change: '【変更】', add: '【追加】' }[mark] };
+    return { path: p, mark, glyph: { '': '', change: '~', add: '+' }[mark], text: p, kind: '', markText: { '': '', change: '【変更】', add: '【追加】' }[mark] };
   }),
 });
 const goodLeft = () => ({ ...good(), left: { start: leftAt(), ops: [{ index: 0, ...leftAt({ 'r/a': 'change' }) }], end: leftAt() } });
@@ -339,12 +339,12 @@ const LEFT_OFF = [
   ['切り替えの入れ物が見える（開始時）', (r) => { r.left.start.select.visible = 1; }, ['leftSwitch@start']],
   ['world-list が 1 件（終了時）', (r) => { r.left.end.absent['world-list'] = 1; }, ['leftSwitch@end']],
   ['行が 1 本足りない（終了時）', (r) => { r.left.end.rows.pop(); }, ['rowPaths@end']],
-  ['行が 1 本余る（操作の後）', (r) => { r.left.ops[0].rows.push({ path: 'r/c', mark: '', glyph: '', text: '' }); }, ['rowPaths@op[0]']],
+  ['行が 1 本余る（操作の後）', (r) => { r.left.ops[0].rows.push({ path: 'r/c', mark: '', glyph: '', markText: '', text: 'r/c', kind: '' }); }, ['rowPaths@op[0]']],
   ['行の経路が重複する（終了時）', (r) => { r.left.end.rows[0].path = 'r/a'; }, ['rowPaths@end']],
-  ['印の値が違う（操作の後）', (r) => { r.left.ops[0].rows.find((x) => x.path === 'r/a').mark = 'add'; r.left.ops[0].rows.find((x) => x.path === 'r/a').glyph = '+'; r.left.ops[0].rows.find((x) => x.path === 'r/a').text = '【追加】'; }, ['marks@op[0]']],
-  ['印の無いはずの行に印がある（操作の後）', (r) => { Object.assign(r.left.ops[0].rows.find((x) => x.path === 'r/b'), { mark: 'change', glyph: '~', text: '【変更】' }); }, ['marks@op[0]']],
-  ['印の文字が空で data-mark が change（3 手段の不一致）', (r) => { r.left.ops[0].rows.find((x) => x.path === 'r/a').text = ''; }, ['markGlyphText@op[0]']],
-  ['記号が違う（終了時）', (r) => { Object.assign(r.left.end.rows[0], { mark: 'add', glyph: '~', text: '【追加】' }); }, ['markGlyphText@end']],
+  ['印の値が違う（操作の後）', (r) => { r.left.ops[0].rows.find((x) => x.path === 'r/a').mark = 'add'; r.left.ops[0].rows.find((x) => x.path === 'r/a').glyph = '+'; r.left.ops[0].rows.find((x) => x.path === 'r/a').markText = '【追加】'; }, ['marks@op[0]']],
+  ['印の無いはずの行に印がある（操作の後）', (r) => { Object.assign(r.left.ops[0].rows.find((x) => x.path === 'r/b'), { mark: 'change', glyph: '~', markText: '【変更】' }); }, ['marks@op[0]']],
+  ['印の文字が空で data-mark が change（3 手段の不一致）', (r) => { r.left.ops[0].rows.find((x) => x.path === 'r/a').markText = ''; }, ['markGlyphText@op[0]']],
+  ['記号が違う（終了時）', (r) => { Object.assign(r.left.end.rows[0], { mark: 'add', glyph: '~', markText: '【追加】' }); }, ['markGlyphText@end']],
   ['未知の data-mark（開始時）', (r) => { r.left.start.rows[0].mark = 'move'; }, ['markGlyphText@start']],
   ['左の描画が揃わない（操作の後）', (r) => { r.left.ops[0].settled = false; }, ['leftUnsettled@op[0]']],
 ];
@@ -355,6 +355,90 @@ for (const [label, mutate, want] of LEFT_OFF) {
     assert.deepEqual(judge(leftConfig(), r), want);
   });
 }
+
+// 行の文字の期待（Issue #2052・TASK-799・D-100）。texts は操作の後、rowTexts は終了の時点で、経路の行の文字が各文字を含むことの主張。
+const textsConfig = (opTexts, endTexts) => {
+  const raw = { ...base(), sequence: [{ kind: 'choice', id: 'x', expect: { uid: 'a/b', status: 'accepted' } }], expect: { completed: true, rowPaths: ['r/a', 'r/b'] } };
+  if (opTexts !== undefined) raw.sequence[0].texts = opTexts;
+  if (endTexts !== undefined) raw.expect.rowTexts = endTexts;
+  return raw;
+};
+test('N: texts と rowTexts は読み込みを通り、値がそのまま写る', () => {
+  const c = parseConfig(textsConfig({ 'r/a': ['r/a', 'a'] }, { 'r/b': ['b'] }), '/tmp');
+  assert.deepEqual(c.sequence[0].texts, { 'r/a': ['r/a', 'a'] });
+  assert.deepEqual(c.expect.rowTexts, { 'r/b': ['b'] });
+});
+const TEXTS_BAD = [
+  ['値が配列でない', { 'r/a': 'x' }],
+  ['要素が数', { 'r/a': [1] }],
+  ['要素が null', { 'r/a': [null] }],
+  ['空の配列', { 'r/a': [] }],
+  ['空の文字列', { 'r/a': [''] }],
+  ['長さが上限を超える', { 'r/a': ['x'.repeat(201)] }],
+  ['制御文字を含む', { 'r/a': ['a\u0001b'] }],
+  ['前後に空白がある', { 'r/a': [' a'] }],
+  ['空白が連続する', { 'r/a': ['a  b'] }],
+  ['同じ経路の中で重複する', { 'r/a': ['a', 'a'] }],
+  ['空のオブジェクト', {}],
+  ['rowPaths に無い経路', { 'r/zz': ['a'] }],
+  ['オブジェクトでない', ['a']],
+];
+for (const [label, v] of TEXTS_BAD) {
+  test(`N: texts の形の誤りは ConfigError（${label}）`, () => {
+    assert.throws(() => parseConfig(textsConfig(v), '/tmp'), ConfigError);
+  });
+  test(`N: rowTexts の形の誤りは ConfigError（${label}）`, () => {
+    assert.throws(() => parseConfig(textsConfig(undefined, v), '/tmp'), ConfigError);
+  });
+}
+test('N: rowPaths が無い設定の texts・rowTexts は ConfigError', () => {
+  const a = textsConfig({ 'r/a': ['a'] });
+  delete a.expect.rowPaths;
+  assert.throws(() => parseConfig(a, '/tmp'), ConfigError);
+  const b = textsConfig(undefined, { 'r/a': ['a'] });
+  delete b.expect.rowPaths;
+  assert.throws(() => parseConfig(b, '/tmp'), ConfigError);
+});
+
+const withText = (cfgRaw) => parseConfig({ ...cfgRaw, expect: { ...cfgRaw.expect, visibleViews: ['document'], leftSwitchAbsent: true } }, '/tmp');
+test('J: judge は行の文字の期待に合う結果で空を返し、部分一致で複数の文字はすべてを要する', () => {
+  const c = withText(textsConfig({ 'r/a': ['r/', 'a'] }, { 'r/b': ['/b'] }));
+  assert.deepEqual(judge(c, goodLeft()), []);
+  const r = goodLeft();
+  r.left.ops[0].rows.find((x) => x.path === 'r/a').text = 'r/';
+  assert.deepEqual(judge(c, r), ['texts@op[0]']);
+});
+test('J: judge は終了の行の文字が外れると rowTexts@end だけを返す', () => {
+  const c = withText(textsConfig(undefined, { 'r/b': ['b'] }));
+  const r = goodLeft();
+  r.left.end.rows.find((x) => x.path === 'r/b').text = 'zz';
+  assert.deepEqual(judge(c, r), ['rowTexts@end']);
+});
+test('J: judge は texts の経路の行が無いと texts@ と rowPaths@ を返す', () => {
+  const c = withText(textsConfig({ 'r/a': ['a'] }));
+  const r = goodLeft();
+  r.left.ops[0].rows = r.left.ops[0].rows.filter((x) => x.path !== 'r/a');
+  assert.deepEqual(judge(c, r), ['rowPaths@op[0]', 'texts@op[0]']);
+});
+test('J: judge は texts を宣言した操作に観察が無いと textsMissing@ を返す', () => {
+  const c = withText(textsConfig({ 'r/a': ['a'] }));
+  const r = goodLeft();
+  r.left.ops = [];
+  assert.deepEqual(judge(c, r), ['textsMissing@op[0]']);
+});
+test('J: judge は texts・rowTexts の無い設定では行の文字が何でも理由を返さない', () => {
+  const r = goodLeft();
+  for (const m of [r.left.start, ...r.left.ops, r.left.end]) for (const row of m.rows) { row.text = 'whatever'; row.kind = 'x'; }
+  assert.deepEqual(judge(leftConfig(), r), []);
+});
+test('J: 行の文字の不合格の理由に期待の文字も測った文字も出ない', () => {
+  const c = withText(textsConfig({ 'r/a': ['SENTINEL-EXPECT'] }, { 'r/b': ['SENTINEL-EXPECT'] }));
+  const r = goodLeft();
+  for (const row of r.left.end.rows) row.text = 'SENTINEL-MEASURED';
+  const why = judge(c, r);
+  assert.deepEqual(why.sort(), ['rowTexts@end', 'texts@op[0]']);
+  assert.ok(!JSON.stringify(why).includes('SENTINEL'));
+});
 
 // 本文の区画（TASK-755。G-4・ART-18）。行 2 本のうち docBodyRows 本が本文を持つ主張。
 const bodyConfig = (n) => {
