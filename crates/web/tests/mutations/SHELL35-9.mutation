@@ -1,0 +1,8 @@
+id: SHELL35-9
+package: fandhe-workshop-web
+test: delivery_ports
+target: crates/web/src/engine_parts.rs
+find: vec![("data-testid", "part-review-consumed"), ("hidden", "")]
+replace: vec![("data-testid", "part-review-consumed")]
+expect-fail: 二十_step_の全画面で_hello_と受け付けた入力の数が見えない
+note: 復習の受け付けた入力の数の hidden を外す

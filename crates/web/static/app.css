@@ -156,6 +156,14 @@
   min-width: 0;
 }
 
+/* 左右の領域は中身が空でも配置上の大きさを持たせる（#2081）。成果物の行も操作の部品も無い Step で高さが 0 になると、
+  領域が「見えない」ものとして扱われ、幅 960px 未満の tab の切り替え先も何も無い面になる。1 行分を下限にして、
+  受講者の目には何も足さず（枠線も色も無い）、領域と切り替え先が常に画面の中に在るようにする。 */
+[data-testid="shell-left"],
+[data-testid="shell-right"] {
+  min-height: 1.5em;
+}
+
 /* 上部の区画の「模擬」（TASK-523。SHELL-6）。どの幅・どの Step でも消さない。色だけに頼らず枠線と文字で示す。
   クラス名は crates/web/src/shell_frame.rs の TOP_CLASS・MOCK_CLASS と一致させる。 */
 .sh-top {

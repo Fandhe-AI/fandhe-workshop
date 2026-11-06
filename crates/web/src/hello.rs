@@ -372,15 +372,8 @@ impl Component for HelloView {
     }
 
     fn view(&self) -> Node {
-        #[cfg_attr(
-            not(feature = "test-hooks"),
-            allow(unused_mut, reason = "test-hooks のときだけ probe を足す")
-        )]
-        let mut children = vec![el(
-            "p",
-            vec![("data-testid", "message")],
-            vec![text("Hello")],
-        )];
+        // 最小の画面だった頃の「Hello」の文字は置かない（#2081。受講者に意味の分からない表示のため）。
+        let mut children: Vec<Node> = Vec::new();
         // フォーカスできる要素にするのは、上流の配線が keydown の target から closest で属性を探すため。
         // フォーカスが無いと target は body になり、何も起きない。
         #[cfg(feature = "test-hooks")]
@@ -582,10 +575,11 @@ mod tests {
     }
 
     #[test]
-    fn renders_hello_message() {
+    fn renders_hello_root_without_placeholder() {
         let html = render_component_html(&HelloView::new());
         assert!(html.contains("data-testid=\"hello-root\""), "{html}");
-        assert!(html.contains("Hello"), "{html}");
+        assert!(!html.contains("data-testid=\"message\""), "{html}");
+        assert!(!html.contains(">Hello<"), "{html}");
     }
 
     #[cfg(not(feature = "test-hooks"))]

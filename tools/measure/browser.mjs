@@ -468,7 +468,7 @@ async function measureFirstPaintDirect(browser, dir, { channel, headless }) {
 }
 
 // ページ内の 1 試行。固定の関数で、K 回の再描画を連続で呼ぶ時間を K で割った 1 回あたりの値（ミリ秒）を samples 件返す。
-// 各サンプルで、保持した旧 root が DOM から外れ、新しい root が Hello を持つことを確かめる（no-op の再描画を速いと誤読しない）。
+// 各サンプルで、保持した旧 root が DOM から外れ、新しい root が旧 root と別の要素であることを確かめる（no-op の再描画を速いと誤読しない）。
 async function redrawInPage({ samples, batch }) {
   const out = [];
   for (let s = 0; s < samples; s++) {
@@ -480,7 +480,7 @@ async function redrawInPage({ samples, batch }) {
     }
     const t1 = performance.now();
     const fresh = document.querySelector('[data-testid=hello-root]');
-    if (old.isConnected !== false || !fresh || fresh === old || !fresh.textContent.includes('Hello')) {
+    if (old.isConnected !== false || !fresh || fresh === old) {
       throw new Error('rerender did not rebuild the screen');
     }
     out.push((t1 - t0) / batch);
