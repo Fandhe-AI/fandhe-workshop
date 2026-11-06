@@ -12879,3 +12879,19 @@ WASM の gzip -9: #2065 の本文に基点 519646 bytes（`5014cac3`、`SKIP_WAS
 - 5.471 と比べられるか: 方法・端末・ブラウザ・行数・判定は同じで、違うのは行の形（属性つきか）と文書の本文の有無だけである。したがって条件の違いを明記したうえで並べられる。形つきでも 7 組すべてが 5.471 と同じ桁で、閾値内か超過かの結論も変わらなかった（差分だけが超過）。実際の形が負荷を大きく変えるという兆候は、この測定では見えなかった。ただし 1 回の測定で、試行間のばらつきを超える差かは判断していない。5.471 の値は書き換えていない
 - 試験の件数の期待値: 元にしたコミットを 10393de から 58339d2 に更新した。rust は `pane_isolation` 20 → 21、passed 4,143 → 4,144（手元で `make test` を流した実測。失敗 0）。`test_fixture` の単体試験は `test-hooks` の feature つきの `unittests` で、配信の既定の束には入らず件数は変わらない。browser は tests 1,839 → 1,848（PS1 が 7、PS2・PS3 が各 1 で 9 件増。`make test-browser` を手元で完了できないため、この加算で更新した。PR の CI の `counts browser` の照合で確かめる）。`tools/measure/browser.test.mjs` は束の外
 - 限界・未実施: 基準端末 A（Chrome の原本）では測っていない。開発機の値で判定の最終の根拠にならない。カードとチェックの形の検査は持たない（語彙が属性の値で、DOM 上の目印が無いため。指せる行の属性だけを確かめた）。CPU 4 倍の記録（5.320・5.471）は形つきで測り直していない。作成者と実装が同じ AI で、人の確認は無い
+
+### 5.474 左エリアの状態のバッジで語彙の外の値を教材の語のまま出す（#2079。D-101。5.469 の続き）
+
+- 目的: 第 3 教材の状態の語（`未着手` など）は語彙の外で、#2060 の人の画面の確認（2026-11-06）ではバッジが最初から最後まで「不明」だった。spec の D-101（2026-11-06）に従い、語彙は広げず、タスク・カード・チェックのバッジで語彙の外の空でない値を教材の語のまま出す。語彙の語の表示と、空の値の表示は変えない。範囲外は語彙の確定（TASK-739・#1069）、差分とアプリのデモ、第 2・第 3 教材の変更
+- 判断:
+  - `TaskState`・`CardState`・`CheckState` の enum と `parse`・`glyph`・`text`・`label`・`tone` は変えず、バッジを組み立てる側（`task_tree.rs` の `state_badge_of`、`card_view.rs` の `shown_text`、`check_view.rs` の `shown_glyph`・`shown_text`・`shown_label`）で分ける。強調・`data-checked`・色調は閉じた `parse` の結果だけで決まるため、教材の語が完了や失敗の意味を主張することは無い。変異の定義の `find` の行も変わらない
+  - 空白だけの値は空と同じく固定の「不明」にする。そうしないと状態の文字が見た目の上で空になり、A11Y-22 とブラウザ試験の数え上げに反する。前後に空白のある語は trim せず、そのまま出す（`other_state_word`）
+  - 語彙の外の記号は `◇`（`OTHER_STATE_GLYPH`）にした。`?` は「?未分解」と疑問に読めるため退けた。タスクの記号（`○`・`◐`・`●`）と同じ幾何の図形の系統で、印の記号・チェックの記号と重ならない。記号を空にすると A11Y-22 の形（記号と文字が常に空でない）に反する。チェック (b) は「◇ 値」、(a) は記号の span が `◇`、文字は値
+  - 値は文字ノードにだけ入れる（SAFE-11）。属性・class・testid・`data-checked` には入れない
+- 試験:
+  - native: `task_tree_contract.rs`（空・空白だけは「不明」と `?`、`Done`・`unknown`・`<b>x</b>` は文字のまま・エスケープ済み・記号 `◇`・属性に無い）、`card_view_a/b_contract.rs`、`check_view_a/b_contract.rs`、`card_list_product.rs`、`check_list_product.rs`、`artifact_view_generic_names.rs`（`OTHER_STATE_GLYPH` を綴りの検査に追加）。期待 HTML `task_tree.html`・`card_list.html`・`check_list.html` を作り直した（変わったのはバッジの文字と記号だけ）
+  - 試験の改名: `語彙の外の状態は不明になり_既知の状態へ寄せない` を `語彙の外の状態は既知の状態へ寄せない` にした（`card_view_a_contract`・`check_view_a_contract`・`check_view_b_contract`）。`ART17-2.mutation`・`ART1-7.mutation` の `expect-fail` も同じ名前に直した。過去の記録の名前は書き換えない
+  - 変異: ART17-2・ART17-6・ART1-7・ART1-9・ART1-10・ART9-4・A11Y22-1・A11Y22-2 は DETECTED のまま（2026-11-06）
+  - ブラウザ: `tools/browser/e3-ir.mjs` の `judgeRows` は、バッジが閉じた語彙の 5 語であることの判定をやめ、期待の文字との一致（省略時は空でないこと）とバッジの中の要素が 1 個であることを見る。`practice-data-xss.test.mjs` の B は P がバッジに出ることまで照合し、F は「属性の値が画面に出ない」の固定から「P がバッジに文字として出て、要素の属性には出ない」に反転した。B（4 組）・C・D2・F は手元で通った
+  - choice-journey: `task-breakdown.json`・`-tree.json`・`-cards.json` の `texts`・`rowTexts` に状態の語を足した（理由は D-101 で表示が変わったため）。手元で CSP あり・なしとも通った。「不明」が出ないことは「含む」の主張では確かめられないため、native の試験で担保する。`-views.json` は変えていない
+- 限界: 語彙の確定は TASK-739。(a) のチェックの印は `done` でしか付かず教材の語「完了」では付かない。第 3 教材の `workshop.yaml:3` と `docs/requirements.md:103,150` に「バッジが「不明」になる」という古い記述が残る（Issue の範囲外で、`check-engine-zero-diff` の記録のハッシュにも係わるため直していない）。人の画面の確認（#2060 の続き）は未実施。`scripts/expected-test-counts.txt` は更新していない（試験の関数の数は task_tree_contract で 1 の改名のみ、他は増減なし）

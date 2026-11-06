@@ -48,7 +48,7 @@ test('attrOnlyVariant はパスを変えず、属性の値と set_attr の値だ
 });
 
 const row = (p, over = {}) => ({
-  path: p, row: p, labels: 1, text: p, kids: 0, articles: 1, shape: ['span', 'div', 'p', 'ul'], badge: '不明',
+  path: p, row: p, labels: 1, text: p, kids: 0, articles: 1, shape: ['span', 'div', 'p', 'ul'], badge: '不明', badgeKids: 1,
   tags: ['article', 'div', 'li', 'p', 'span', 'ul'], ...over,
 });
 
@@ -68,7 +68,14 @@ test('judgeRows は集合・文字・子の要素・タグの過不足を捉え�
   for (const over of [{ articles: 0 }, { articles: 2 }, { shape: ['span', 'p', 'div', 'ul'] }, { shape: ['span', 'div', 'p'] }]) {
     assert.deepEqual(judgeRows({ ...ok, rows: [row('a', over), row('b')] }, ['a', 'b']), ['shape']);
   }
-  assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { badge: 'a' }), row('b')] }, ['a', 'b']), ['state']);
+  // バッジは教材の語のまま出る（D-101）。期待の文字と違えば state、期待が無ければ空でない文字なら通る。
+  assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { badge: 'a' }), row('b')] }, ['a', 'b']), []);
+  assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { badge: 'a' }), row('b', { badge: 'a' })] }, ['a', 'b'], 'a'), []);
+  assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { badge: 'a' }), row('b')] }, ['a', 'b'], 'a'), ['state']);
+  assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { badge: 'a' }), row('b', { badge: 'b' })] }, ['a', 'b'], (p) => p), []);
+  assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { badge: 'a\u0000' }), row('b', { badge: 'a' })] }, ['a', 'b'], 'a'), []);
+  assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { badge: '' }), row('b')] }, ['a', 'b']), ['state']);
+  assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { badgeKids: 2 }), row('b')] }, ['a', 'b']), ['state']);
   assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { badge: null }), row('b')] }, ['a', 'b']), ['state']);
   assert.deepEqual(judgeRows({ ...ok, rows: [row('a', { row: 'z' }), row('b')] }, ['a', 'b']), ['row']);
   assert.deepEqual(judgeRows({ ...ok, notice: 1 }, ['a', 'b']), ['notice']);

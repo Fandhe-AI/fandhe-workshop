@@ -2,7 +2,7 @@
 //!
 //! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれ、(b) の部品（ラベル・補足・状態のバッジ・
 //! `tags`）で行を描く。行の種類は `card`（`data-kind`）、`li` に `data-path` を付け、キーは `p<経路>`（長い経路は `i<位置>`）で、
-//! 親に `role` は付かない。状態は `CardState::parse` のまま読み、語彙の外の値は「不明」になる（語彙は spec の判断。記録は #2059）。
+//! 親に `role` は付かない。状態は `CardState::parse` で読む。語彙の外の空でない値は教材の語のまま文字で出し、空・空白だけは「不明」になる（D-101。語彙は spec の判断。記録は #2059）。
 //! `tags` は `read_cell` の規則で空である。
 //!
 //! 項目の根は `artifact_mark::pointed_item`（`marked_item` に指せる行の 4 属性を足す）で作る。宛先は呼び出し側が `PointOf` で注入し、
@@ -51,7 +51,8 @@
 //!
 //! ラベル・補足・状態・`tags` は教材由来で信頼できない。`text()` の文字のノードにだけ入れ、`render` の既定の
 //! エスケープを通す（SAFE-11）。属性・class に入るのは閉じた集合の `&'static str`（`data-kind` と部品の class）だけで、
-//! 状態の文字も教材の値ではなく [`CardState::text`] の固定の文字列である。製品が足す `data-path` は経路の値で、属性の値として
+//! 状態の文字は語彙の語なら [`CardState::text`] の固定の文字列で、語彙の外の空でない値だけが文字ノードとして出る
+//! （属性・class・強調・色調には入れない）。製品が足す `data-path` は経路の値で、属性の値として
 //! `render` のエスケープを通る（属性名は固定）。
 
 use fandhe_frontend_core::{el, text, Node};
@@ -62,7 +63,8 @@ use crate::a11y::TESTID_ATTR;
 use crate::artifact_fold::ArtifactRow;
 use crate::artifact_mark::{point_all, pointed_item, PointOf};
 use crate::artifact_view::{
-    list_attrs, view_list, Cell, ItemRow, Phase, PointTarget, RowKind, Variant, ViewKind,
+    list_attrs, other_state_word, view_list, Cell, ItemRow, Phase, PointTarget, RowKind, Variant,
+    ViewKind,
 };
 use crate::list_policy::ListError;
 use crate::product_rows::{item_rows, path_rows, ProductCtx, ProductItems, ARTIFACT_KEY_PATH_MAX};
@@ -140,11 +142,21 @@ impl CardState {
     }
 }
 
+/// バッジの文字。語彙の外の空でない値は教材の語のまま、それ以外は固定の文字（D-101）。強調・色調は `parse` の結果だけで決める。
+fn shown_text(state: CardState, raw: &str) -> &str {
+    if state == CardState::Unknown {
+        if let Some(word) = other_state_word(raw) {
+            return word;
+        }
+    }
+    state.text()
+}
+
 /// カード 1 件の中身（`card_basic` とラベルの `tag`）。
 fn card_content(cell: &Cell) -> Vec<Node> {
     let state = CardState::parse(cell.state.as_str());
     let state_tag = tag(
-        state.text(),
+        shown_text(state, cell.state.as_str()),
         Size::Sm,
         Primary(state == CardState::Open),
         None,
@@ -213,7 +225,10 @@ fn card_content_b(cell: &Cell) -> Vec<Node> {
             tone: state.tone(),
         },
         vec![],
-        vec![marker::content(vec![], vec![text(state.text())])],
+        vec![marker::content(
+            vec![],
+            vec![text(shown_text(state, cell.state.as_str()))],
+        )],
     );
     let joined = cell.tags.join(TAGS_SEPARATOR);
     vec![el(

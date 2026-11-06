@@ -73,13 +73,16 @@ fn 製品の行は_b_の部品で出て親に_role_が付かない() {
         assert_eq!(count(&body, pat), n, "{pat}");
     }
     assert!(body.contains("data-key=\"pnotes/draft\""), "{body}");
-    // 状態 `open` などは語彙の外で、既知の状態へ寄らず「? 不明」になる。
-    assert_eq!(count(&body, ">? 不明</span>"), n, "{body}");
+    // 状態 `open` などは語彙の外で、既知の状態へ寄らず、中立の記号と値の文字のまま出る（D-101）。
+    assert_eq!(count(&body, ">\u{25C7} open</span>"), 1, "{body}");
+    assert_eq!(count(&body, ">\u{25C7} todo</span>"), 1, "{body}");
+    // 状態の無い行は、固定の「? 不明」のまま。
+    assert_eq!(count(&body, ">? 不明</span>"), n - 2, "{body}");
     assert!(a11y::check_no_undefined(&h.view()).is_ok());
 }
 
 #[test]
-fn 状態は固定の文字で出て語彙の外は不明になり長い経路のキーは位置に退く() {
+fn 状態は固定の文字で出て語彙の外は値の文字のまま出て長い経路のキーは位置に退く() {
     let testdata = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../testdata");
     let sample: serde_json::Value = serde_json::from_slice(
         &std::fs::read(testdata.join("contract/event-sequence.json")).unwrap(),
@@ -114,8 +117,13 @@ fn 状態は固定の文字で出て語彙の外は不明になり長い経路�
     assert!(body.contains("data-key=\"i3\""), "{body}");
     assert!(body.contains(">✓ 成功</span>"), "{body}");
     assert!(body.contains(">✗ 失敗</span>"), "{body}");
-    // 大文字の違いと HTML の形は語彙の外で「? 不明」になる。
-    assert_eq!(count(&body, ">? 不明</span>"), 2, "{body}");
-    assert!(!body.contains("<b>x</b>"), "状態の値は画面に出ない");
-    assert!(!body.contains("&lt;b&gt;"), "状態の値は画面に出ない");
+    // 大文字の違いと HTML の形は語彙の外で、中立の記号と値の文字のまま出る（D-101）。エスケープされ、属性にならない。
+    assert_eq!(count(&body, ">\u{25C7} Success</span>"), 1, "{body}");
+    assert_eq!(
+        count(&body, ">\u{25C7} &lt;b&gt;x&lt;/b&gt;</span>"),
+        1,
+        "{body}"
+    );
+    assert!(!body.contains("<b>x</b>"), "{body}");
+    assert!(!body.contains("不明"), "{body}");
 }

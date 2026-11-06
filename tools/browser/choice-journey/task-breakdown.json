@@ -19,10 +19,10 @@
         "status": "accepted"
       },
       "texts": {
-        "plan/release": ["アプリの公開", "まだ分けていません"],
-        "plan/release/data": ["データを用意する", "画面で使うデータ"],
-        "plan/release/screen": ["画面を作る", "データを使う画面"],
-        "plan/release/publish": ["公開する", "画面ができてから"]
+        "plan/release": ["アプリの公開", "まだ分けていません", "未分解"],
+        "plan/release/data": ["データを用意する", "画面で使うデータ", "未着手"],
+        "plan/release/screen": ["画面を作る", "データを使う画面", "未着手"],
+        "plan/release/publish": ["公開する", "画面ができてから", "未着手"]
       }
     },
     {
@@ -41,7 +41,7 @@
         "status": "accepted"
       },
       "texts": {
-        "plan/release": ["3 つのタスクに分けました"]
+        "plan/release": ["3 つのタスクに分けました", "分解済み"]
       }
     },
     {
@@ -79,10 +79,10 @@
         "status": "accepted"
       },
       "texts": {
-        "plan/release": ["アプリの公開", "3 つのタスクに分けました"],
-        "plan/release/data": ["データを用意する", "最初に始めます"],
-        "plan/release/screen": ["画面を作る", "データを使う画面"],
-        "plan/release/publish": ["公開する", "画面ができてから"]
+        "plan/release": ["アプリの公開", "3 つのタスクに分けました", "分解済み"],
+        "plan/release/data": ["データを用意する", "最初に始めます", "進行中"],
+        "plan/release/screen": ["画面を作る", "データを使う画面", "未着手"],
+        "plan/release/publish": ["公開する", "画面ができてから", "未着手"]
       }
     },
     {
@@ -101,10 +101,10 @@
         "status": "accepted"
       },
       "texts": {
-        "plan/release": ["アプリの公開", "3 つのタスクに分けました"],
-        "plan/release/data": ["データを用意する", "最初に始めます"],
-        "plan/release/screen": ["画面を作る", "データを使う画面"],
-        "plan/release/publish": ["公開する", "画面ができてから"]
+        "plan/release": ["アプリの公開", "3 つのタスクに分けました", "分解済み"],
+        "plan/release/data": ["データを用意する", "最初に始めます", "完了"],
+        "plan/release/screen": ["画面を作る", "データを使う画面", "未着手"],
+        "plan/release/publish": ["公開する", "画面ができてから", "未着手"]
       }
     },
     {
@@ -123,10 +123,10 @@
         "status": "accepted"
       },
       "texts": {
-        "plan/release": ["アプリの公開", "3 つのタスクに分けました"],
-        "plan/release/data": ["データを用意する", "最初に始めます"],
-        "plan/release/screen": ["画面を作る", "データを使う画面"],
-        "plan/release/publish": ["公開する", "画面ができてから"]
+        "plan/release": ["アプリの公開", "3 つのタスクに分けました", "分解済み"],
+        "plan/release/data": ["データを用意する", "最初に始めます", "完了"],
+        "plan/release/screen": ["画面を作る", "データを使う画面", "進行中"],
+        "plan/release/publish": ["公開する", "画面ができてから", "未着手"]
       }
     },
     {
@@ -181,10 +181,10 @@
       "plan/release/screen"
     ],
     "rowTexts": {
-      "plan/release": ["アプリの公開", "残りは公開だけです"],
-      "plan/release/data": ["データを用意する", "最初に始めます"],
-      "plan/release/screen": ["画面を作る", "データを使う画面"],
-      "plan/release/publish": ["公開する", "画面ができてから"]
+      "plan/release": ["アプリの公開", "残りは公開だけです", "分解済み"],
+      "plan/release/data": ["データを用意する", "最初に始めます", "完了"],
+      "plan/release/screen": ["画面を作る", "データを使う画面", "完了"],
+      "plan/release/publish": ["公開する", "画面ができてから", "未着手"]
     }
   }
 }

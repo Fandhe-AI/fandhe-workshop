@@ -161,8 +161,9 @@ fn 状態の文字は前後の_state_と対応する() {
 }
 
 #[test]
-fn 未知の状態は不明になり_生の値は描画に出ない() {
-    for raw in ["", "Done", "unknown", "<b>x</b>"] {
+fn 語彙の外の状態は既知の状態へ寄せず_空は不明_空でない値は文字のまま出る() {
+    // 空・空白だけは固定の「不明」と `?`（D-101）。
+    for raw in ["", "  "] {
         assert_eq!(TaskState::parse(raw), TaskState::Unknown, "{raw}");
         let rows = vec![row(
             "x",
@@ -172,10 +173,36 @@ fn 未知の状態は不明になり_生の値は描画に出ない() {
         )];
         let h = html(&rows, Phase::Before);
         assert_eq!(count(&h, "不明"), 1, "{h}");
+        assert_eq!(count(&h, "data-testid=\"state-glyph\">?</span>"), 1, "{h}");
+        assert_eq!(count(&h, "\u{25C7}"), 0, "{h}");
+    }
+    // 語彙の外の空でない値は、値の文字のまま文字ノードに出る。エスケープされ、属性には入らない。
+    for (raw, shown) in [
+        ("Done", "Done"),
+        ("unknown", "unknown"),
+        ("<b>x</b>", "&lt;b&gt;x&lt;/b&gt;"),
+    ] {
+        assert_eq!(TaskState::parse(raw), TaskState::Unknown, "{raw}");
+        let rows = vec![row(
+            "x",
+            0,
+            Some(cell_of("l", raw)),
+            Some(cell_of("l", raw)),
+        )];
+        let h = html(&rows, Phase::Before);
+        assert_eq!(
+            count(&h, &format!("data-testid=\"state-text\">{shown}</span>")),
+            1,
+            "{h}"
+        );
+        assert_eq!(
+            count(&h, "data-testid=\"state-glyph\">\u{25C7}</span>"),
+            1,
+            "{h}"
+        );
+        assert_eq!(count(&h, "不明"), 0, "{h}");
         assert_eq!(count(&h, "<b>x</b>"), 0, "{h}");
-        if !raw.is_empty() {
-            assert_eq!(count(&h, &format!("\"{raw}\"")), 0, "{h}");
-        }
+        assert_eq!(count(&h, &format!("\"{raw}\"")), 0, "{h}");
     }
 }
 
@@ -318,7 +345,8 @@ fn a_完了の項目だけチェック済みで_未知の状態はチェック�
         let h = html_a(&rows, Phase::Before);
         assert_eq!(count(&h, "data-checked=\"true\""), 0, "{h}");
         assert_eq!(count(&h, "\u{2713}"), 0, "{h}");
-        assert_eq!(count(&h, "不明"), 1, "{h}");
+        // 文字は (b) と同じ規則（空は「不明」、空でない値は文字のまま）。チェックは語彙の語でしか付かない。
+        assert_eq!(count(&h, "不明"), usize::from(raw.is_empty()), "{h}");
         assert_eq!(count(&h, "<b>x</b>"), 0, "{h}");
     }
 }

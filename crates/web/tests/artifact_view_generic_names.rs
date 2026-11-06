@@ -11,8 +11,8 @@ use fandhe_workshop_web::app_demo_view::{
     APP_DEMO_ITEM_LABEL_TESTID, APP_DEMO_TAB_TESTID, EMPTY_FIELD_TEXT,
 };
 use fandhe_workshop_web::artifact_view::{
-    RowKind, Variant, ViewKind, ACTION_ATTR, HIDDEN_ATTR, PAYLOAD_ATTR, POINTABLE_TABINDEX,
-    POINT_ACTION, ROW_ATTR, TABINDEX_ATTR, VIEW_ATTR, VIEW_LIST_TESTID,
+    RowKind, Variant, ViewKind, ACTION_ATTR, HIDDEN_ATTR, OTHER_STATE_GLYPH, PAYLOAD_ATTR,
+    POINTABLE_TABINDEX, POINT_ACTION, ROW_ATTR, TABINDEX_ATTR, VIEW_ATTR, VIEW_LIST_TESTID,
 };
 use fandhe_workshop_web::card_view::{
     CardState, CARD_DETAIL_TESTID, CARD_LABEL_TESTID, CARD_TAGS_TESTID, TAGS_SEPARATOR,
@@ -190,6 +190,7 @@ fn 綴りに固有の語が無い() {
             APP_DEMO_ITEM_LABEL_TESTID,
             APP_DEMO_TAB_TESTID,
         ])
+        .chain([OTHER_STATE_GLYPH])
         .chain([
             CHECK_LABEL_TESTID,
             CHECK_DETAIL_TESTID,
