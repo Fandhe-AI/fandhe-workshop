@@ -2,7 +2,7 @@
 //!
 //! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれ、(b) の部品で行を描く。行の種類は `check`
 //! （`data-kind`）、`li` に `data-path` を付け、キーは `p<経路>`（長い経路は `i<位置>`）で、親に `role` は付かない。
-//! 状態は `CheckState::parse` のまま読み、語彙の外の値は「? 不明」になる（語彙は spec の判断。記録は #2059）。
+//! 状態は `CheckState::parse` で読む。語彙の外の空でない値は教材の語のまま文字で出し（記号は `◇`。D-101）、空・空白だけは「? 不明」になる（語彙は spec の判断。記録は #2059）。
 //!
 //! 項目の根は `artifact_mark::pointed_item`（`marked_item` に指せる行の 4 属性を足す）で作る。宛先は呼び出し側が `PointOf` で注入し、
 //! 宛先の無い行には 4 属性が付かない（TASK-480 1/2。不変条件は `artifact_mark` の doc）。
@@ -45,7 +45,7 @@
 //!
 //! ラベル・補足・状態は教材由来で信頼できない。`text()` の文字のノードにだけ入れ、`render` の既定の
 //! エスケープを通す（SAFE-11）。属性・class に入るのは閉じた集合の `&'static str` だけで、教材由来の文字列を
-//! `data-state` のような属性へ入れない。状態の文字・記号も教材の値ではなく [`CheckState`] の固定の文字列である。
+//! `data-state` のような属性へ入れない。語彙の語の記号と文字は [`CheckState`] の固定の文字列で、語彙の外の空でない値だけが文字ノードとして出る（属性・class・強調・色調には入れない）。
 //! 製品が足す `data-path` は経路の値で、属性の値として `render` のエスケープを通る（属性名は固定）。
 
 use fandhe_frontend_core::{el, text, Node};
@@ -56,7 +56,8 @@ use crate::a11y::TESTID_ATTR;
 use crate::artifact_fold::ArtifactRow;
 use crate::artifact_mark::{point_all, pointed_item, PointOf};
 use crate::artifact_view::{
-    list_attrs, view_list, Cell, ItemRow, Phase, PointTarget, RowKind, Variant, ViewKind,
+    list_attrs, other_state_word, view_list, Cell, ItemRow, Phase, PointTarget, RowKind, Variant,
+    ViewKind, OTHER_STATE_GLYPH,
 };
 use crate::list_policy::ListError;
 use crate::product_rows::{item_rows, path_rows, ProductCtx, ProductItems, ARTIFACT_KEY_PATH_MAX};
@@ -173,16 +174,47 @@ fn detail_a(cell: &Cell) -> Node {
     )
 }
 
+/// 語彙の外の空でない値か（D-101）。そうなら値を返す。
+fn other_word(state: CheckState, raw: &str) -> Option<&str> {
+    if state == CheckState::Unknown {
+        other_state_word(raw)
+    } else {
+        None
+    }
+}
+
+/// バッジの記号。語彙の外の空でない値は中立の [`OTHER_STATE_GLYPH`]。
+fn shown_glyph(state: CheckState, raw: &str) -> &'static str {
+    if other_word(state, raw).is_some() {
+        OTHER_STATE_GLYPH
+    } else {
+        state.glyph()
+    }
+}
+
+/// バッジの文字。語彙の外の空でない値は教材の語のまま。
+fn shown_text(state: CheckState, raw: &str) -> &str {
+    other_word(state, raw).unwrap_or_else(|| state.text())
+}
+
+/// 変種 (b) の記号つきの文字。語彙の外の空でない値は「記号 値」にする。
+fn shown_label(state: CheckState, raw: &str) -> String {
+    match other_word(state, raw) {
+        Some(word) => format!("{OTHER_STATE_GLYPH} {word}"),
+        None => state.label().to_string(),
+    }
+}
+
 /// 変種 (a) の中身（`rich_text` と補足）。
 fn check_content(cell: &Cell) -> Vec<Node> {
     let state = CheckState::parse(cell.state.as_str());
     let glyph = el(
         "span",
         vec![("class", ICON_CLASS)],
-        vec![text(state.glyph())],
+        vec![text(shown_glyph(state, cell.state.as_str()))],
     );
     let state_tag = tag(
-        state.text(),
+        shown_text(state, cell.state.as_str()),
         Size::Sm,
         Primary(state == CheckState::Failure),
         None,
@@ -248,7 +280,10 @@ fn check_content_b(cell: &Cell) -> Vec<Node> {
             tone: state.tone(),
         },
         vec![],
-        vec![marker::content(vec![], vec![text(state.label())])],
+        vec![marker::content(
+            vec![],
+            vec![text(shown_label(state, cell.state.as_str()))],
+        )],
     );
     vec![
         el(

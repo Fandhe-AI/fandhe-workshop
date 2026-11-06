@@ -3,7 +3,7 @@
 //! 製品の左エリアの差し替え口 `product_items`（TASK-799）は `engine_parts` から呼ばれ、(b) の部品（ラベル・補足・状態のバッジ・
 //! 木の属性）で行を描く。行の種類は `task`（`data-kind`）、深さは経路の `/` の数、キーは `p<経路>`（長い経路は `i<位置>`）で、
 //! `li` に `data-path` を付ける。親の `role=tree` は `tree_list_attrs` の条件（選択中・項目 1 件以上）に従う。
-//! 状態は `TaskState::parse` のまま読み、語彙の外の値は「不明」になる（語彙は spec の判断。記録は #2059）。
+//! 状態は `TaskState::parse` で読む。語彙の外の空でない値は、教材の語のまま文字で出す（記号は `◇`。D-101）。空・空白だけは「不明」（`?`）になる（語彙は spec の判断。記録は #2059）。
 //!
 //! # 畳みが働く行数の扱い（fail-closed）
 //!
@@ -20,9 +20,10 @@
 //! # 信頼境界
 //!
 //! `Cell` の値は教材由来で信頼できない。ラベルと詳細は文字ノード（`text()`）にだけ入れ、`render` の既定の
-//! エスケープを通す。状態は完全一致で閉じた [`TaskState`] に読み、記号と文字は固定の `&'static str` である。
-//! 未知の値は既知の状態へ寄せず [`TaskState::Unknown`] にする（fail-closed）。属性・クラス・testid に
-//! 教材由来の文字列は入れない。
+//! エスケープを通す。状態は完全一致で閉じた [`TaskState`] に読み、語彙の語の記号と文字は固定の `&'static str` である。
+//! 未知の値は既知の状態へ寄せず [`TaskState::Unknown`] にする（fail-closed）。語彙の外の空でない値は
+//! 状態の文字の文字ノードにだけ入れ、属性・クラス・testid・`data-checked` には入れない。空白だけの値は空と同じく固定の
+//! 「不明」にする（文字が見た目の上で空になるのを避ける）。
 //!
 //! # 固定するもの
 //!
@@ -42,7 +43,8 @@ use crate::a11y::TESTID_ATTR;
 use crate::artifact_fold::ArtifactRow;
 use crate::artifact_mark::{point_all, pointed_item, PointOf};
 use crate::artifact_view::{
-    tree_list_attrs, tree_view_list, Cell, ItemRow, Phase, PointTarget, RowKind, Variant, ViewKind,
+    other_state_word, tree_list_attrs, tree_view_list, Cell, ItemRow, Phase, PointTarget, RowKind,
+    Variant, ViewKind, OTHER_STATE_GLYPH,
 };
 use crate::list_policy::LIST_ITEMS_TARGET;
 use crate::product_rows::{
@@ -78,7 +80,7 @@ pub enum TaskState {
     InProgress,
     /// 完了。
     Done,
-    /// 語彙の外の値。
+    /// 語彙の外の値と空の値。教材の語をそのまま出すかは、バッジの組み立て側（[`state_badge_of`]）で分ける。
     Unknown,
 }
 
@@ -128,6 +130,24 @@ impl TaskState {
 /// 状態のバッジ。子は記号と文字の 2 つの `span` に固定し、それぞれ文字ノード 1 つだけを持つ。
 #[must_use]
 pub fn state_badge(state: TaskState) -> Node {
+    badge_of(state.glyph(), state.text())
+}
+
+/// 行の生の `state` から作る状態のバッジ。語彙の語は [`state_badge`] と同じ。語彙の外の空でない値は、中立の記号
+/// [`OTHER_STATE_GLYPH`] と値の文字のまま出す（D-101）。空・空白だけは固定の「不明」にする。
+/// 値は文字ノードにだけ入れ、色調・強調・チェックは閉じた `parse` の結果だけで決まる。
+#[must_use]
+pub fn state_badge_of(raw: &str) -> Node {
+    let state = TaskState::parse(raw);
+    if state == TaskState::Unknown {
+        if let Some(word) = other_state_word(raw) {
+            return badge_of(OTHER_STATE_GLYPH, word);
+        }
+    }
+    state_badge(state)
+}
+
+fn badge_of(glyph: &str, word: &str) -> Node {
     el(
         "span",
         vec![(TESTID_ATTR, STATE_BADGE_TESTID)],
@@ -135,12 +155,12 @@ pub fn state_badge(state: TaskState) -> Node {
             el(
                 "span",
                 vec![(TESTID_ATTR, STATE_GLYPH_TESTID)],
-                vec![text(state.glyph())],
+                vec![text(glyph)],
             ),
             el(
                 "span",
                 vec![(TESTID_ATTR, STATE_TEXT_TESTID)],
-                vec![text(state.text())],
+                vec![text(word)],
             ),
         ],
     )
@@ -174,7 +194,7 @@ fn task_content(cell: &Cell) -> Vec<Node> {
             vec![(TESTID_ATTR, TASK_DETAIL_TESTID)],
             vec![text(cell.detail.as_str())],
         ),
-        state_badge(TaskState::parse(&cell.state)),
+        state_badge_of(&cell.state),
     ]
 }
 

@@ -204,7 +204,7 @@ fn 補足とラベルが空でも形の部品は出る() {
 }
 
 #[test]
-fn 語彙の外の状態は不明になり_既知の状態へ寄せない() {
+fn 語彙の外の状態は既知の状態へ寄せない() {
     for bad in ["OPEN", "open ", "", "Merged", "unknown"] {
         assert_eq!(CardState::parse(bad), CardState::Unknown, "{bad:?}");
     }
@@ -222,8 +222,23 @@ fn 語彙の外の状態は不明になり_既知の状態へ寄せない() {
         state: "OPEN".into(),
         ..Cell::default()
     });
-    assert!(html.contains(">不明<"), "{html}");
+    // 空でない語彙の外の値は教材の語のまま出る（D-101）。既知の状態（オープン）には寄らない。
+    assert!(html.contains(">OPEN<"), "{html}");
+    assert!(
+        !html.contains("オープン") && !html.contains("不明"),
+        "{html}"
+    );
     assert!(!html.contains("fw-wire-primary"), "{html}");
+    // 空・空白だけは固定の「不明」。
+    for empty in ["", "  "] {
+        let html = one(Cell {
+            label: "l".into(),
+            state: empty.into(),
+            ..Cell::default()
+        });
+        assert!(html.contains(">不明<"), "{empty:?}: {html}");
+        assert!(!html.contains("fw-wire-primary"), "{empty:?}: {html}");
+    }
 }
 
 #[test]

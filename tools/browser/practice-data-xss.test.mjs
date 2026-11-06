@@ -11,8 +11,9 @@
 // 試験 B: 左の成果物の行（`put` のパス）のカードのラベルが P の文字と等しく子の要素が 0 個で、行の形が (b) の閉じた形であること、その行を指した受付がログに文字として出ること、
 //   全区分の計数（実行・通信・CSP 違反・危険な要素・ページ内エラー）が 0 で、通信は配信物の構成要素と ir/main.json 1 件だけであること。
 //   開始地点 2 × 50 件 = 100 回が CSP あり・なしのそれぞれで 100 回すべて合格すること（C で集計）。外部通信は除外しない。
-// 限界: カードの (b) は `title`・`detail` を画面に出す経路を持つが、元の IR（ch0_3）の `put.attrs` の鍵は `state` だけで、`state` は閉じた語彙の
-//   固定の文字に読む（語彙の外は「不明」）ため、この IR の属性の値は画面の文字にも要素の属性にも出ず（ファイルツリーは `state` を出さない。文書のビューなど他のビューは題・状態・補足を文字のまま出す。`docs/views.md` の 4 節）、「文字として出た」には数えない。IR が読まれて計数が 0 であることと、その入力が画面の文字にも要素の属性にも出ないこと（今の製品の事実の固定）を F で確かめる。
+// 限界: 元の IR（ch0_3）の `put.attrs` の鍵は `state` だけである。カードの (b) は `state` が語彙の外の空でない値のとき、その値を
+//   状態のバッジに文字ノードとして出す（D-101。`docs/views.md` の 4 節）。B は期待の文字をバッジの P と照合し、F は属性の値だけの変種でも P が
+//   バッジに文字として出ること、要素の属性には出ないことを確かめる（ファイルツリーは `state` を出さない）。
 //   属性の値が世界状態へ届いたことの直接の確認は、試験の設定が任意の IR を受けられない（固定の教材だけ）ため行わない。
 // 試験 D1: 実際の行へ描画を通さない生の入力を入れると計数が 0 でなく数える。D2: 変種を作らない IR では判定が「出ていない」になる
 //   （100/100 が何も見ない判定の結果でないことの対照）。
@@ -204,10 +205,10 @@ async function runDrive(srv, start, pm, label, { extra } = {}) {
 }
 
 // 観察点ごとの判定の結果（満たさなかった項目、`name.項目` の形）。pm は期待のパスを引く写像。
-function judgeAll(snaps, pm) {
+function judgeAll(snaps, pm, badge) {
   const bad = [];
   for (const s of snaps) {
-    for (const f of judgeRows(s.obs, s.names.map((n) => pm[n]))) bad.push(`${s.name}.${f}`);
+    for (const f of judgeRows(s.obs, s.names.map((n) => pm[n]), badge)) bad.push(`${s.name}.${f}`);
     if (s.received) for (const f of judgeReceived(s.obs, pm[s.received])) bad.push(`${s.name}.received.${f}`);
   }
   return bad;
@@ -244,7 +245,7 @@ for (const csp of [true, false]) {
             assert.equal(leftover, 0, `${label}: original path left`);
             fs.writeFileSync(path.join(dir, 'ir', 'main.json'), JSON.stringify(ir), 'utf8');
             const snaps = await withServer({ dir, base: BASE }, (srv) => runDrive(srv, start, pathMap, label));
-            const bad = judgeAll(snaps, pathMap);
+            const bad = judgeAll(snaps, pathMap, c.payload);
             assert.deepEqual(bad, [], `${label}: not shown as text: ${bad.join(',')}`);
             ok += 1;
           } catch (e) {
@@ -267,7 +268,7 @@ test('C: 練習データの変種の合格が CSP あり・なしのそれぞれ
   }
 });
 
-test('F: 属性の値だけの変種で IR が読まれ、計数が 0 で、その入力が画面の文字にも要素の属性にも出ない（属性の値が画面に出ないことの固定）', { timeout: 300000 }, async () => {
+test('F: 属性の値だけの変種で IR が読まれ、計数が 0 で、その入力がカードのバッジに文字として出て、要素の属性には出ない（D-101）', { timeout: 300000 }, async () => {
   const c = cases.find((x) => x.id === 'XSS-01') ?? cases[0];
   const { ir, counts } = attrOnlyVariant(baseIr, c.payload);
   assert.equal(counts.setAttr, 2);
@@ -277,11 +278,12 @@ test('F: 属性の値だけの変種で IR が読まれ、計数が 0 で、そ�
     for (const start of STARTS.map((s) => s.id)) {
       await withServer({ dir: copy, base: BASE }, async (srv) => {
         const label = `attr-only ${start}`;
-        // パスは元のまま。操作が最後まで通る（put と set_attr が受け付けられた）うえで、行は元のパスの文字として出る。
+        // パスは元のまま。操作が最後まで通る（put と set_attr が受け付けられた）うえで、行は元のパスの文字として出て、
+        // 状態のバッジは語彙の外の値 P を文字のまま出す（子の要素は文字を入れる span の 1 個だけ）。
         const snaps = await runDrive(srv, start, identity, label, {
           extra: async (page) => {
             const text = await page.evaluate(() => document.body.textContent ?? '');
-            assert.ok(!textHas(text, c.payload), `${label}: the attribute input appeared on screen (a display path now exists: add it to the judgement)`);
+            assert.ok(textHas(text, c.payload), `${label}: the attribute input did not appear as badge text`);
             const inAttr = await page.evaluate((p) => {
               const strip = (s) => String(s).replaceAll('\u0000', '');
               return [...document.querySelectorAll('*')].some((e) => [...e.attributes].some((a) => strip(a.value).includes(strip(p))));
@@ -289,7 +291,7 @@ test('F: 属性の値だけの変種で IR が読まれ、計数が 0 で、そ�
             assert.equal(inAttr, false, `${label}: the attribute input appeared in an element attribute`);
           },
         });
-        assert.deepEqual(judgeAll(snaps, identity), [], `${label}: rows`);
+        assert.deepEqual(judgeAll(snaps, identity, c.payload), [], `${label}: rows`);
       });
     }
   });

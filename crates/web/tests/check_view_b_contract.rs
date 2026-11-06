@@ -164,8 +164,9 @@ fn 状態は記号つきの文字と色調で出る() {
         ("running", "… 実行中", "warning"),
         ("pending", "… 待機中", "warning"),
         ("skipped", "– 省略", "neutral"),
-        ("Success", "? 不明", "neutral"),
+        ("Success", "\u{25C7} Success", "neutral"),
         ("", "? 不明", "neutral"),
+        ("  ", "? 不明", "neutral"),
     ];
     for (state, label, tone) in want {
         let html = one(Cell {
@@ -183,11 +184,13 @@ fn 状態は記号つきの文字と色調で出る() {
         state: "Success".into(),
         ..Cell::default()
     });
-    assert!(!html.contains("Success"), "{html}");
+    // 語彙の外の値は文字ノードにだけ出る。属性・class には入らない（D-101）。
+    assert_eq!(html.matches("Success").count(), 1, "{html}");
+    assert!(!html.contains("\"Success"), "{html}");
 }
 
 #[test]
-fn 語彙の外の状態は不明になり_既知の状態へ寄せない() {
+fn 語彙の外の状態は既知の状態へ寄せない() {
     for bad in ["Success", " success", "success ", "", "ok", "FAILURE"] {
         assert_eq!(CheckState::parse(bad), CheckState::Unknown, "{bad:?}");
     }

@@ -12893,6 +12893,22 @@ WASM の gzip -9: #2065 の本文に基点 519646 bytes（`5014cac3`、`SKIP_WAS
 - 結果（2026-11-06。開発機 Linux。Playwright 同梱の Chromium。試験の設定）: `left-row-spacing.test.mjs` 5 件が通った。Rust の契約試験は `task_tree_contract` 18 件・`card_view_b_contract` 14 件が通った。試験の件数の期待値は rust 2 行を +1、browser を 1,848 → 1,853 に更新した（`make test-browser` の通しは手元で未実施。CI の `counts browser` の照合で確かめる）
 - 限界: 第 3 教材そのものを compile した画面では測っていない（形つきの固定データと代役で測った）。基準端末 A では測っていない。作成者と実装が同じ AI で、人の確認は #2080 で行う
 
+### 5.474 左エリアの状態のバッジで語彙の外の値を教材の語のまま出す（#2079。D-101。5.469 の続き）
+
+- 目的: 第 3 教材の状態の語（`未着手` など）は語彙の外で、#2060 の人の画面の確認（2026-11-06）ではバッジが最初から最後まで「不明」だった。spec の D-101（2026-11-06）に従い、語彙は広げず、タスク・カード・チェックのバッジで語彙の外の空でない値を教材の語のまま出す。語彙の語の表示と、空の値の表示は変えない。範囲外は語彙の確定（TASK-739・#1069）、差分とアプリのデモ、第 2・第 3 教材の変更
+- 判断:
+  - `TaskState`・`CardState`・`CheckState` の enum と `parse`・`glyph`・`text`・`label`・`tone` は変えず、バッジを組み立てる側（`task_tree.rs` の `state_badge_of`、`card_view.rs` の `shown_text`、`check_view.rs` の `shown_glyph`・`shown_text`・`shown_label`）で分ける。強調・`data-checked`・色調は閉じた `parse` の結果だけで決まるため、教材の語が完了や失敗の意味を主張することは無い。変異の定義の `find` の行も変わらない
+  - 空白だけの値は空と同じく固定の「不明」にする。そうしないと状態の文字が見た目の上で空になり、A11Y-22 とブラウザ試験の数え上げに反する。前後に空白のある語は trim せず、そのまま出す（`other_state_word`）
+  - 語彙の外の記号は `◇`（`OTHER_STATE_GLYPH`）にした。`?` は「?未分解」と疑問に読めるため退けた。タスクの記号（`○`・`◐`・`●`）と同じ幾何の図形の系統で、印の記号・チェックの記号と重ならない。記号を空にすると A11Y-22 の形（記号と文字が常に空でない）に反する。チェック (b) は「◇ 値」、(a) は記号の span が `◇`、文字は値
+  - 値は文字ノードにだけ入れる（SAFE-11）。属性・class・testid・`data-checked` には入れない
+- 試験:
+  - native: `task_tree_contract.rs`（空・空白だけは「不明」と `?`、`Done`・`unknown`・`<b>x</b>` は文字のまま・エスケープ済み・記号 `◇`・属性に無い）、`card_view_a/b_contract.rs`、`check_view_a/b_contract.rs`、`card_list_product.rs`、`check_list_product.rs`、`artifact_view_generic_names.rs`（`OTHER_STATE_GLYPH` を綴りの検査に追加）。期待 HTML `task_tree.html`・`card_list.html`・`check_list.html` を作り直した（変わったのはバッジの文字と記号だけ）
+  - 試験の改名: `語彙の外の状態は不明になり_既知の状態へ寄せない` を `語彙の外の状態は既知の状態へ寄せない` にした（`card_view_a_contract`・`check_view_a_contract`・`check_view_b_contract`）。`ART17-2.mutation`・`ART1-7.mutation` の `expect-fail` も同じ名前に直した。過去の記録の名前は書き換えない
+  - 変異: ART17-2・ART17-6・ART1-7・ART1-9・ART1-10・ART9-4・A11Y22-1・A11Y22-2 は DETECTED のまま（2026-11-06）
+  - ブラウザ: `tools/browser/e3-ir.mjs` の `judgeRows` は、バッジが閉じた語彙の 5 語であることの判定をやめ、期待の文字との一致（省略時は空でないこと）とバッジの中の要素が 1 個であることを見る。`practice-data-xss.test.mjs` の B は P がバッジに出ることまで照合し、F は「属性の値が画面に出ない」の固定から「P がバッジに文字として出て、要素の属性には出ない」に反転した。B（4 組）・C・D2・F は手元で通った
+  - choice-journey: `task-breakdown.json`・`-tree.json`・`-cards.json` の `texts`・`rowTexts` に状態の語を足した（理由は D-101 で表示が変わったため）。手元で CSP あり・なしとも通った。「不明」が出ないことは「含む」の主張では確かめられないため、native の試験で担保する。`-views.json` は変えていない
+- 限界: 語彙の確定は TASK-739。(a) のチェックの印は `done` でしか付かず教材の語「完了」では付かない。第 3 教材の `workshop.yaml:3` と `docs/requirements.md:103,150` に「バッジが「不明」になる」という古い記述が残る（Issue の範囲外で、`check-engine-zero-diff` の記録のハッシュにも係わるため直していない）。人の画面の確認（#2060 の続き）は未実施。`scripts/expected-test-counts.txt` は更新していない（試験の関数の数は task_tree_contract で 1 の改名のみ、他は増減なし）
+
 ### 5.475 画面に残る「Hello」の文字と受け付けた入力の数を見えなくする（#2081。#2060 の画面の確認で見つかった 2 件）
 
 - 目的: 配信する設定の画面に出ていた、受講者に意味の分からない 2 種類の表示を、画面と読み上げから消す。1 つは右の領域の「Hello」（最小の画面だった頃の残り）、もう 1 つは受け付けた入力の数の欄 3 つ（`part-log-consumed`・`part-artifact-consumed`・`part-review-consumed`）。
@@ -12902,5 +12918,5 @@ WASM の gzip -9: #2065 の本文に基点 519646 bytes（`5014cac3`、`SKIP_WAS
 - 試験:
   - Rust `delivery_ports.rs` の `二十_step_の全画面で_hello_と受け付けた入力の数が見えない`（配信する設定・試験の設定のどちらでも流れる）。変異 `SHELL35-6`（Hello の復活）・`SHELL35-7`〜`9`（3 つの欄の `hidden` を外す）。
   - ブラウザ `tools/browser/dev-leftovers.test.mjs`: A 20 Step の全時点（CSP あり・なし）で Hello 0 件・欄が見えず読み上げに出ず数字のまま、B IR なしの画面に Hello が無い、C 負の対照（`hidden` を外す・Hello を差し込むと探針が不合格）。
-- 結果（2026-11-06）: `fandhe-workshop-web` の全試験と `--features test-hooks` の `delivery_ports` が通った。`scripts/check-mutations.sh` で SHELL35-6〜9 の 4 件が DETECTED。ブラウザ試験は、この作業環境に `node_modules` が無く実行していない（未検証。CI の `browser-test` で確かめる）。
-- 限界: spec の SHELL-35 は「受講者に見える開発用の表示で残っているのは本文の参照の行だけ」としており、この変更でその記述に実装が合う。spec 側の修正は不要だが、右のログに選択肢の ID が出ること（5.271）と、新しい Step に入った直後に前の Step の「達成」が出ることは範囲外のまま。試験の件数の期待値（`expected-test-counts.txt`）は版上げの PR で更新する。
+- 結果（2026-11-06）: `fandhe-workshop-web` の全試験と `--features test-hooks` の `delivery_ports` が通った。`scripts/check-mutations.sh` で SHELL35-6〜9 の 4 件が DETECTED。ブラウザ試験は `dev-leftovers.test.mjs` 4 件（A は CSP あり・なしの 2 件、B、C）が通り、「Hello」・受け付けた入力の数を読む `element-identity`・`three-views`・`data-payload-tamper` の 3 ファイル 39 件も通った（配信する設定と試験の設定を `SKIP_WASM_OPT=1` でビルドして直接実行。残りのブラウザ試験の全体は流しておらず、CI の `browser-test` で確かめる）。
+- 限界: spec の SHELL-35 は「受講者に見える開発用の表示で残っているのは本文の参照の行だけ」としており、この変更でその記述に実装が合う。spec 側の修正は不要だが、右のログに選択肢の ID が出ること（5.271）と、新しい Step に入った直後に前の Step の「達成」が出ることは範囲外のまま。試験の件数の期待値（`expected-test-counts.txt`）は rust の `delivery_ports` を +1（12）・`rust|total` を 4147、browser を +4（1857）に更新した。

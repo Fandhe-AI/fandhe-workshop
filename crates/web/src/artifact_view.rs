@@ -662,6 +662,24 @@ pub struct Cell {
     pub tags: Vec<String>,
 }
 
+/// 語彙の外の状態の値を示す固定の中立の記号（D-101）。`?` は「?未分解」のように疑問と読めるため使わない。
+/// タスクの記号（`○`・`◐`・`●`）と同じ幾何の図形で、印の記号（`+`・`-`・`~`）とも重ならない。
+pub const OTHER_STATE_GLYPH: &str = "◇";
+
+/// 語彙の外の状態の値を、教材の語のまま出すか決める（D-101）。
+///
+/// 呼び出し側（タスク・カード・チェックのバッジ）が、`parse` の結果が `Unknown` のときだけ呼ぶ。空・空白だけの値は
+/// `None` で、固定の「不明」の表示のままにする（文字が見た目の上で空になり、A11Y-22 の「文字でも示す」に反するため）。
+/// 返す値は文字ノードにだけ入れる。属性・class・`data-checked`・強調・色調には入れない（SAFE-11）。
+#[must_use]
+pub(crate) fn other_state_word(raw: &str) -> Option<&str> {
+    if raw.trim().is_empty() {
+        None
+    } else {
+        Some(raw)
+    }
+}
+
 /// 前後の組を持つ行。差のある欄の一覧は持たない（D-49）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Row<T> {

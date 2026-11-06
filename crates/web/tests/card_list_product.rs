@@ -87,7 +87,7 @@ fn 製品の行は_b_の部品で出て親に_role_が付かない() {
 }
 
 #[test]
-fn 長い経路のキーは位置に退き語彙の外の状態は不明になる() {
+fn 長い経路のキーは位置に退き語彙の外の状態は値の文字のまま出る() {
     let testdata = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../testdata");
     let sample: serde_json::Value = serde_json::from_slice(
         &std::fs::read(testdata.join("contract/event-sequence.json")).unwrap(),
@@ -116,7 +116,9 @@ fn 長い経路のキーは位置に退き語彙の外の状態は不明にな�
     assert!(body.contains("data-key=\"pc/short\""), "{body}");
     assert!(body.contains("data-key=\"i1\""), "{body}");
     assert!(body.contains(">マージ済み</span>"), "{body}");
-    assert!(body.contains(">不明</span>"), "{body}");
-    assert!(!body.contains("<b>x</b>"), "状態の値は画面に出ない");
-    assert!(!body.contains("&lt;b&gt;"), "状態の値は画面に出ない");
+    // 語彙の外の値は文字ノードとして出る。エスケープされ、生の要素にも属性にもならない（D-101）。
+    assert!(body.contains(">&lt;b&gt;x&lt;/b&gt;</span>"), "{body}");
+    assert!(!body.contains("<b>x</b>"), "{body}");
+    assert!(!body.contains("\"<b>x</b>\""), "{body}");
+    assert!(!body.contains("不明"), "{body}");
 }
