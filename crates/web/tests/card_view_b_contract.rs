@@ -163,8 +163,9 @@ fn 状態の文字と色調は固定の語彙に対応する() {
         ("open", "オープン", "neutral"),
         ("merged", "マージ済み", "info"),
         ("closed", "クローズ", "danger"),
-        ("OPEN", "不明", "neutral"),
+        ("OPEN", "OPEN", "neutral"),
         ("", "不明", "neutral"),
+        ("  ", "不明", "neutral"),
     ];
     for (state, text, tone) in want {
         let html = one(Cell {
@@ -178,12 +179,13 @@ fn 状態の文字と色調は固定の語彙に対応する() {
             "{state}: {html}"
         );
     }
-    // 語彙の外の生の値は描画に出ない。
+    // 語彙の外の値は文字ノードにだけ出る。属性・class には入らない（D-101）。
     let html = one(Cell {
         state: "OPEN".into(),
         ..Cell::default()
     });
-    assert!(!html.contains("OPEN"), "{html}");
+    assert_eq!(html.matches("OPEN").count(), 1, "{html}");
+    assert!(!html.contains("\"OPEN\""), "{html}");
 }
 
 #[test]
@@ -267,7 +269,8 @@ fn ラベル_補足_状態_tags_は文字としてエスケープされる() {
     }
     assert!(html.contains("&lt;script&gt;"), "{html}");
     assert!(html.contains("&lt;i&gt;t&lt;/i&gt;"), "{html}");
-    assert!(html.contains(">不明<"), "{html}");
+    assert!(html.contains("&lt;b&gt;open&lt;/b&gt;"), "{html}");
+    assert!(!html.contains("不明"), "{html}");
 }
 
 #[test]

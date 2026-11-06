@@ -2,7 +2,7 @@
 //
 // 役割: 元にする IR（crates/web/tests/data/ch0_3/ir.json。実行時に読むだけで書き換えない）から、試験用入力 1 件を入れた IR を作る。
 //   - e3Variant: `put` のパスと、`put` の属性の値と、`set_attr` の値を入力にした IR
-//   - attrOnlyVariant: パスは元のまま、属性の値と `set_attr` の値だけを入力にした IR（この IR のビュー（カード・ファイルツリー）では属性の値が画面に出ないことの固定に使う）
+//   - attrOnlyVariant: パスは元のまま、属性の値と `set_attr` の値だけを入力にした IR（この IR のカードのバッジには、語彙の外の状態の値が教材の語のまま文字として出る（D-101）。その文字が要素の属性に出ないことの固定に使う）
 //   - observeRows: 左の成果物の行（カードの変種 (b)。ラベルは data-testid=card-label）と右のログの最後の行を読む（ページ内で動く自己完結の関数。評価はしない）
 //   - judgeRows・judgeReceived: 読んだ値が「文字として出ている」かを判定する（ノード側の純関数）
 // 方法は PoC-7（docs/spec/prototype/tools/browser-test-poc7.mjs の injectE3）に合わせる。同じパスの全出現を置き換え、
@@ -94,7 +94,8 @@ export function attrOnlyVariant(base, P) {
  * rows: 左の成果物の各行（カードの変種 (b) の行）の
  *   { path（data-path）, row（data-row。指せない行は null）, labels（行の直下の article の中のカードのラベルの数）,
  *     text（そのラベルの文字）, kids（ラベルの子の要素の数）, articles（行の直下の article の数）,
- *     shape（その article の子のタグの列）, badge（状態のバッジの文字）, tags（行の中の要素のタグ） }。
+ *     shape（その article の子のタグの列）, badge（状態のバッジの文字）, badgeKids（バッジの中の要素の数。文字を入れる span 1 個が正）,
+ *     tags（行の中の要素のタグ） }。
  * logs: 右のログの各行の { kind, text, tags }。
  */
 export function observeRows() {
@@ -113,6 +114,7 @@ export function observeRows() {
       articles: articles.length,
       shape: article ? [...article.children].map((e) => e.tagName.toLowerCase()) : [],
       badge: article?.children[1]?.textContent ?? null,
+      badgeKids: article?.children[1] ? article.children[1].querySelectorAll('*').length : -1,
       tags: tagsOf(li),
     };
   });
@@ -124,17 +126,17 @@ export function observeRows() {
   return { rows, logs, notice: document.querySelectorAll('[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]').length };
 }
 
-// カードの状態の閉じた語彙（CardState::text）。バッジの文字はこのどれかでなければならない。
-const CARD_STATES = ['下書き', 'オープン', 'マージ済み', 'クローズ', '不明'];
 const CARD_SHAPE = ['span', 'div', 'p', 'ul'];
 const CARD_TAGS = ['article', 'div', 'li', 'p', 'span', 'ul'];
 
 /**
  * 観察 obs の行が期待のパスの集合と等しく、各行のカードのラベルが置き換え後の文字列そのもの（子の要素 0 個）で、
- * 行の形が (b) の閉じた形（article 1 個・子の列が span・div・p・ul・行の中のタグが閉じた集合・バッジが語彙の 5 語）かを判定し、
+ * 行の形が (b) の閉じた形（article 1 個・子の列が span・div・p・ul・行の中のタグが閉じた集合・バッジの中の要素が文字を入れる span の 1 個だけ）かを判定し、
+ * expectedBadge が渡されたときはバッジの文字がそれと等しい（語彙の外の値は教材の語のまま出る。D-101）ことも判定し、
  * 満たさなかった項目の名前の一覧を返す（空が合格）。比較は両辺の U+0000 を除いて行う（DOM の文字列は NUL を保てない場合がある）。
+ * expectedBadge は文字列（全行共通）か、行のパス（data-path）から文字を返す関数。省略時はバッジが空でないことだけを見る。
  */
-export function judgeRows(obs, expectedPaths) {
+export function judgeRows(obs, expectedPaths, expectedBadge) {
   const bad = [];
   const want = expectedPaths.map(nul).sort();
   const got = obs.rows.map((r) => nul(r.path ?? '')).sort();
@@ -144,7 +146,11 @@ export function judgeRows(obs, expectedPaths) {
     if (r.row !== null && nul(r.row) !== nul(r.path ?? '')) bad.push('row');
     if (r.tags.some((t) => !CARD_TAGS.includes(t))) bad.push('tags');
     if (r.articles !== 1 || JSON.stringify(r.shape) !== JSON.stringify(CARD_SHAPE)) bad.push('shape');
-    if (r.badge === null || !CARD_STATES.includes(r.badge)) bad.push('state');
+    if (r.badge === null || r.badge === '' || r.badgeKids !== 1) bad.push('state');
+    if (expectedBadge !== undefined && r.badge !== null) {
+      const want = typeof expectedBadge === 'function' ? expectedBadge(r.path) : expectedBadge;
+      if (nul(r.badge) !== nul(want)) bad.push('state');
+    }
   }
   if (obs.notice !== 0) bad.push('notice');
   return [...new Set(bad)];

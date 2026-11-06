@@ -2,9 +2,9 @@
 
 画面の左エリアは、教材の世界状態（ファイル・文書・カードなど）が操作に応じて変わる様子を見せます。この文書は、教材の作成者が、ビューを宣言し、左エリアの見え方を絞り、画面上の要素を「指す」入力の宛先を書くために知っておくことをまとめます（AUTHOR-12）。
 
-- 文書の版: 5
-- 確認した日: 2026-11-05
-- 仕様は private のため、本文を転記せず ID（ART-2・ART-3・ART-5・ART-11・ART-12・PACK-22・PACK-38・PACK-48・D-49・D-50・D-51・D-64・D-100）で参照します
+- 文書の版: 6
+- 確認した日: 2026-11-06
+- 仕様は private のため、本文を転記せず ID（ART-2・ART-3・ART-5・ART-11・ART-12・PACK-22・PACK-38・PACK-48・D-49・D-50・D-51・D-64・D-100・D-101）で参照します
 - 書き方の詳細は `docs/pack-authoring.md`（「左エリア」「文書のビューの本文」）が正です。この文書は、ビューの種類と、画面の実装の進み具合を加えて整理します
 
 ## 1. 先に知っておくこと（2026-11-05 時点の実装の状態）
@@ -63,16 +63,16 @@ views:
 左エリアの行は、世界状態の要素（`put`・`replace` で置いたもの）から作ります。
 
 - 行の ID は、世界状態の経路そのものです。要素を置いた経路が、指せる行の宛先になります
-- 行が持つ中身は、ラベル・補足・状態・タグです（`crates/web/src/artifact_view.rs` の `Cell`）。要素のどの属性名を、どの中身として読むかは、spec ではまだ確定していません。次の読み方は、結線（#2062〜#2068）が置いた仮置きです（2026-11-05 時点。確定は spec の判断）。語彙の外の値は、既知の状態へ寄せず固定の表示にします（fail-closed）。
+- 行が持つ中身は、ラベル・補足・状態・タグです（`crates/web/src/artifact_view.rs` の `Cell`）。要素のどの属性名を、どの中身として読むかは、spec ではまだ確定していません。次の読み方は、結線（#2062〜#2068）が置いた仮置きです（2026-11-05 時点。確定は spec の判断）。語彙の外の値は、既知の状態へ寄せません（fail-closed）。空でない値は教材の語のまま文字で出し、空の値は固定の表示にします（D-101、2026-11-06）。
 
 | 項目 | 仮置きの読み方 |
 |---|---|
 | 属性の読み | `title` をラベル（無ければ世界状態の経路）、`detail` を補足、`state` を状態として読む。`tags` は常に空（`product_rows.rs` の `read_cell`） |
 | 深さ | 経路の `/` の数（`path_depth`） |
 | 行の種類（`data-kind`） | ファイルツリー: ほかの行の経路が「この経路 + `/`」で始まれば `dir`、そうでなければ `file`（途中のディレクトリの行は合成しない）。差分: `state` が `hunk` なら `hunk`、それ以外は `line`（`detail` が「旧:新」の形でなければ行番号は空）。アプリのデモ: 属性 `kind` を 6 語（`heading`・`tab`・`field`・`button`・`item`・`text`）で読み、無い値・語彙の外の値は文字のワイヤー（`text`）。欄は常に `type=text` の読み取り専用。タスクツリー `task`・カード `card`・チェック `check`・文書 `item` は固定 |
-| 状態の語彙（完全一致） | タスク: `open`・`progress`・`done`（外は「不明」、記号 `?`）。カード: `draft`・`open`・`merged`・`closed`（外は「不明」）。チェック: `success`・`failure`・`running`・`pending`・`skipped`（外は「? 不明」）。差分: `ctx`・`add`・`del`・`hunk`（外は `?`）。アプリのデモ: 空・`active`・`disabled`（外は「（不明）」）。文書: 語彙に読まず、文字のまま出す |
+| 状態の語彙（完全一致） | タスク: `open`・`progress`・`done`（外の空でない値はその文字のまま、記号 `◇`。空・空白だけは「不明」、記号 `?`）。カード: `draft`・`open`・`merged`・`closed`（外の空でない値はその文字のまま。空・空白だけは「不明」）。チェック: `success`・`failure`・`running`・`pending`・`skipped`（外の空でない値は「◇ その文字」。空・空白だけは「? 不明」）。語彙の外の値の色は中立で、強調・チェック（`data-checked`）は付きません。差分: `ctx`・`add`・`del`・`hunk`（外は `?`）。アプリのデモ: 空・`active`・`disabled`（外は「（不明）」）。文書: 語彙に読まず、文字のまま出す |
 
-第 3 教材の日本語の状態語（`未着手`・`進行中`・`完了`・`未分解`・`分解済み`）は語彙の外のため、バッジが「不明」になります（`docs/known-gaps.md` の「ビューの状態の語彙」）。教材の値は文字ノードとして出し、HTML としては解釈しません（SAFE-11）。
+第 3 教材の日本語の状態語（`未着手`・`進行中`・`完了`・`未分解`・`分解済み`）は語彙の外のため、バッジに教材の語のまま出ます。状態が変わればバッジの文字も変わります（D-101。`docs/known-gaps.md` の「ビューの状態の語彙」）。教材の値は文字ノードとして出し、HTML としては解釈しません（SAFE-11）。
 - 練習データ（`fixtures`）の `kind` は、pack crate が値を検査しない文字列です。練習データの種別の約束も、2026-10-20 時点では決まった規則を確認できていません（未確認）
 - 要素の `fixture` 属性が、文書のビューの本文を決めます（3 節）
 
@@ -132,6 +132,6 @@ input:
 | `crates/pack/tests/view_body.rs` | `body: shown` の宣言・不正な値・語彙の版の不一致 |
 | `crates/web/tests/artifact_view_contract.rs` | 7 種の綴り・束縛点・指せる行の属性の契約 |
 | `crates/web/tests/artifact_view_sample.rs` | 7 本のリストを 1 部品に置く形 |
-| `crates/web/tests/product_rows.rs`・`document_element_rows.rs`・`task_tree_product.rs`・`card_list_product.rs`・`file_tree_product.rs`・`diff_product.rs`・`check_list_product.rs`・`app_demo_product.rs` | 製品の画面の 7 種の行（期待 HTML は `tests/data/product_view_html/*.html`）。語彙の外の値の固定の表示、経路の行への退避、パスワードの欄が出ないこと（`app_demo_product.rs`） |
+| `crates/web/tests/product_rows.rs`・`document_element_rows.rs`・`task_tree_product.rs`・`card_list_product.rs`・`file_tree_product.rs`・`diff_product.rs`・`check_list_product.rs`・`app_demo_product.rs` | 製品の画面の 7 種の行（期待 HTML は `tests/data/product_view_html/*.html`）。語彙の外の値の表示（空は固定の「不明」、空でない値は文字のまま）、経路の行への退避、パスワードの欄が出ないこと（`app_demo_product.rs`） |
 | `tools/browser/choice-journey/*.json` の `texts`・`rowTexts` | 製品の画面の行の文字・種類・入れ子（`review-request-derived*.json`・`task-breakdown*.json`。記録は `docs/testing.md` の 5.469） |
 | `tools/browser/` の `artifact-view-check.mjs` を使う試験 | 変化の印・行の同一性・危険な要素が 0 件であること（代役の部品に対して） |

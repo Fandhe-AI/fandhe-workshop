@@ -212,7 +212,7 @@ fn どの状態でも先頭の記号と補足の要素が出る() {
 }
 
 #[test]
-fn 語彙の外の状態は不明になり_既知の状態へ寄せない() {
+fn 語彙の外の状態は既知の状態へ寄せない() {
     for bad in ["Success", " success", "success ", "", "ok", "FAILURE"] {
         assert_eq!(CheckState::parse(bad), CheckState::Unknown, "{bad:?}");
     }
@@ -231,11 +231,30 @@ fn 語彙の外の状態は不明になり_既知の状態へ寄せない() {
         state: "Success".into(),
         ..Cell::default()
     });
-    assert!(html.contains(">不明<") && html.contains(">?<"), "{html}");
+    // 空でない語彙の外の値は、中立の記号と教材の語のまま出る（D-101）。成功には寄らない。
     assert!(
-        !html.contains("成功") && !html.contains("fw-wire-primary"),
+        html.contains(">Success<") && html.contains(">\u{25C7}<"),
         "{html}"
     );
+    assert!(
+        !html.contains("成功")
+            && !html.contains("不明")
+            && !html.contains(">?<")
+            && !html.contains("fw-wire-primary"),
+        "{html}"
+    );
+    // 空・空白だけは固定の「不明」と `?`。
+    for empty in ["", "  "] {
+        let html = one(Cell {
+            label: "l".into(),
+            state: empty.into(),
+            ..Cell::default()
+        });
+        assert!(
+            html.contains(">不明<") && html.contains(">?<"),
+            "{empty:?}: {html}"
+        );
+    }
 }
 
 #[test]
