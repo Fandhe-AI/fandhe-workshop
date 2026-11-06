@@ -281,12 +281,20 @@
 
 /* ==== 左のビュー: タスクツリー（task_tree）。種類ごとの結線の規則はこの節にだけ足す ==== */
 
+/* ラベル・補足・状態のバッジは span が余白なしに並ぶため、文書のビューと同じ 0.5rem を空ける（#2078） */
+[data-view="task_tree"] [data-testid="task-detail"],
+[data-view="task_tree"] [data-testid="state-badge"] { margin-left: 0.5rem; }
+[data-view="task_tree"] [data-testid="task-detail"] { overflow-wrap: anywhere; }
+
 /* ==== ここまで task_tree ==== */
 
 /* ==== 左のビュー: カードの一覧（card_list）。種類ごとの結線の規則はこの節にだけ足す ==== */
 
 [data-view="card_list"] > li { margin-left: 0; overflow-wrap: anywhere; }
 [data-view="card_list"] [data-testid="card-tags"] { list-style: none; margin: 0; padding: 0; }
+
+/* バッジは div（ブロック）なので、直後の p の既定の上の余白 1em が 1 行分の空きになる。上を詰め下は 0 にする（#2078） */
+[data-view="card_list"] [data-testid="card-detail"] { margin: 0.25rem 0 0; }
 
 /* ==== ここまで card_list ==== */
 
