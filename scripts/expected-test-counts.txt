@@ -102,7 +102,7 @@ rust|tests/content_hash_contract.rs [content_hash_contract]|passed=9|ignored=0
 rust|tests/contract_conformance.rs [contract_conformance]|passed=19|ignored=0
 rust|tests/contract_sample.rs [contract_sample]|passed=6|ignored=0
 rust|tests/defect_packs.rs [defect_packs]|passed=11|ignored=0
-rust|tests/delivery_ports.rs [delivery_ports]|passed=11|ignored=0
+rust|tests/delivery_ports.rs [delivery_ports]|passed=12|ignored=0
 rust|tests/determinism.rs [determinism]|passed=7|ignored=0
 rust|tests/determinism_sources.rs [determinism_sources]|passed=4|ignored=0
 rust|tests/diagnostics_doc.rs [diagnostics_doc]|passed=7|ignored=0
@@ -412,7 +412,7 @@ rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=416|passed=4146|ignored=4
+rust|total|binaries=416|passed=4147|ignored=4
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=55|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=127|ignored=0
