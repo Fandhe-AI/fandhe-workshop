@@ -1,0 +1,8 @@
+id: TASK2078-2
+package: fandhe-workshop-web
+test: card_view_b_contract
+target: crates/web/static/app.css
+find: [data-view="card_list"] [data-testid="card-detail"] { margin: 0.25rem 0 0; }
+replace: [data-view="card_list"] [data-testid="card-detail"] { margin: 1em 0 0; }
+expect-fail: app_css_のカードの節が補足の_p_の上の余白を詰める
+note: カードの補足の上に 1 行分の空きが戻る（#2078）

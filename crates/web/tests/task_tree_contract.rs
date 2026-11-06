@@ -432,3 +432,21 @@ fn a_契約を通りエスケープされ_チェックの見た目は_app_css_�
     let css = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/static/app.css"));
     assert!(css.contains(".tk-check"));
 }
+
+#[test]
+fn app_css_のタスクツリーの節にラベル_補足_バッジの間の空きがある() {
+    let css = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/static/app.css"));
+    let start = css
+        .find("左のビュー: タスクツリー（task_tree）")
+        .expect("開始の印");
+    let end = css.find("ここまで task_tree").expect("終了の印");
+    let section = &css[start..end];
+    assert!(
+        section.contains("[data-testid=\"task-detail\"]"),
+        "{section}"
+    );
+    assert!(
+        section.contains("[data-testid=\"state-badge\"] { margin-left: 0.5rem; }"),
+        "{section}"
+    );
+}

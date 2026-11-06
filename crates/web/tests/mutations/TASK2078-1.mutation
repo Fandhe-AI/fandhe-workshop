@@ -1,0 +1,8 @@
+id: TASK2078-1
+package: fandhe-workshop-web
+test: task_tree_contract
+target: crates/web/static/app.css
+find: [data-view="task_tree"] [data-testid="state-badge"] { margin-left: 0.5rem; }
+replace: [data-view="task_tree"] [data-testid="state-badge"] { margin-left: 0; }
+expect-fail: app_css_のタスクツリーの節にラベル_補足_バッジの間の空きがある
+note: タスクツリーの行のバッジの左の空きが消える（#2078）
