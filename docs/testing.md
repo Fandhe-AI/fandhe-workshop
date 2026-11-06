@@ -12892,3 +12892,15 @@ WASM の gzip -9: #2065 の本文に基点 519646 bytes（`5014cac3`、`SKIP_WAS
   - 負の対照（RS5）: `FANDHE_WEB_TEST_DIR` の写しを `os.tmpdir()` の下に作り、`app.css` から足した 2 つの規則をちょうど 1 回ずつ取り除いて同じ測定を流すと、タスクツリーの空きの違反とカードの空きの違反がどちらも出る。何も外さない写しでは 0 件で、写しの手順を較正する。写しは試験の最後に消す
 - 結果（2026-11-06。開発機 Linux。Playwright 同梱の Chromium。試験の設定）: `left-row-spacing.test.mjs` 5 件が通った。Rust の契約試験は `task_tree_contract` 18 件・`card_view_b_contract` 14 件が通った。試験の件数の期待値は rust 2 行を +1、browser を 1,848 → 1,853 に更新した（`make test-browser` の通しは手元で未実施。CI の `counts browser` の照合で確かめる）
 - 限界: 第 3 教材そのものを compile した画面では測っていない（形つきの固定データと代役で測った）。基準端末 A では測っていない。作成者と実装が同じ AI で、人の確認は #2080 で行う
+
+### 5.475 画面に残る「Hello」の文字と受け付けた入力の数を見えなくする（#2081。#2060 の画面の確認で見つかった 2 件）
+
+- 目的: 配信する設定の画面に出ていた、受講者に意味の分からない 2 種類の表示を、画面と読み上げから消す。1 つは右の領域の「Hello」（最小の画面だった頃の残り）、もう 1 つは受け付けた入力の数の欄 3 つ（`part-log-consumed`・`part-artifact-consumed`・`part-review-consumed`）。
+- 方法:
+  - 「Hello」の `p`（`data-testid="message"`）は消した。読む試験・CSS・JS は `crates/` と `tools/` に 0 件だった（確かめた範囲。`docs/spec/prototype/` の `smoke-hello.mjs` は `getByTestId("message")` を持つが、どの `make` ターゲットからも実行されない）。単体試験は `renders_hello_root_without_placeholder` に書き換えた。
+  - 受け付けた入力の数の欄は、試験が `textContent` で読む（`three-views`・`choice-journey`・`element-identity` など）ため要素を残し、静的な `hidden` 属性を付けた。見えないことと読み上げから外れることの両方が `hidden` 1 つで満たされ、CSS の規則も要らず、CSP（style 属性の禁止）にも触れない。左の成果物の期待値 `tests/data/product_view_html/*.html` 7 ファイルを作り直した（差分は ` hidden=""` の追加のみ）。
+- 試験:
+  - Rust `delivery_ports.rs` の `二十_step_の全画面で_hello_と受け付けた入力の数が見えない`（配信する設定・試験の設定のどちらでも流れる）。変異 `SHELL35-6`（Hello の復活）・`SHELL35-7`〜`9`（3 つの欄の `hidden` を外す）。
+  - ブラウザ `tools/browser/dev-leftovers.test.mjs`: A 20 Step の全時点（CSP あり・なし）で Hello 0 件・欄が見えず読み上げに出ず数字のまま、B IR なしの画面に Hello が無い、C 負の対照（`hidden` を外す・Hello を差し込むと探針が不合格）。
+- 結果（2026-11-06）: `fandhe-workshop-web` の全試験と `--features test-hooks` の `delivery_ports` が通った。`scripts/check-mutations.sh` で SHELL35-6〜9 の 4 件が DETECTED。ブラウザ試験は、この作業環境に `node_modules` が無く実行していない（未検証。CI の `browser-test` で確かめる）。
+- 限界: spec の SHELL-35 は「受講者に見える開発用の表示で残っているのは本文の参照の行だけ」としており、この変更でその記述に実装が合う。spec 側の修正は不要だが、右のログに選択肢の ID が出ること（5.271）と、新しい Step に入った直後に前の Step の「達成」が出ることは範囲外のまま。試験の件数の期待値（`expected-test-counts.txt`）は版上げの PR で更新する。

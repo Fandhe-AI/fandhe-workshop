@@ -340,3 +340,41 @@ fn 試験の設定の対照では_raw_trigger_だけがちょうど_1_件ある(
     }
     assert!(EngineHost::decode_action("raw", "{\"control\":{\"begin\":\"s-1\"}}").is_some());
 }
+
+/// `<span data-testid="<id>"` から次の `>` までの開始タグ。ちょうど 1 件であることも確かめる。
+fn span_open_tag(s: &str, id: &str) -> String {
+    let needle = format!("<span data-testid=\"{id}\"");
+    assert_eq!(count(s, &needle), 1, "{id} の件数");
+    let start = s.find(&needle).unwrap();
+    let end = s[start..].find('>').unwrap();
+    s[start..start + end].to_owned()
+}
+
+/// 受講者に意味の分からない開発用の表示（「Hello」と受け付けた入力の数。#2081）が、
+/// 20 Step の全画面で見えない。数の欄は試験が textContent で読むため要素は残し、hidden で隠す。
+/// どちらの設定でも流す（SHELL-35）。
+#[test]
+fn 二十_step_の全画面で_hello_と受け付けた入力の数が見えない() {
+    let screens = screens();
+    assert!(screens.len() > 20, "通しの画面の数: {}", screens.len());
+    for (i, s) in screens.iter().enumerate() {
+        assert!(!s.contains("data-testid=\"message\""), "画面 {i}: message");
+        assert!(!s.contains(">Hello<"), "画面 {i}: Hello");
+        for id in [
+            "part-log-consumed",
+            "part-artifact-consumed",
+            "part-review-consumed",
+        ] {
+            let tag = span_open_tag(s, id);
+            assert!(
+                tag.contains(" hidden=\"\""),
+                "画面 {i}: {id} が hidden でない: {tag}"
+            );
+        }
+    }
+    let last = screens.last().unwrap();
+    let tag = span_open_tag(last, "part-artifact-consumed");
+    let from = last.find(&tag).unwrap() + tag.len() + 1;
+    let n: usize = last[from..].split('<').next().unwrap().parse().unwrap();
+    assert!(n > 0, "最後の画面で受け付けた入力の数が 0");
+}

@@ -434,7 +434,7 @@ impl DisplayPart<HostModel> for LogPart {
                 ),
                 bind_text(
                     "span",
-                    vec![("data-testid", "part-log-consumed")],
+                    vec![("data-testid", "part-log-consumed"), ("hidden", "")],
                     F_LOG[1].name,
                     consumed_text(model),
                 ),
@@ -611,9 +611,11 @@ impl DisplayPart<HostModel> for ArtifactPart {
             );
             children.push(list);
         }
+        // 試験が textContent で読むための欄。受講者には見せず読み上げからも外すため hidden を付ける（#2081）。
+        // 外すと delivery_ports の試験と SHELL35-7〜9 の変異が検出する。
         children.push(bind_text(
             "span",
-            vec![("data-testid", "part-artifact-consumed")],
+            vec![("data-testid", "part-artifact-consumed"), ("hidden", "")],
             F_ARTIFACT[F_ARTIFACT_CONSUMED].name,
             model.world_consumed().to_string(),
         ));
@@ -695,7 +697,7 @@ impl DisplayPart<HostModel> for ReviewPart {
                 list,
                 bind_text(
                     "span",
-                    vec![("data-testid", "part-review-consumed")],
+                    vec![("data-testid", "part-review-consumed"), ("hidden", "")],
                     F_REVIEW[1].name,
                     consumed_text(model),
                 ),
