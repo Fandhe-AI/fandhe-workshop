@@ -107,7 +107,7 @@ pub struct HelloView {
     esc_count: u32,
 }
 
-/// アクション。配信する設定では値を持たず、Hello は操作を受け付けない。
+/// 入力欄が受け付けるアクション。配信する設定でも下書きの更新・送信・OS の選択・Esc・停止を受け付け、keydown の probe（`KeydownProbe`）だけが試験の設定（`test-hooks`）にある。
 #[derive(Debug)]
 pub enum HelloAction {
     /// 入力欄の値の更新（`data-action-input="draft"`。payload は欄の全文）。

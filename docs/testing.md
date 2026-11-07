@@ -12963,3 +12963,17 @@ WASM の gzip -9: #2065 の本文に基点 519646 bytes（`5014cac3`、`SKIP_WAS
 - 結果（2026-11-07）: `doc-body-limits` 14 件（修正前に L6 の 2 件が失敗することを確かめた）と `doc-body` 4 件が通った。`TASK2087-1`〜`4`・`TASK2092-1`・`2` の 6 件は `check-mutations` で DETECTED。`make check-mutation-defs` は通った。それ以外のブラウザ試験の全体は手元で流しておらず、CI の `browser-test` に任せる（未実施）
 - 件数の期待値（`scripts/expected-test-counts.txt`）: rust は手元の `scripts/test.sh` の実測を `check-frontend-bump.sh normalize rust` で整形した値（`document_element_rows` 7 → 8、合計 4149 → 4150）。browser は 1866 → 1886。出所は main `4a9779a4` の CI の `make test-browser`（1882 件）に今回足した 4 件を足した値で、実測ではない。PR の `counts browser` で確かめる。`make update-test-counts` は 1 コマンド 10 分の上限の中で完走できないため流していない。#2090・#2091 の PR 本文の件数を足すと 1881 で、実測の 1882 と 1 件ずれていたが、帰属は追っていない
 - 限界: 基準端末 A では測っていない。人の目の確認の代わりにならず、作成者と実装が同じ AI。スクロールする `pre` へのキーボードでの到達（`tabindex` が無い）は確かめていない。測定の文書の書き直しは `tools/measure/*.sh` を流して確かめていない（未実施）
+- 追記（2026-11-07。#2094）: スクロールする `pre` へのキーボードでの到達は 5.479 で確かめた。`tabindex` が無くても Chromium 153.0.8010.12 では Tab で止まり、左右の矢印キーで横に動いた（`tabindex` は足していない）
+
+### 5.479 文書の本文の横にスクロールする `pre` へのキーボードでの到達と、入力欄のアクションのコメント（#2094。5.478 の続き）
+
+- 目的: 5.478 で残した 2 件を片付ける。(1) `crates/web/src/hello.rs` の `HelloAction` の doc コメントが「配信する設定では値を持たず、Hello は操作を受け付けない」と書いていたのを、動作に合わせた。配信する設定にも `SetDraft`・`Submit`・`SetOs`・`Esc`・`Stop` があり、`#[cfg(feature = "test-hooks")]` が付くのは `KeydownProbe` だけである。型の名前と動作は変えていない。(2) `.artifact-doc-body pre { overflow-x: auto; }` の `pre` には `tabindex` が無い。キーボードだけで長い行を横にスクロールできるかを確かめた
+- 方法: `tools/browser/doc-body-limits.test.mjs` に L8 を足した。5.478 の L6 と同じ長い行の IR（600 文字の空白なしの行。一時ディレクトリの写しにだけ書く）を配信する設定の写しで開き、承認して行を出した後、フォーカスを外してから `page.keyboard.press('Tab')` を 45 回押す。フォーカスが本文の区画の中の `PRE` に来た行ごとに、そのとき初めて届いた Tab の回数を記録し、その `pre` に Tab で止まったまま `ArrowRight` を押して `scrollLeft` が 0 より大きくなること、`ArrowLeft` で 0 に戻ることを確かめる。ページ内の関数は固定の文字列で、教材の値から選択子を組み立てない。幅 1280px と 360px（「成果物」のタブを選ぶ）で流し、`safe()` で外部通信・違反・ページ内エラーが 0 件であることも確かめる
+- 負の対照: (a) 短い本文（はみ出さない）の IR では、`pre` を測ったうえで `preScroll` が 0 であり、Tab で本文の `pre` に止まらない。(b) 配信物の写しの `app.css` から `.artifact-doc-body pre { overflow-x: auto; }` を外す（一致はちょうど 1 回）と、はみ出しを数え、本文の `pre` に Tab で止まらない。つまり、止まるかどうかは「スクロールできるか」で決まり、判定は常に真ではない
+- 結果（2026-11-07。Playwright 同梱の Chromium、channel `chromium`、`browser.version()` は 153.0.8010.12、headless）: 届いた。Tab の回数は幅 1280px で `.md` の本文が 13 回目・`.txt` が 15 回目、360px で 5 回目と 7 回目。どちらの `pre` も右矢印で `scrollLeft` が増え（観察の瞬間の値は 1〜3px。矢印キーのスクロールはなめらかで、増え始めを待って読んでいる）、左矢印で 0 に戻った。フォーカスの輪郭は `outline-style: auto` で、見え方は観察だけで assert していない。`tabindex` は足していない。DOM・CSS・Rust は変えていない。`End` は縦方向の末尾へのスクロールで、横の右端には動かない（計画の段階の想定を実測で直した）
+- 件数の期待値（`scripts/expected-test-counts.txt`）: `browser|total` を 1886 → 1890 にした。`doc-body-limits` が 14 件から 18 件になったことの導出（L8 の到達 2 件・負の対照 2 件）で、全体の実測ではない。PR の `counts browser` で確かめる。Rust の件数は変わらない（コメントだけの変更）
+- 限界:
+  - Chrome の原本（`FANDHE_BROWSER_CHANNEL=chrome`）と、対象の最小の版（`MIN_CHROME_MAJOR` = 152）そのものでは確かめていない（未実施）。どの版から「スクロールする要素が Tab で止まる」挙動が入ったかは、出典を引いていないので書かない
+  - `.sh-step pre`（`crates/web/static/app.css`）も同じ形の横スクロールだが、キーボードでの到達は確かめていない
+  - 人の目・支援技術（スクリーンリーダー等）での確認は 0 件で、作成者と実装が同じ AI。フォーカスの見え方は観察だけ。スクロールする `pre` の名前（アクセシブルネーム）は付けていない
+  - 実行した検証: L8 を含む `doc-body-limits` 18 件（手元）。ブラウザ試験の全体は手元で流しておらず、CI の `browser-test` に任せる（未実施）
