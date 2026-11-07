@@ -1,0 +1,8 @@
+id: TASK2092-2
+package: fandhe-workshop-web
+test: document_element_rows
+target: crates/web/static/app.css
+find: .artifact-doc-body pre { overflow-x: auto; }
+replace: .artifact-doc-body pre { overflow-x: visible; }
+expect-fail: app_css_の文書の節が本文の区画を行の幅に収め_pre_を区画の中でスクロールさせる
+note: pre が区画の中でスクロールせず、長い行が区画の外へ出る（#2092）

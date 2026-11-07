@@ -10,7 +10,7 @@
 - 測定の結果に付ける「基点」と、結果の JSON の様式を定める
 - 基点の違う値どうしで増減を論じると誤った結論を招く。過去の PoC の記録には、commit・`wasm-opt` の有無・圧縮の設定が違う値が
   混在していた。結果の側で基点を必須にして、この事故を構造的に防ぐ
-- 測るものは 3 つ。WASM の `gzip -9` の大きさ、最小の画面（Hello）の初回表示の時間、再描画の時間である
+- 測るものは 3 つ。WASM の `gzip -9` の大きさ、教材を同梱しない配信する設定の最小の画面の初回表示の時間、再描画の時間である
 - CI の関門（WASM 1 MB）は `scripts/check-wasm-size.sh`（`make check-wasm-size`。CI の `browser-test`）にあり、`tools/measure/wasm-size.sh` の結果を判定する。上限は 1,048,576 bytes（DLV-27）で、CI は `SKIP_WASM_OPT=1` の基点で判定する。DLV-4（`wasm-opt` 適用後）の厳格な判定は手元で `scripts/check-wasm-size.sh --require-wasm-opt` を直接実行する（未適用の結果は終了コード 2。TASK-107 2/2。記録は `docs/testing.md` 5.356）。ジョブの追加はしていない。DLV-4 の関門が参照する値（そろえた基点の値）と旧い値の一覧は `docs/testing.md` 5.361（TASK-126）
 
 ## 2. 実行
@@ -96,7 +96,7 @@ make measure-history-size | jq .            # 直接: tools/measure/history-size
 | 測定 | `name` | `unit` | 内容 |
 |---|---|---|---|
 | WASM の大きさ | `wasm_raw`・`wasm_gzip` | `bytes` | `.wasm` の生の大きさと `gzip -9` の大きさ |
-| 初回表示 | `first_paint_mounted_median`・`first_paint_mounted_max` | `us` | ナビゲーション開始から `html[data-mounted="true"]` になるまで（Hello が DOM に出た時点）の中央値と最大 |
+| 初回表示 | `first_paint_mounted_median`・`first_paint_mounted_max` | `us` | ナビゲーション開始から `html[data-mounted="true"]` になるまで（`app.js` がマウントの完了後に `data-mounted="true"` を立てた時点）の中央値と最大 |
 | 初回表示 | `first_contentful_paint_median` | `us` | First Contentful Paint の中央値 |
 | 初回表示 | `first_paint_wasm_transfer` | `bytes` | `.wasm` の転送量（`encodedBodySize`） |
 | 再描画 | `redraw_median`・`redraw_p95`・`redraw_max` | `us` | `Runtime::rerender` による root 配下の再構築 1 回あたりの時間 |
@@ -114,8 +114,8 @@ make measure-history-size | jq .            # 直接: tools/measure/history-size
   - ポーリングではなく、ページ内の `MutationObserver` が `data-mounted` の変化の時点の `performance.now()` を記録する。`data-mounted="error"` は失敗にする
   - 制限が効いていることを確かめる。`.wasm` の応答が `Content-Encoding: gzip` であること、各試行のマウント時間が
     `.wasm` の転送量を 10Mbps で受け取る最短時間以上であること。どちらかを満たさなければ失敗にする
-  - Hello には操作が無いため、PoC の TTI（最初の操作への応答）は測らない。操作できるまでは下の `first-paint-direct` で測る
-- 初回表示（IR つきの直接リンク。`first-paint-direct`。TASK-108。DLV-5）。`first-paint` は置き換えず残す（束の必須項目で、Hello の値の系列を保つため）
+  - 最小の画面は教材を持たないため、PoC の TTI（最初の操作への応答）は測らない。操作できるまでは下の `first-paint-direct` で測る
+- 初回表示（IR つきの直接リンク。`first-paint-direct`。TASK-108。DLV-5）。`first-paint` は置き換えず残す（束の必須項目で、最小の画面の値の系列を保つため）
   - 教材は `crates/web/tests/data/ch0_3/ir.json`（20 Step の形の写し。本物の教材ではない）に、`pack.id` の付け替え（`measure-first-paint-direct`）と開始点 `s-1-1` の追加だけを jq で加えた写し。`IR_FILE` で配信する設定へ同梱し、サブパスの下で配る
   - 開くのは `<配信元>/subpath/?start=s-1-1`。条件は `first-paint` と同じ（下り・上り 10Mbps・遅延 40ms・キャッシュ無効・CPU の減速なし・試行ごとに新しい context で 10 回）
   - 「操作できる」とは、次がすべて真になった最初の時点（ナビゲーション開始からの `performance.now()`）である。`data-mounted="true"`、`run-status` が `idle`、`step-title` が開始点の節点の題と一致、`step-status` が「受付済み（確認待ち）」でなくログにその Step の行が無い、入力の口（`choice-btn`・`approval-btn`・`draft-input` と `submit-input` の組）が接続済み・大きさあり・`disabled` でない状態で 1 つ以上ある。ページ内の `MutationObserver` で捉える
@@ -126,7 +126,7 @@ make measure-history-size | jq .            # 直接: tools/measure/history-size
 - 再描画
   - 試験の設定のビルドを、回線の制限なし・CPU の減速なしで配信する。10 回の試行のそれぞれで 20 サンプルを取る（計 200 値）
   - 1 サンプルは `window.__fandheTest.rerender()` を 200 回連続で呼ぶ時間を 200 で割った 1 回あたりの値。`performance.now()` の分解能より十分大きくするため
-  - 各サンプルで、旧 root が DOM から外れ、新しい root が `Hello` を持つことを確かめる。何もしない再描画を「速い」と誤読しないため。戻り値が `false`（未マウントなど）なら失敗にする
+  - 各サンプルの前に root（`[data-testid=hello-root]`）が存在し、再描画の後に旧 root が DOM から外れ、取り直した root が存在して旧 root と別の要素であることを確かめる（文字の内容は確かめない）。何もしない再描画を「速い」と誤読しないため。`rerender()` の戻り値が `true` 以外（未マウントなど）なら失敗にする。サンプルの前に root が無い場合も失敗にする
   - 中央値は中央 2 値の平均、95 パーセンタイルは nearest-rank（`s[ceil(0.95n)-1]`）。PoC の `measure-poc1.mjs` と同じ定義である
   - 値は整数のマイクロ秒に丸める。0 に丸まる値は失敗にする（1 へ繰り上げない）
 
@@ -259,7 +259,7 @@ make measure-ir-memory | jq .               # 直接: tools/measure/ir-memory.sh
 ## 6. 比較の規則
 
 - 基点が 1 項目でも違う値どうしで、増減を論じない
-- `first-paint-direct` の値を Hello の `first_paint_mounted_*` と比べない。開始点・教材・`browser.channel`・`headless` が違う値も比べない。`device.class` が `other` の値は DLV-5 の記録に使わない
+- `first-paint-direct` の値を最小の画面の `first_paint_mounted_*` と比べない。開始点・教材・`browser.channel`・`headless` が違う値も比べない。`device.class` が `other` の値は DLV-5 の記録に使わない
 - `baseline.commit.dirty` が `true` の値は、基点として比較に使わない（どの commit の値か特定できない）
 - `wasm-opt` が無い環境でもビルドは成功し、`applied: false` として記録される。未適用の値を適用済みの値と比べない
 - spec に残る旧い WASM の大きさの値（PoC の基点）と、`docs/testing.md` 5.361 のそろえた基点の値を比べない（基点つきの一覧は 5.361）
@@ -287,7 +287,7 @@ make measure-ir-memory | jq .               # 直接: tools/measure/ir-memory.sh
 - `product-redraw-shaped` の値は描画部品の実際の形の行（hunk・dir/file・入れ子のタスク・文書の本文・アプリのデモの kind）の `switch` の値で、操作・行数・閾値は `product-redraw` と同じだが行の形が違う。`product-redraw` の値と同じ条件ではないため、増減は条件の違いを併記したうえで読む。文書の本文は先頭の 1 行にだけ 80 ブロックを付けており、仕様の前提（1 文書 80 ブロック）に近いが、全行に付けた量ではない
 - `history_*` の値（native の様式）は、PoC-6 の CSV の値と直接比べない（履歴の形が違い、誤入力が無く、`GoTo` で飛ばしているため）。WASM・ブラウザの側の値とも比べない。`baseline.ops_sequence.ops_sha256` が違う値どうしを比べない
 - `ir_memory_*` の値は、断った後の値であり上限を外した値ではない。chromium と chrome の値、Linux の値と基準端末 A の値を比べない。`conditions.cases[].ir_sha256` が違う値どうしを比べない
-- Hello の値は最小の画面の値で、教材全体の値ではない
+- 最小の画面の値は、教材全体の値ではない
 - 記録に値を残すときは、基点の 4 項目を併記する
 
 ## 7. 将来の拡張

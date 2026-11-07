@@ -1,0 +1,8 @@
+id: TASK2092-1
+package: fandhe-workshop-web
+test: document_element_rows
+target: crates/web/static/app.css
+find: .artifact-doc-body { min-width: 0; }
+replace: .artifact-doc-body { min-width: auto; }
+expect-fail: app_css_の文書の節が本文の区画を行の幅に収め_pre_を区画の中でスクロールさせる
+note: 本文の区画が長い行の幅まで広がり、行とページが横にはみ出す（#2092）

@@ -287,6 +287,12 @@
 .dr-title, .dr-state { max-width: 100%; overflow-wrap: anywhere; }
 .dr-detail { flex: 1 1 8rem; min-width: 0; overflow-wrap: anywhere; }
 
+/* 本文の区画（ART-18）は行の flex の項目で、既定の `min-width: auto` が長い行の幅まで広がるため、`pre` の `overflow-x: auto` だけでは
+  効かず行とページが横にはみ出す（#2092）。`min-width: 0` で区画を行の幅に収め、`pre` を区画の中で横にスクロールさせる。
+  `flex: 1 1 100%` は短い本文まで全幅に広げて見え方を変えるため採らない。 */
+.artifact-doc-body { min-width: 0; }
+.artifact-doc-body pre { overflow-x: auto; }
+
 /* ==== ここまで document ==== */
 
 /* ==== 左のビュー: 差分（diff）。種類ごとの結線の規則はこの節にだけ足す ==== */
