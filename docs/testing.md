@@ -12923,7 +12923,23 @@ WASM の gzip -9: #2065 の本文に基点 519646 bytes（`5014cac3`、`SKIP_WAS
 - CI の失敗と直し（2026-11-06）: PR の `browser-test`（run 42237430601）が 4 ファイル 19 件（`choice-journey`・`shell-boundary`・`shell-columns`・`shell-tabs`）で落ちた。原因は、左右の領域（`shell-left`・`shell-right`）の中身が受け付けた入力の数の欄と「Hello」だけの画面で、`hidden` と削除により領域の高さが 0 になったこと。測定の道具は幅・高さが 0 より大きいことを「見える」とするため、入力欄のない第 2 教材（`world_list: hidden` で行が 0 件）の左が `leftHidden`、800px の「成果物」タブが `tabs@artifacts-*`、960px 以上の横並びが ['right'] だけ、などと判定された。試験の判定は緩めず、`static/app.css` で両領域に `min-height: 1.5em` を与えて、空でも配置上の大きさを持つようにした（受講者の目には何も足さない。幅 960px 未満の tab の切り替え先が高さ 0 の面にならない効果もある）。固定する試験は、落ちていた 4 ファイルがそのまま担う（規則を外すと再び落ちる）。直した後は、落ちていた 4 ファイルに `dev-leftovers`・`element-identity`・`three-views`・`data-payload-tamper` を足した 8 ファイル 87 件と、配置に関わる `theme-marks`・`left-pane`・`left-row-spacing`・`shell-widths`・`shell-mock`・`shell-position`・`shell-journey`・`doc-body`・`doc-body-limits`・`step-body`・`next-chapter`・`smoke-hello` の 72 件が通った（`SKIP_WASM_OPT=1`。`make test-browser` の全体は流しておらず、CI の `browser-test` で確かめる）。試験の件数は増減しないため期待値は変えない。
 - 限界: spec の SHELL-35 は「受講者に見える開発用の表示で残っているのは本文の参照の行だけ」としており、この変更でその記述に実装が合う。spec 側の修正は不要だが、右のログに選択肢の ID が出ること（5.271）と、新しい Step に入った直後に前の Step の「達成」が出ることは範囲外のまま。試験の件数の期待値（`expected-test-counts.txt`）は rust の `delivery_ports` を +1（12）・`rust|total` を 4147、browser を +4（1857）に更新した。
 
-### 5.476 左エリアの修正の後に残った古い記述と試験の道具の不足を直す（#2086。5.474・5.475 の続き）
+### 5.476 左エリアのカードの先頭の空の行と、文書の行の語の途中の折り返し（#2087。#2080 の人の確かめ直しで気になった 2 件）
+
+- 目的: 第 2・第 3 教材の左エリアで、(1) 変化の印が無いカードの先頭に黒丸だけの行が見える、(2) 幅 1280px で文書の行の題と状態が語の途中で折り返す、の 2 件を CSS で直す。行の並びと状態の語彙（TASK-739・#1069）、行の無い時点の「成果物」タブの空は範囲外
+- 原因（一時ページで実物の `app.css` を Chromium で測った）:
+  - カード: `li` の子は印の `span` 2 つ（`inline-block`）とブロックの `article`。空の `.mk-text`（`min-width: 3.5rem`）が `article` の上に行ボックスを作り、既定の `list-style: disc` の黒丸がそこに付く。`list-style: none` だけでは上の空きが残る
+  - 文書: 行は `display: flex` で、題・状態・補足の `span` が既定の縮み（`flex-shrink: 1`）で内容の幅に比例して縮む。日本語は任意の文字の間で折れるため語の途中で折れる。補足が長い行（選択の後の補足）だけで起きた
+- 規則（`crates/web/static/app.css` の種類ごとの節だけ。DOM・`crates/web/src/**` は変えない）:
+  - 文書: 項目の行に `flex-wrap: wrap`、題・状態に `max-width: 100%` と `overflow-wrap: anywhere`、補足に `flex: 1 1 8rem; min-width: 0`。題・状態・補足は、その行に入らないときだけ次の行へ移る。8rem は補足の列の下限
+  - カード: `li[data-kind="card"]` に `list-style: none`。`data-mark=""`（印なし。`a11y.rs` の `MARK_NONE_VALUE`）の行は印の 2 つの `span` を `display: none`。印のある行は隠さない（`theme-marks` の検査）。印が付くとカードの高さが 1 行分増えるが、印の行が要るので受け入れる
+  - 退けた案: `flex-wrap` だけ（補足が別の行へ落ち、#2080 が認めた補足の列が変わる）、題・状態を縮ませず補足を `flex: 1 1 0`（長い値ではみ出す）
+- 試験:
+  - Rust: `document_element_rows`・`card_view_b_contract` に節の照合を各 1 件。変異 `TASK2087-1`〜`4`（`flex-wrap`・補足の `flex`・カードの `list-style`・印の `display: none` を壊す）
+  - ブラウザ `tools/browser/left-row-layout.test.mjs`（`choice-journey.mjs` の `runJourney` に省略可の `probe` を足し、左の領域を測った全時点で固定のページ内関数を呼ぶ）: LR1 文書 1280px・960px、LR2 800px（補足も 1 行・同じ行）、LR3 360px、LR4 長い題・状態でのはみ出し 0、LR5 カード 1280px・800px（黒丸なし・印の無い行の上の空きが font-size の 0.25 倍以下・印のある行は印が見える。両方の行を測ったことも確かめる）、LR6 負の対照（足した規則を 1 つずつ外すと違反を数える。各規則の一致は 1 回）。教材の語は設定ファイル（`review-request-derived`・`task-breakdown-cards`）にだけある
+- 結果（2026-11-07）: Chromium で left-row-layout の 9 件が通った（LR6 の docWrap は実教材の行が 1280px では入るため、長い題・状態の IR で違反を出す）。`scripts/check-mutation-defs.sh` と Rust の 2 試験は通った。それ以外のブラウザ試験・`check-mutations`・`make test` の通しは、この記録の時点で未実施なら PR の CI に委ねる
+- 限界: 基準端末 A では測っていない。作成者と実装が同じ AI で、人の目の確認の代わりにならない。`.artifact-doc-body` の `pre` の長い行のはみ出しと、タスクツリーなど他の種類の行の黒丸は範囲外（未確認）
+
+### 5.477 左エリアの修正の後に残った古い記述と試験の道具の不足を直す（#2086。5.474・5.475 の続き）
 
 - 目的: #2083・#2084・#2085 で範囲外に残した 3 件を片付ける。(1) 第 3 教材の文書に残っていた「日本語の状態語はバッジが『不明』になる」という D-101 以前の前提を、`workshop.yaml` のコメントと `docs/requirements.md` の 2 か所（2026-11-07 の追記）で現在の事実に直した。語彙の確定（TASK-739）と語彙の外の値の色が中立であることは残るため、「状態の変化を本文と拒否の文面にも書く」対応は続ける。(2) choice-journey に「画面にこの文字が無い」ことの主張 `expect.screenTextAbsent`（5.437 の表）を足し、第 3 教材の 4 本に `["不明"]` を置いた。(3) 「Hello」を前提にしたコメント 4 か所（`tools/measure/first-paint.sh`・`redraw.sh`・`tools/browser/smoke-hello.test.mjs`・`crates/web/static/app.js` の 1 行目）を直した。識別子（`HelloView`・`hello-root`）と `smoke-hello.test.mjs` のファイル名は変えない。
 - 差分 0 の記録への影響: 無い。`check-engine-zero-diff` が数えるのは `crates/`・`Cargo.toml`・`Cargo.lock` で、既定の記録モードは `record.txt` の測った HEAD を再現する。`docs/engine-zero-diff/` は変えていない。#2084 の PR 本文の「記録のハッシュにも係わる」は誤りで、5.474 は過去の記録なので書き換えない。第 3 教材を `compile` した出力は、編集の前後で本体と `probes/views` のどちらもバイト単位で一致した（Step・規則・IR を変えていない）。

@@ -279,7 +279,13 @@
 /* ==== 左のビュー: 文書（document）。種類ごとの結線の規則はこの節にだけ足す ==== */
 
 .dr-state, .dr-detail { margin-left: 0.5rem; }
-.dr-detail { overflow-wrap: anywhere; }
+
+/* 行は flex で、題・状態・補足の span が既定の縮みで内容の幅に比例して縮み、日本語は任意の文字の間で折れるため、
+  幅が足りないと語の途中で折り返す（#2087）。入らないときだけ次の行へ送り、題・状態は自分の幅を守る。
+  補足は同じ行の列として残し、8rem はその列の下限（これより狭くなると次の行へ落ちる）。 */
+[data-view="document"] > li[data-kind="item"] { flex-wrap: wrap; }
+.dr-title, .dr-state { max-width: 100%; overflow-wrap: anywhere; }
+.dr-detail { flex: 1 1 8rem; min-width: 0; overflow-wrap: anywhere; }
 
 /* ==== ここまで document ==== */
 
@@ -300,6 +306,13 @@
 
 [data-view="card_list"] > li { margin-left: 0; overflow-wrap: anywhere; }
 [data-view="card_list"] [data-testid="card-tags"] { list-style: none; margin: 0; padding: 0; }
+
+/* 印の span（inline-block）は article（ブロック）の上に行ボックスを作り、空の印でも 1 行分の高さと li の黒丸が付く。
+  黒丸を消し、印の無い行（data-mark が空。a11y.rs の MARK_NONE_VALUE）では印の 2 つの span を出さない（#2087）。
+  印のある行は隠さない（theme-marks の検査）。data-kind="card" に絞り、退避の行の配置は変えない。 */
+[data-view="card_list"] > li[data-kind="card"] { list-style: none; }
+[data-view="card_list"] > li[data-kind="card"][data-mark=""] > .mk-glyph,
+[data-view="card_list"] > li[data-kind="card"][data-mark=""] > .mk-text { display: none; }
 
 /* バッジは div（ブロック）なので、直後の p の既定の上の余白 1em が 1 行分の空きになる。上を詰め下は 0 にする（#2078） */
 [data-view="card_list"] [data-testid="card-detail"] { margin: 0.25rem 0 0; }
