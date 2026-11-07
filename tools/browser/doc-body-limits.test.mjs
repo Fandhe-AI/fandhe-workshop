@@ -12,6 +12,8 @@
 //   L6 本文に長い行（pre の長い行・幅の広い表。架空の内容）があっても、行の横のはみ出しとページの横のはみ出しが幅 1280・960・800・360px で
 //      0 件で、pre と表は区画の中で横にスクロールする。短い本文の幅と位置は規則の有無で変わらない（#2092）
 //   L7 L6 の負の対照: 配信物の写しの app.css から本文の規則（min-width・overflow-x）を 1 つずつ外すと、同じ測定がはみ出しを数える
+//   L8 横にスクロールする本文の pre には、キーボードだけで届く（Tab で止まり、左右の矢印キーで横に動く）。幅 1280・360px。
+//      負の対照: 短い本文（はみ出さない）の pre には Tab で止まらない。overflow-x を外した写しでも止まらない（#2094）
 // 試験用の教材は crates/web/tests/data/doc_body_limits_pack を一時ディレクトリへ写して実物の `fandhe-pack compile` で IR にする。
 // 書き込むパスは一時ディレクトリの固定のパスだけで、教材の値からパスを作らない。失敗の文面に本文の中身は出さない。
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）・FANDHE_PACK_BIN（前提バイナリ）。未設定・不在は skip にせず失敗にする。
@@ -246,6 +248,111 @@ for (const [name, re] of Object.entries(BODY_RULES)) {
     assert.ok(overflowCount(m) > 0, `${name}: ${JSON.stringify(m)}`);
   });
 }
+
+// L8 用の固定のページ内関数。いまのフォーカスの要素の種類・属する行・本文の区画の中か・スクロールの数値だけを返す。教材の文字列は返さない。
+function focusProbe() {
+  const a = document.activeElement;
+  const li = a && a.closest ? a.closest('li[data-path]') : null;
+  return {
+    tag: a ? a.tagName : '',
+    path: li ? li.getAttribute('data-path') : '',
+    inBody: !!(a && a.closest && a.closest('[data-testid="artifact-doc-body"]')),
+    left: a ? Math.round(a.scrollLeft) : -1,
+    sw: a ? a.scrollWidth : -1,
+    cw: a ? a.clientWidth : -1,
+    outline: a ? getComputedStyle(a).outlineStyle : '',
+  };
+}
+
+// Tab の回数。フォーカスは途中でブラウザの外（BODY）を通るので、止めずに画面の部品が一巡する以上（約 25 回）を押す。
+const MAX_TABS = 45;
+
+// 先頭から Tab を繰り返し、フォーカスが本文の区画の中の PRE に来た行ごとに、最初に届いた Tab の回数を記録する。
+async function tabThrough(page) {
+  await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+  const reached = new Map();
+  for (let i = 1; i <= MAX_TABS; i += 1) {
+    await page.keyboard.press('Tab');
+    const f = await page.evaluate(focusProbe);
+    if (f.inBody && f.tag === 'PRE' && !reached.has(f.path)) {
+      // Tab で止まったその pre のまま、矢印キーで右へ、続けて左へ動かす（動きはなめらかなスクロールなので値が変わるまで待つ）。
+      await page.keyboard.press('ArrowRight');
+      await page.waitForFunction(() => document.activeElement.scrollLeft > 0, null, { timeout: 5000 }).catch(() => {});
+      const right = await page.evaluate(focusProbe);
+      await page.keyboard.press('ArrowLeft');
+      await page.waitForFunction(() => document.activeElement.scrollLeft === 0, null, { timeout: 5000 }).catch(() => {});
+      const left = await page.evaluate(focusProbe);
+      reached.set(f.path, { tabs: i, f, right: right.left, back: left.left, max: right.sw - right.cw });
+    }
+  }
+  return reached;
+}
+
+// cssEdit を適用した配信物の写しで irText を開き、本文の pre への Tab の到達と、届いた pre での矢印キー・End の効きを測る。
+async function keyboardAt(irText, width, cssEdit) {
+  const src = process.env.FANDHE_WEB_TEST_DIR;
+  const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-doc-body-kbd-'));
+  try {
+    fs.cpSync(src, copy, { recursive: true });
+    if (cssEdit) {
+      const f = path.join(copy, 'app.css');
+      fs.writeFileSync(f, cssEdit(fs.readFileSync(f, 'utf8')));
+    }
+    let out;
+    await withServer({ dir: copy, base: BASE }, async (srv) => {
+      const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport: { width, height: 800 } });
+      try {
+        await openAndPut(page, srv, irText);
+        if (width < 960) await page.locator('#pane-tab-artifacts').click();
+        await page.waitForSelector(`${ROW_MD} ${BODY}`, { state: 'visible', timeout: 10000 });
+        const overflow = await page.evaluate(overflowProbe);
+        const reached = await tabThrough(page);
+        out = {
+          overflow,
+          reached: Object.fromEntries([...reached].map(([k, v]) => [k, v.tabs])),
+          keys: Object.fromEntries([...reached].map(([k, v]) => [k, { right: v.right, back: v.back, max: v.max, outline: v.f.outline }])),
+        };
+        await safe(page, rec, true);
+      } finally {
+        await context.close();
+      }
+    });
+    return out;
+  } finally {
+    fs.rmSync(copy, { recursive: true, force: true });
+  }
+}
+
+for (const w of [1280, 360]) {
+  test(`L8 横にスクロールする本文の pre に Tab で届き、左右の矢印キーで横に動く（${w}px）`, { timeout: 180000 }, async (t) => {
+    const m = await keyboardAt(irLong, w);
+    t.diagnostic(`browser=${browser.version()} channel=${channelFromEnv() ?? 'default'} width=${w} tabs=${JSON.stringify(m.reached)} keys=${JSON.stringify(m.keys)}`);
+    assert.ok(m.overflow.preScroll >= 2, `${w}px: 横にスクロールする pre を測った（空振りの防止）`);
+    for (const row of ['notes/txt', 'notes/md']) {
+      assert.ok(m.reached[row] > 0, `${w}px: ${row} の pre に Tab で届く`);
+      assert.ok(m.keys[row].max > 0 && m.keys[row].right > 0, `${w}px: ${row} 右矢印で横に動く`);
+      assert.equal(m.keys[row].back, 0, `${w}px: ${row} 左矢印で元に戻る`);
+    }
+  });
+}
+
+test('L8 負の対照: はみ出さない短い本文の pre には Tab で止まらない', { timeout: 120000 }, async () => {
+  const m = await keyboardAt(irShown, 1280);
+  assert.ok(m.overflow.pre >= 1, '短い本文でも pre を測った（空振りの防止）');
+  assert.equal(m.overflow.preScroll, 0, '短い本文の pre は横にはみ出さない');
+  assert.deepEqual(m.reached, {}, '本文の pre に Tab で止まらない');
+});
+
+test('L8 負の対照: overflow-x の規則を外すと長い行の pre にも Tab で止まらない', { timeout: 120000 }, async () => {
+  const re = BODY_RULES.preScroll;
+  const cssEdit = (css) => {
+    assert.equal((css.match(re) ?? []).length, 1, 'rule must match exactly once');
+    return css.replace(re, '');
+  };
+  const m = await keyboardAt(irLong, 1280, cssEdit);
+  assert.ok(overflowCount(m.overflow) > 0, `規則を外すとはみ出しを数える: ${JSON.stringify(m.overflow)}`);
+  assert.deepEqual(m.reached, {}, '本文の pre に Tab で止まらない');
+});
 
 for (const csp of [true, false]) {
   const mode = `CSP ${csp ? 'あり' : 'なし'}`;
