@@ -9,6 +9,9 @@
 //   L3 .md 以外（.txt）の練習データは解釈されず、区画の中は pre > code の 1 ブロックで、先頭の `# ` の行も h1 にならない
 //   L4 文書以外のビューを選ぶと区画が 0 件になり、文書に戻すと戻る
 //   L5 replace で本文が替わっても、区画の中にブロック単位の前後の印（del・ins・data-mark）が 0 件。替わった後の木だけを出す
+//   L6 本文に長い行（pre の長い行・幅の広い表。架空の内容）があっても、行の横のはみ出しとページの横のはみ出しが幅 1280・960・800・360px で
+//      0 件で、pre と表は区画の中で横にスクロールする。短い本文の幅と位置は規則の有無で変わらない（#2092）
+//   L7 L6 の負の対照: 配信物の写しの app.css から本文の規則（min-width・overflow-x）を 1 つずつ外すと、同じ測定がはみ出しを数える
 // 試験用の教材は crates/web/tests/data/doc_body_limits_pack を一時ディレクトリへ写して実物の `fandhe-pack compile` で IR にする。
 // 書き込むパスは一時ディレクトリの固定のパスだけで、教材の値からパスを作らない。失敗の文面に本文の中身は出さない。
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）・FANDHE_PACK_BIN（前提バイナリ）。未設定・不在は skip にせず失敗にする。
@@ -39,8 +42,19 @@ let browser;
 let irShown;
 let irOmitted;
 let irHidden;
+let irLong;
 
-function compile(bin, mutate) {
+// L6 用の長い行（架空の内容。空白が無く、折り返す位置が無い）。一時ディレクトリの写しにだけ書き、教材の原本は変えない。
+const LONG_ASCII = 'x'.repeat(600);
+const LONG_JA = 'あ'.repeat(600);
+function writeLongLines(work) {
+  fs.writeFileSync(path.join(work, 'fixtures/doc-txt.txt'), `# 【架空】長い行\n\n${LONG_ASCII}\n${LONG_JA}\n`, 'utf8');
+  const md = path.join(work, 'fixtures/doc-md.md');
+  const table = `| 列A | 列B |\n|---|---|\n| ${LONG_ASCII} | ${LONG_JA} |\n`;
+  fs.appendFileSync(md, `\n\`\`\`\n${LONG_ASCII}\n\`\`\`\n\n${table}`, 'utf8');
+}
+
+function compile(bin, mutate, prepare) {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-doc-body-limits-'));
   try {
     fs.cpSync(PACK, work, { recursive: true });
@@ -55,6 +69,7 @@ function compile(bin, mutate) {
       assert.notEqual(after, declared, 'mutation applied');
       fs.writeFileSync(y, after, 'utf8');
     }
+    if (prepare) prepare(work);
     const r = spawnSync(bin, ['compile', work], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
     assert.equal(r.status, 0, `compile exit ${r.status}`);
     return r.stdout;
@@ -73,6 +88,8 @@ before(async () => {
   assert.equal(JSON.parse(irOmitted).views['v-doc'].body, undefined);
   irHidden = compile(bin, (t) => t.replace(SHOWN, '{kind: document, body: hidden}'));
   assert.equal(JSON.parse(irHidden).views['v-doc'].body, 'hidden');
+  irLong = compile(bin, null, writeLongLines);
+  assert.equal(JSON.parse(irLong).views['v-doc'].body, 'shown');
   browser = await launchBrowser({ channel: channelFromEnv() });
 });
 
@@ -97,9 +114,9 @@ async function openAndPut(page, srv, irText) {
   await waitMounted(page);
   await load(page, irText);
   await approve(page);
-  await page.waitForSelector(ROW_BARE, { timeout: 10000 });
-  await page.waitForSelector(ROW_MD, { timeout: 10000 });
-  await page.waitForSelector(ROW_TXT, { timeout: 10000 });
+  await page.waitForSelector(ROW_BARE, { state: 'attached', timeout: 10000 });
+  await page.waitForSelector(ROW_MD, { state: 'attached', timeout: 10000 });
+  await page.waitForSelector(ROW_TXT, { state: 'attached', timeout: 10000 });
 }
 
 const appText = (page) => page.evaluate(() => document.querySelector('#app').textContent);
@@ -124,6 +141,110 @@ async function withPage(csp, fn) {
       await context.close();
     }
   }));
+}
+
+// 固定のページ内関数。行の横のはみ出し・ページの横のはみ出し・pre と表の位置を数える。教材の文字列から選択子は組み立てない。
+function overflowProbe() {
+  const rows = [...document.querySelectorAll('li[data-path="notes/md"], li[data-path="notes/txt"]')];
+  const de = document.documentElement;
+  let pre = 0;
+  let preBeyond = 0;
+  let preScroll = 0;
+  let table = 0;
+  let tableBeyond = 0;
+  for (const li of rows) {
+    const right = li.getBoundingClientRect().right + 1;
+    for (const e of li.querySelectorAll('[data-testid="artifact-doc-body"] pre')) {
+      pre += 1;
+      if (e.getBoundingClientRect().right > right) preBeyond += 1;
+      if (e.scrollWidth > e.clientWidth) preScroll += 1;
+    }
+    for (const e of li.querySelectorAll('[data-testid="artifact-doc-body"] table')) {
+      table += 1;
+      if (e.getBoundingClientRect().right > right) tableBeyond += 1;
+    }
+  }
+  const body = document.querySelector('li[data-path="notes/md"] [data-testid="artifact-doc-body"]');
+  const title = document.querySelector('li[data-path="notes/md"] .dr-title');
+  return {
+    rows: rows.length,
+    liOverflow: rows.filter((li) => li.scrollWidth > li.clientWidth + 1).length,
+    pageOverflow: de.scrollWidth > de.clientWidth + 1,
+    pre, preBeyond, preScroll, table, tableBeyond,
+    bodyWidth: body ? Math.round(body.getBoundingClientRect().width) : -1,
+    bodyTop: body ? Math.round(body.getBoundingClientRect().top) : -1,
+    bodyLeft: body ? Math.round(body.getBoundingClientRect().left) : -1,
+    titleTop: title ? Math.round(title.getBoundingClientRect().top) : -1,
+  };
+}
+
+// 配信物の写しの app.css を cssEdit で書き換え（無指定なら元のまま）、指定の幅で IR を開いて測る。幅が 960px 未満なら「成果物」のタブを選ぶ。
+async function measureAt(irText, width, cssEdit) {
+  const src = process.env.FANDHE_WEB_TEST_DIR;
+  const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-doc-body-css-'));
+  try {
+    fs.cpSync(src, copy, { recursive: true });
+    if (cssEdit) {
+      const f = path.join(copy, 'app.css');
+      fs.writeFileSync(f, cssEdit(fs.readFileSync(f, 'utf8')));
+    }
+    let out;
+    await withServer({ dir: copy, base: BASE }, async (srv) => {
+      const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport: { width, height: 800 } });
+      try {
+        await openAndPut(page, srv, irText);
+        if (width < 960) await page.locator('#pane-tab-artifacts').click();
+        await page.waitForSelector(`${ROW_MD} ${BODY}`, { state: 'visible', timeout: 10000 });
+        out = await page.evaluate(overflowProbe);
+        await safe(page, rec, true);
+      } finally {
+        await context.close();
+      }
+    });
+    return out;
+  } finally {
+    fs.rmSync(copy, { recursive: true, force: true });
+  }
+}
+
+const WIDTHS = [1280, 960, 800, 360];
+const overflowCount = (m) => m.liOverflow + (m.pageOverflow ? 1 : 0) + m.preBeyond + m.tableBeyond;
+
+test('L6 長い行があっても行とページが横にはみ出さず、pre と表は区画の中でスクロールする', { timeout: 300000 }, async () => {
+  for (const w of WIDTHS) {
+    const m = await measureAt(irLong, w);
+    assert.equal(m.rows, 2, `${w}px: 2 行を測った`);
+    assert.ok(m.pre >= 2 && m.table >= 1, `${w}px: pre と表を測った（空振りの防止）`);
+    assert.equal(overflowCount(m), 0, `${w}px: ${JSON.stringify(m)}`);
+    assert.equal(m.preScroll, m.pre, `${w}px: 長い行の pre はすべて区画の中でスクロールする`);
+  }
+});
+
+test('L6 短い本文の幅と位置は本文の規則の有無で変わらない', { timeout: 120000 }, async () => {
+  const strip = (css) => css.replace(/\.artifact-doc-body \{ min-width: 0; \}\n/g, '').replace(/\.artifact-doc-body pre \{ overflow-x: auto; \}\n/g, '');
+  for (const w of [1280, 800]) {
+    const withRules = await measureAt(irShown, w);
+    const without = await measureAt(irShown, w, strip);
+    assert.ok(withRules.bodyWidth > 0, `${w}px: 本文を測った`);
+    assert.equal(withRules.bodyWidth, without.bodyWidth, `${w}px: 幅`);
+    assert.equal(withRules.bodyTop - withRules.titleTop, without.bodyTop - without.titleTop, `${w}px: 題からの縦の位置`);
+    assert.equal(withRules.bodyLeft, without.bodyLeft, `${w}px: 横の位置`);
+  }
+});
+
+const BODY_RULES = {
+  minWidth: /\.artifact-doc-body \{ min-width: 0; \}\n/g,
+  preScroll: /\.artifact-doc-body pre \{ overflow-x: auto; \}\n/g,
+};
+for (const [name, re] of Object.entries(BODY_RULES)) {
+  test(`L7 負の対照: 規則 ${name} を外すとはみ出しを数える`, { timeout: 120000 }, async () => {
+    const cssEdit = (css) => {
+      assert.equal((css.match(re) ?? []).length, 1, 'rule must match exactly once');
+      return css.replace(re, '');
+    };
+    const m = await measureAt(irLong, 1280, cssEdit);
+    assert.ok(overflowCount(m) > 0, `${name}: ${JSON.stringify(m)}`);
+  });
 }
 
 for (const csp of [true, false]) {

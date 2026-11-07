@@ -175,3 +175,20 @@ fn app_css_の文書の節が行を折り返し_補足を列として残す() {
         "{section}"
     );
 }
+
+#[test]
+fn app_css_の文書の節が本文の区画を行の幅に収め_pre_を区画の中でスクロールさせる() {
+    let start = APP_CSS
+        .find("左のビュー: 文書（document）")
+        .expect("開始の印");
+    let end = APP_CSS.find("ここまで document").expect("終了の印");
+    let section = &APP_CSS[start..end];
+    assert!(
+        section.contains(".artifact-doc-body { min-width: 0; }\n"),
+        "{section}"
+    );
+    assert!(
+        section.contains(".artifact-doc-body pre { overflow-x: auto; }\n"),
+        "{section}"
+    );
+}

@@ -1,7 +1,7 @@
 //! 製品の左エリアのカードの一覧（TASK-799・D-100。#2055）。
 //!
 //! (b) の部品で行を描くこと、親に `role` が付かないこと、キーが `p<経路>`（長い経路は `i<位置>`）であること、
-//! 状態が閉じた語彙の固定の文字で出ることを、製品の画面（`EngineHost`）で確かめる。期待値は手で数えた値で、
+//! 状態が語彙の内なら固定の文字、語彙の外の値なら教材の語のままで出ることを、製品の画面（`EngineHost`）で確かめる。期待値は手で数えた値で、
 //! 実装の関数から導かない。試験では `unwrap` を使ってよい。
 
 use std::path::{Path, PathBuf};
@@ -80,8 +80,9 @@ fn 製品の行は_b_の部品で出て親に_role_が付かない() {
         assert_eq!(count(&body, pat), n, "{pat}");
     }
     assert!(body.contains("data-key=\"pnotes/draft\""), "{body}");
-    // 状態 `open` は固定の文字、語彙の外は「不明」。教材の値そのものは画面に出ない。
+    // 状態 `open` は固定の文字、語彙の外の空でない値（`todo`）は教材の語のまま（D-101）、状態の無い行だけが固定の「不明」。
     assert!(body.contains(">オープン</span>"), "{body}");
+    assert!(body.contains(">todo</span>"), "{body}");
     assert!(body.contains(">不明</span>"), "{body}");
     assert!(a11y::check_no_undefined(&h.view()).is_ok());
 }

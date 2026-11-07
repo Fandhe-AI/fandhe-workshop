@@ -12938,6 +12938,7 @@ WASM の gzip -9: #2065 の本文に基点 519646 bytes（`5014cac3`、`SKIP_WAS
   - ブラウザ `tools/browser/left-row-layout.test.mjs`（`choice-journey.mjs` の `runJourney` に省略可の `probe` を足し、左の領域を測った全時点で固定のページ内関数を呼ぶ）: LR1 文書 1280px・960px、LR2 800px（補足も 1 行・同じ行）、LR3 360px、LR4 長い題・状態でのはみ出し 0、LR5 カード 1280px・800px（黒丸なし・印の無い行の上の空きが font-size の 0.25 倍以下・印のある行は印が見える。両方の行を測ったことも確かめる）、LR6 負の対照（足した規則を 1 つずつ外すと違反を数える。各規則の一致は 1 回）。教材の語は設定ファイル（`review-request-derived`・`task-breakdown-cards`）にだけある
 - 結果（2026-11-07）: Chromium で left-row-layout の 9 件が通った（LR6 の docWrap は実教材の行が 1280px では入るため、長い題・状態の IR で違反を出す）。`scripts/check-mutation-defs.sh` と Rust の 2 試験は通った。それ以外のブラウザ試験・`check-mutations`・`make test` の通しは、この記録の時点で未実施なら PR の CI に委ねる
 - 限界: 基準端末 A では測っていない。作成者と実装が同じ AI で、人の目の確認の代わりにならない。`.artifact-doc-body` の `pre` の長い行のはみ出しと、タスクツリーなど他の種類の行の黒丸は範囲外（未確認）
+- 追記（2026-11-07。#2092）: `TASK2087-1`〜`4` を `scripts/check-mutations.sh` で 1 件ずつ流し直し、4 件とも DETECTED だった（main `4a9779a4` に #2092 の変更を載せた状態）。`pre` の長い行のはみ出しは 5.478 で実際の画面を測って直した
 
 ### 5.477 左エリアの修正の後に残った古い記述と試験の道具の不足を直す（#2086。5.474・5.475 の続き）
 
@@ -12947,3 +12948,18 @@ WASM の gzip -9: #2065 の本文に基点 519646 bytes（`5014cac3`、`SKIP_WAS
 - 主張の形: `expect.screenTextAbsent`。測定は `measureLeft` の戻りに `screenText` を足しただけで、道具は測るだけで合否を持たない。第 3 教材の `put` の行はすべて空でない `state` を持つので、「不明」はエンジンの固定語（空の状態のバッジ）が画面に出たときだけ現れる。負の対照は `choice-journey.test.mjs` の場面 L（CSP あり）で、行の `state` を外した派生版では `screenTextAbsent@op[0]` が検出され、元の設定では空になる。形の検証と照合は `choice-journey-config.test.mjs`（N・J）が固定する。
 - 実行結果（2026-11-07。`SKIP_WASM_OPT=1`）: `choice-journey-config.test.mjs` 221 件通過。`make check-choice-journey` 13 設定 26 件通過。`choice-journey.test.mjs` 25 件通過（場面 L を含む）。`make test-check-engine-zero-diff` 62 件通過。`make check-engine-zero-diff`・`make check-third-pack` 通過。`make test-browser` の全体は手元で流しておらず、CI の `browser-test` に任せる（未実施）。
 - 限界: `textContent` で測るので、属性の値（`aria-label` など）と CSS の疑似要素の文字は見ない。人の画面の確認は #2060 の続きで未実施。語彙の確定は TASK-739。試験の件数の期待値（`expected-test-counts.txt`）は更新していない（`make update-test-counts` は全ブラウザ試験を流すため遅く、実測していない数値を書かない。変更しなければ CI は照合を飛ばす）。足した試験は `choice-journey-config.test.mjs` に 14 件、`choice-journey.test.mjs` に 1 件。
+- 追記（2026-11-07。#2092）: 人の画面の確認は #2080 で確かめ直して承認した（2026-11-06・main `51464280`・Chromium 146.0.7680.0・幅 1280px と 800px）。それより後の変更（#2090 の CSS・#2091・#2092 の `pre` の規則）の画面は人が見ていない。件数の期待値は #2092 で更新した（値と出所は 5.478）。
+
+### 5.478 文書の本文の長い行のはみ出しと、測定の文書・件数の期待値・記録の整理（#2092。5.476・5.477 の続き）
+
+- 目的: #2090・#2091 の後に残った 5 件を片付ける。(1) `docs/measurement.md` の「Hello」の記述 7 か所を `tools/measure/browser.mjs` の動作に合わせた（測定の欄の名前は変えていない）。(2) `crates/web/tests/card_list_product.rs` の古いコメントを直し、語彙の外の値（`todo`）が教材の語のまま出る断言を足した（「不明」は状態の無い行だけ）。(3) 件数の期待値を更新した。(4) 5.476・5.477 の古い「未実施」に追記した。(5) 文書の本文の `pre` のはみ出しを実際の画面で確かめて直した。
+- `pre` のはみ出し（実物の配信物の画面で測った。2026-11-07。Chromium headless）:
+  - 修正前: 600 文字の空白なしの英字・日本語の行を持つ `.txt`・`.md` の本文で、幅 1280px の時点で行（`li`）が横にはみ出し（`li.scrollWidth > clientWidth`）、ページも横にはみ出した。本文の区画の幅は 4,696px。表も行の右を越えた。`pre` は区画の中でスクロールしなかった
+  - 原因: 本文の区画は行の flex の項目で、既定の `min-width: auto` が長い行の幅まで広がる。`.artifact-doc-body pre { overflow-x: auto; }` だけでは効かない（一時ページでの測定でも数値が変わらなかった）
+  - 規則（`crates/web/static/app.css` の文書の節）: `.artifact-doc-body { min-width: 0; }` と `.artifact-doc-body pre { overflow-x: auto; }`。退けた案は `flex: 1 1 100%`（はみ出しは直るが、短い本文まで全幅に広がり #2080 で承認した見え方が変わる）
+  - 修正後: 幅 1280・960・800・360px で行・ページのはみ出し 0、`pre` と表は区画の中に収まり、長い行の `pre` はすべて区画の中でスクロールする。短い本文の幅と、題からの縦・横の位置は規則の有無で変わらない（1280px・800px）
+  - DOM は変えていない。スクロールする `pre` に `tabindex` は足していない（`.sh-step pre` と同じ扱い）
+- 試験: ブラウザ `tools/browser/doc-body-limits.test.mjs` に L6（長い行・短い本文の不変の 2 件）と L7（規則 `min-width`・`overflow-x` を配信物の写しから 1 つずつ外すと違反を数える負の対照 2 件）を足した。長い行は一時ディレクトリの写しにだけ書く（架空の内容）。Rust は `document_element_rows` に節の照合を 1 件。変異 `TASK2092-1`・`TASK2092-2`
+- 結果（2026-11-07）: `doc-body-limits` 14 件（修正前に L6 の 2 件が失敗することを確かめた）と `doc-body` 4 件が通った。`TASK2087-1`〜`4`・`TASK2092-1`・`2` の 6 件は `check-mutations` で DETECTED。`make check-mutation-defs` は通った。それ以外のブラウザ試験の全体は手元で流しておらず、CI の `browser-test` に任せる（未実施）
+- 件数の期待値（`scripts/expected-test-counts.txt`）: rust は手元の `scripts/test.sh` の実測を `check-frontend-bump.sh normalize rust` で整形した値（`document_element_rows` 7 → 8、合計 4149 → 4150）。browser は 1866 → 1886。出所は main `4a9779a4` の CI の `make test-browser`（1882 件）に今回足した 4 件を足した値で、実測ではない。PR の `counts browser` で確かめる。`make update-test-counts` は 1 コマンド 10 分の上限の中で完走できないため流していない。#2090・#2091 の PR 本文の件数を足すと 1881 で、実測の 1882 と 1 件ずれていたが、帰属は追っていない
+- 限界: 基準端末 A では測っていない。人の目の確認の代わりにならず、作成者と実装が同じ AI。スクロールする `pre` へのキーボードでの到達（`tabindex` が無い）は確かめていない。測定の文書の書き直しは `tools/measure/*.sh` を流して確かめていない（未実施）
