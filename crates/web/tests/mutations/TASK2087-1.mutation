@@ -1,0 +1,8 @@
+id: TASK2087-1
+package: fandhe-workshop-web
+test: document_element_rows
+target: crates/web/static/app.css
+find: [data-view="document"] > li[data-kind="item"] { flex-wrap: wrap; }
+replace: [data-view="document"] > li[data-kind="item"] { flex-wrap: nowrap; }
+expect-fail: app_css_の文書の節が行を折り返し_補足を列として残す
+note: 文書の行が折り返さなくなり、題・状態が語の途中で折れる（#2087）

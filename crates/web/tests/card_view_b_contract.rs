@@ -322,3 +322,26 @@ fn app_css_のカードの節が補足の_p_の上の余白を詰める() {
         "{section}"
     );
 }
+
+#[test]
+fn app_css_のカードの節が黒丸と印の無い行の空の印を出さない() {
+    let css = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/static/app.css"));
+    let start = css
+        .find("左のビュー: カードの一覧（card_list）")
+        .expect("開始の印");
+    let end = css.find("ここまで card_list").expect("終了の印");
+    let section = &css[start..end];
+    assert!(
+        section
+            .contains("[data-view=\"card_list\"] > li[data-kind=\"card\"] { list-style: none; }"),
+        "{section}"
+    );
+    assert!(
+        section.contains("[data-mark=\"\"] > .mk-text { display: none; }"),
+        "{section}"
+    );
+    assert!(
+        section.contains("[data-mark=\"\"] > .mk-glyph,"),
+        "{section}"
+    );
+}

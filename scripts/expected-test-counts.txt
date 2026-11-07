@@ -56,7 +56,7 @@ rust|tests/cancel_input.rs [cancel_input]|passed=8|ignored=0
 rust|tests/candidates_contract.rs [candidates_contract]|passed=11|ignored=0
 rust|tests/card_list_product.rs [card_list_product]|passed=2|ignored=0
 rust|tests/card_view_a_contract.rs [card_view_a_contract]|passed=13|ignored=0
-rust|tests/card_view_b_contract.rs [card_view_b_contract]|passed=14|ignored=0
+rust|tests/card_view_b_contract.rs [card_view_b_contract]|passed=15|ignored=0
 rust|tests/ch0_3_run_host.rs [ch0_3_run_host]|passed=3|ignored=0
 rust|tests/ch4_9_run_host.rs [ch4_9_run_host]|passed=4|ignored=0
 rust|tests/changed_record.rs [changed_record]|passed=8|ignored=0
@@ -115,7 +115,7 @@ rust|tests/doc_body_host.rs [doc_body_host]|passed=3|ignored=0
 rust|tests/doc_depth.rs [doc_depth]|passed=17|ignored=0
 rust|tests/doc_links.rs [doc_links]|passed=12|ignored=0
 rust|tests/doc_load.rs [doc_load]|passed=7|ignored=0
-rust|tests/document_element_rows.rs [document_element_rows]|passed=6|ignored=0
+rust|tests/document_element_rows.rs [document_element_rows]|passed=7|ignored=0
 rust|tests/document_view_a_contract.rs [document_view_a_contract]|passed=12|ignored=0
 rust|tests/document_view_contract.rs [document_view_contract]|passed=16|ignored=0
 rust|tests/effect_apply.rs [effect_apply]|passed=13|ignored=0
@@ -412,10 +412,10 @@ rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=416|passed=4147|ignored=4
+rust|total|binaries=416|passed=4149|ignored=4
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=55|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=127|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_web]|passed=199|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
-browser|total|tests=1857|pass=1857|skipped=0|todo=0|cancelled=0
+browser|total|tests=1866|pass=1866|skipped=0|todo=0|cancelled=0

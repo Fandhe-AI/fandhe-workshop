@@ -1,0 +1,8 @@
+id: TASK2087-2
+package: fandhe-workshop-web
+test: document_element_rows
+target: crates/web/static/app.css
+find: .dr-detail { flex: 1 1 8rem; min-width: 0; overflow-wrap: anywhere; }
+replace: .dr-detail { min-width: 0; overflow-wrap: anywhere; }
+expect-fail: app_css_の文書の節が行を折り返し_補足を列として残す
+note: 補足が既定の縮みに戻り、題・状態を押しつぶす（#2087）

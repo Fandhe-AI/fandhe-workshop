@@ -1,0 +1,8 @@
+id: TASK2087-4
+package: fandhe-workshop-web
+test: card_view_b_contract
+target: crates/web/static/app.css
+find: [data-mark=""] > .mk-text { display: none; }
+replace: [data-mark=""] > .mk-text { display: inline-block; }
+expect-fail: app_css_のカードの節が黒丸と印の無い行の空の印を出さない
+note: 印の無い行に空の印の行が戻る（#2087）

@@ -1,0 +1,8 @@
+id: TASK2087-3
+package: fandhe-workshop-web
+test: card_view_b_contract
+target: crates/web/static/app.css
+find: [data-view="card_list"] > li[data-kind="card"] { list-style: none; }
+replace: [data-view="card_list"] > li[data-kind="card"] { list-style: disc; }
+expect-fail: app_css_のカードの節が黒丸と印の無い行の空の印を出さない
+note: カードの先頭に黒丸だけの行が戻る（#2087）
