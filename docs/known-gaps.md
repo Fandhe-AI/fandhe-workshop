@@ -670,7 +670,8 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 - 文書の本文（左エリア）と Step の本文（右エリア）の、横にスクロールする `pre` と表は、`tabindex` を足さなくても Tab で止まり、左右の矢印キーで横に動く（Chromium 153.0.8010.12 で確認。記録は `docs/testing.md` の 5.479・5.480）
 - 領域に名前（`aria-label` など）は付けていない。Chromium の AX ツリーでは、`pre` は役割 `generic` で、名前は付けていないのに中身の文字から計算される（長い行なら 1,000 文字を超える名前になる）。表は役割 `table` で名前が空である。フォーカスが移ったときに「何の領域か」が読み上げで分かるかは、支援技術では確かめていない
 - 付けない理由: spec の D-102（2026-11-07）で、名前を付けないと決めた。`pre` の役割 `generic` には ARIA 1.2 で名前を付けられず、付けるには `role="region"` などの包みが要って本文の `pre` ごとにランドマークが増える。web crate は DOM の値を読まないため、横にはみ出すものだけを選んで名前を付けることもできない。フォーカスしたときに読まれるのは中身そのものである。`crates/web/src/a11y.rs` の契約（閉じた一覧と `A11Y_CONTRACT_VERSION`）は変えていない
-- 支援技術（VoiceOver など）での確認は 0 件で、人が確かめる。確かめるまで、読み上げに問題が無いとは書かない
+- 支援技術での確認は 1 件（2026-11-08。人が VoiceOver で確かめた。macOS 27.2・Chrome の原本 156.0.8078.48・arm64。記録は `docs/testing.md` の 5.482）。範囲は Step の本文（右エリア）の `pre` と表だけで、`pre` は Tab で移ると中身が読まれ（役割の語は読まれない）、右矢印で横に動いた。表は「表、30列、2行」と読まれた
+- 文書の本文（左エリア）の `pre`、VoiceOver 以外の支援技術、ほかの版の Chrome では確かめていない。この範囲では、読み上げに問題が無いとは書かない
 
 ### 回避
 
@@ -678,4 +679,4 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 
 ### 根拠の試験
 
-- `tools/browser/step-body.test.mjs` の S1・S2、`tools/browser/doc-body-limits.test.mjs` の L8・L9。記録は `docs/testing.md` の 5.480
+- `tools/browser/step-body.test.mjs` の S1・S2、`tools/browser/doc-body-limits.test.mjs` の L8・L9。記録は `docs/testing.md` の 5.480・5.482（VoiceOver での人の確認）
