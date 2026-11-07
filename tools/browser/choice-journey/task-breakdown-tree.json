@@ -82,6 +82,7 @@
     "inputAreaAbsent": true,
     "leftSwitchAbsent": true,
     "visibleViews": ["task_tree"],
+    "screenTextAbsent": ["不明"],
     "rowPaths": [
       "board/build",
       "board/design",

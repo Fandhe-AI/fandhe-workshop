@@ -689,3 +689,48 @@ test('T: 800px 版と 1280px 版の対の設定は、名前・幅・narrowTabs �
     assert.deepEqual(strip(b), strip(a));
   }
 });
+
+// 画面に出てはいけない文字（expect.screenTextAbsent）。含まないことの主張で、rowPaths は要らない。
+const absentConfig = (v) => ({ ...base(), sequence: [{ kind: 'choice', id: 'x', expect: { uid: 'a/b', status: 'accepted' } }], expect: { completed: true, screenTextAbsent: v } });
+test('N: screenTextAbsent は読み込みを通り、値がそのまま写る', () => {
+  assert.deepEqual(parseConfig(absentConfig(['p', 'q r']), '/tmp').expect.screenTextAbsent, ['p', 'q r']);
+});
+for (const [label, v] of [
+  ['配列でない', 'x'], ['空の配列', []], ['要素が数', [1]], ['空の文字列', ['']], ['長さが上限を超える', ['x'.repeat(201)]],
+  ['制御文字を含む', ['a\u0001b']], ['空白が連続する', ['a  b']], ['前後に空白がある', [' a']], ['重複する', ['a', 'a']],
+  ['17 件', Array.from({ length: 17 }, (_, i) => `t${i}`)],
+]) {
+  test(`N: screenTextAbsent の形の誤りは ConfigError（${label}）`, () => {
+    assert.throws(() => parseConfig(absentConfig(v), '/tmp'), ConfigError);
+  });
+}
+const withScreen = (cfg, text) => {
+  const r = goodLeft();
+  for (const m of [r.left.start, ...r.left.ops, r.left.end]) m.screenText = text;
+  return [parseConfig({ ...cfg, expect: { ...cfg.expect, visibleViews: ['document'], leftSwitchAbsent: true, rowPaths: ['r/a', 'r/b'] } }, '/tmp'), r];
+};
+test('J: judge は宣言した文字が画面に無ければ理由を返さない', () => {
+  const [c, r] = withScreen(absentConfig(['SENTINEL-EXPECT']), 'clean screen');
+  assert.deepEqual(judge(c, r), []);
+});
+test('J: judge は screenTextAbsent を start・op・end のそれぞれで見る', () => {
+  for (const at of ['start', 'op', 'end']) {
+    const [c, r] = withScreen(absentConfig(['SENTINEL-EXPECT']), 'clean screen');
+    const m = at === 'op' ? r.left.ops[0] : r.left[at];
+    m.screenText = 'has SENTINEL-EXPECT inside';
+    const label = at === 'op' ? 'op[0]' : at;
+    assert.deepEqual(judge(c, r), [`screenTextAbsent@${label}`]);
+    assert.ok(!JSON.stringify(judge(c, r)).includes('SENTINEL'));
+  }
+});
+test('J: judge は screenText が測れていないと screenTextMissing@ を返す', () => {
+  const [c, r] = withScreen(absentConfig(['SENTINEL-EXPECT']), 'clean screen');
+  r.left.start.screenText = null;
+  r.left.end.screenText = '';
+  assert.deepEqual(judge(c, r), ['screenTextMissing@start', 'screenTextMissing@end']);
+});
+test('J: 宣言の無い設定は画面に何があっても screenText で理由を返さない', () => {
+  const r = goodLeft();
+  for (const m of [r.left.start, ...r.left.ops, r.left.end]) m.screenText = 'anything 不明';
+  assert.deepEqual(judge(leftConfig(), r), []);
+});

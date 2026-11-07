@@ -9,7 +9,7 @@
 // 使う部品: harness.mjs（配信・計数）、ch0-3-journey.mjs（台帳でない部分のセレクタと install）、ch4-9-journey.mjs の inspectDom49（DOM だけの判定）。
 // 限界: 製品の画面はまだ `data-theme` を付けない（docs/operation-profile.md）ので、theme は null の値が返りうる。外観（data-theme・本文の px・行間・中身のある style の 0 件）と幅 800px の「成果物」タブは TASK-749 3/3（docs/testing.md 5.449）。
 // 幅 960px 未満は tablist が出るので、操作の種類に合わせて実クリックでタブを切り替え、開始・終了は artifactsTab にも測る。
-// 左の領域（見えるビュー・行・変化の印）は measureLeft が測り、結果の left に入れる（TASK-749 2/3）。
+// 左の領域（見えるビュー・行・変化の印・画面全体の文字 screenText）は measureLeft が測り、結果の left に入れる（TASK-749 2/3）。
 // 世界状態の一覧を出さない設定（`world_list` の hidden）の教材は指せる行が 0 件になり、「指す」操作の Step で止まる（docs/known-gaps.md の PACK-22）。止まった位置は結果に入れる。
 // 拒否を期待する操作（status が rejected）は、実クリックのあと右のログの拒否の行（分類・理由・次の行動）を読み、IR の文面（refIr）と比べ、前後で左の行と Step が動かないことの観察を rejections に積む（TASK-750。SECOND-12。合否は config 側の judgeRejections）。
 // 出力（summaryLine）は名前・件数・合否・数値だけで、教材の文面と入力した値は含めない。
@@ -273,6 +273,11 @@ export async function measureLeft(page, timeout = 2000) {
       })),
       // 左の領域全体の本文の区画の件数。行の外にある区画も見落とさない。
       docBodyTotal: left ? q(tid('artifact-doc-body'), left).length : 0,
+      // 画面全体の文字（空白を詰める）。隠れた領域も見るため innerText でなく textContent。含まないことの主張に使う。
+      screenText: (() => {
+        const app = document.querySelector('#app');
+        return app ? (app.textContent ?? '').replace(/\s+/g, ' ').trim() : null;
+      })(),
     };
   }, LEFT_ABSENT);
   return { ...m, settled, panes: await measurePanes(page) };

@@ -80,6 +80,7 @@
     "completed": true,
     "inputAreaAbsent": true,
     "leftSwitchAbsent": true,
+    "screenTextAbsent": ["不明"],
     "rowPaths": [
       "board/build",
       "board/design",

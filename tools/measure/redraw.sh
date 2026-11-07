@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 最小の画面（Hello）の再描画の時間を、試験の設定（feature test-hooks）の Chromium で測る（tools/measure/all.sh から呼ばれる）。
+# 最小の画面の再描画の時間を、試験の設定（feature test-hooks）の Chromium で測る（tools/measure/all.sh から呼ばれる）。
 #
 # 使い方: tools/measure/redraw.sh（引数なし）
 #
