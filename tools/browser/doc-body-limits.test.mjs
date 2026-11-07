@@ -14,6 +14,8 @@
 //   L7 L6 の負の対照: 配信物の写しの app.css から本文の規則（min-width・overflow-x）を 1 つずつ外すと、同じ測定がはみ出しを数える
 //   L8 横にスクロールする本文の pre には、キーボードだけで届く（Tab で止まり、左右の矢印キーで横に動く）。幅 1280・360px。
 //      負の対照: 短い本文（はみ出さない）の pre には Tab で止まらない。overflow-x を外した写しでも止まらない（#2094）
+//   L9 L8 で届いた pre の AX の役割・名前の観察（今こう見える）。名前は付けていない。付けるには spec の決定と a11y 契約の版上げが要る
+//      （docs/known-gaps.md）。対照: 固定の aria-label を付けると名前が読める（#2096。5.480）
 // 試験用の教材は crates/web/tests/data/doc_body_limits_pack を一時ディレクトリへ写して実物の `fandhe-pack compile` で IR にする。
 // 書き込むパスは一時ディレクトリの固定のパスだけで、教材の値からパスを作らない。失敗の文面に本文の中身は出さない。
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）・FANDHE_PACK_BIN（前提バイナリ）。未設定・不在は skip にせず失敗にする。
@@ -288,8 +290,24 @@ async function tabThrough(page) {
   return reached;
 }
 
+// L9 用。フォーカス中の要素の AX の役割・名前（名前は空か・長さだけ返し、本文は出さない）。
+async function readAx(page) {
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Accessibility.enable');
+    const { result } = await cdp.send('Runtime.evaluate', { expression: 'document.activeElement' });
+    const { node } = await cdp.send('DOM.describeNode', { objectId: result.objectId });
+    const { nodes } = await cdp.send('Accessibility.getPartialAXTree', { backendNodeId: node.backendNodeId, fetchRelatives: false });
+    const n = nodes[0] ?? {};
+    const name = String(n.name?.value ?? '');
+    return { role: String(n.role?.value ?? ''), ignored: !!n.ignored, nameEmpty: name === '', nameLen: name.length };
+  } finally {
+    await cdp.detach().catch(() => {});
+  }
+}
+
 // cssEdit を適用した配信物の写しで irText を開き、本文の pre への Tab の到達と、届いた pre での矢印キー・End の効きを測る。
-async function keyboardAt(irText, width, cssEdit) {
+async function keyboardAt(irText, width, cssEdit, ax) {
   const src = process.env.FANDHE_WEB_TEST_DIR;
   const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-doc-body-kbd-'));
   try {
@@ -312,6 +330,18 @@ async function keyboardAt(irText, width, cssEdit) {
           reached: Object.fromEntries([...reached].map(([k, v]) => [k, v.tabs])),
           keys: Object.fromEntries([...reached].map(([k, v]) => [k, { right: v.right, back: v.back, max: v.max, outline: v.f.outline }])),
         };
+        if (ax) {
+          out.ax = {};
+          for (const row of ['notes/txt', 'notes/md']) {
+            await page.locator(`li[data-path="${row}"] ${BODY} pre`).first().focus();
+            const plain = await readAx(page);
+            // 対照: 固定の aria-label を付けると名前が読める（判定の空振りの防止）。付けた属性はその場で外す。
+            await page.evaluate(() => { document.activeElement.setAttribute('aria-label', '対照'); });
+            const control = await readAx(page);
+            await page.evaluate(() => { document.activeElement.removeAttribute('aria-label'); });
+            out.ax[row] = { plain, control };
+          }
+        }
         await safe(page, rec, true);
       } finally {
         await context.close();
@@ -335,6 +365,17 @@ for (const w of [1280, 360]) {
     }
   });
 }
+
+test('L9 文書の本文のスクロールする pre の AX の役割・名前を観察する（1280px）', { timeout: 180000 }, async (t) => {
+  const m = await keyboardAt(irLong, 1280, null, true);
+  t.diagnostic(`browser=${browser.version()} channel=${channelFromEnv() ?? 'default'} ax=${JSON.stringify(m.ax)}`);
+  for (const row of ['notes/txt', 'notes/md']) {
+    const { plain, control } = m.ax[row];
+    // 観察（Chromium 153。5.480）: 役割 generic で、名前は付けていないのに中身の文字から計算される。
+    assert.deepEqual([plain.role, plain.ignored, plain.nameEmpty], ['generic', false, false], `${row}: pre の役割と名前`);
+    assert.equal(control.nameLen, '対照'.length, `${row}: 対照: 固定の aria-label を付けると名前が読める`);
+  }
+});
 
 test('L8 負の対照: はみ出さない短い本文の pre には Tab で止まらない', { timeout: 120000 }, async () => {
   const m = await keyboardAt(irShown, 1280);

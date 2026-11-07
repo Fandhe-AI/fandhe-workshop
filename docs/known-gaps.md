@@ -653,3 +653,19 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 
 - `crates/pack/tests/preview_serve.rs`・`preview_embedded.rs`。記録は `docs/testing.md` の 5.427
 - `tools/browser/preview-command.test.mjs`（URL を開いた 20 Step の通し・診断ありで配らない・文章を直した再実行の反映。TASK-429 3/3）。記録は `docs/testing.md` の 5.428。同梱物は CSP の meta つきの固定の形のため、CSP なしの画面は流していません
+
+## 本文の横にスクロールする領域（`pre`・表）に名前を付けていない（#2096）
+
+### 内容
+
+- 文書の本文（左エリア）と Step の本文（右エリア）の、横にスクロールする `pre` と表は、`tabindex` を足さなくても Tab で止まり、左右の矢印キーで横に動く（Chromium 153.0.8010.12 で確認。記録は `docs/testing.md` の 5.479・5.480）
+- 領域に名前（`aria-label` など）は付けていない。Chromium の AX ツリーでは、`pre` は役割 `generic` で、名前は付けていないのに中身の文字から計算される（長い行なら 1,000 文字を超える名前になる）。表は役割 `table` で名前が空である。フォーカスが移ったときに「何の領域か」が読み上げで分かるかは、支援技術では確かめていない
+- 付けない理由: `crates/web/src/a11y.rs` の契約は `aria-*`・`role` を閉じた一覧で管理し、一覧の外の `aria-label` は違反になる。名前を足すには、先に spec で付け方（固定の文言・`aria-labelledby` など。教材の文字列に頼らない方法）を決め、`A11Y_CONTRACT_VERSION` を上げる必要がある。本文の木は文書の本文と Step の本文で共有するため、属性を足すと両方に効く
+
+### 回避
+
+- 作成者側の回避は無い。本文の長い行は、教材の側で折り返しやすい長さに収める
+
+### 根拠の試験
+
+- `tools/browser/step-body.test.mjs` の S1・S2、`tools/browser/doc-body-limits.test.mjs` の L8・L9。記録は `docs/testing.md` の 5.480
