@@ -30,6 +30,7 @@
 //   J  道具の対照（TASK-755。CSP ありの 1 回）。派生版で opt-start を押した後のページの行に偽の本文の区画を足すと、judge が docBodyRows の理由を返す
 //   K  道具の対照（Issue #2052。CSP ありの 1 回）。派生版で opt-start を押した後の行の文字（印と本文の区画を除く）を測り、含まれる文字の期待は合格、
 //      含まれない文字の期待は texts@op[0]・rowTexts@end の理由が出る。行に偽の本文の区画を足しても text は変わらない。文書のビューの行は data-kind="item" と属性の文字（題・状態・補足）を持つ（Issue #2053）
+//   L  道具の対照（#2086。CSP ありの 1 回）。第 3 教材（task-breakdown）の行の状態を外した派生版で、画面に固定語が出て screenTextAbsent@op[0] が検出される。状態ありの設定では理由が空
 // 確かめないこと: 本文の中身・4 つの選択が連結された依頼文（H-3 で作れない）、data-theme の値・文字の大きさ・行間の主張（製品の画面はまだ data-theme を付けない。第 2 教材の設定では主張せず、測った値を記録する。SECOND-10 は未達）、
 // 本物の第 2 教材、人が画面を見た評価。
 // 入力: FANDHE_PACK_BIN・FANDHE_WEB_AUTHOR_DIR。未設定・不在は skip にせず失敗にする。出力は名前・件数・合否・数値だけ。
@@ -555,4 +556,37 @@ test('H-対照: 道具の対照。800px で操作タブのまま左を測る・s
   } finally {
     cleanup();
   }
+});
+
+test('L: 道具の対照。第 3 教材の行の状態を外すと、画面の「不明」が screenTextAbsent の理由で検出される（CSP あり）', { timeout: 180000 }, async () => {
+  // 派生前の設定（状態あり）は screenTextAbsent の理由が空。行の状態を外した派生版（エンジンの固定語に落ちる経路）は検出される。
+  // 後の操作で状態が入るので、検出は @op[0] を主張し @start と @end は主張しない。
+  const only = (why) => why.filter((w) => w.startsWith('screenTextAbsent'));
+  const cfgBase = loadConfig(cfgPath('task-breakdown'));
+  const cfgNoState = structuredClone(cfgBase);
+  cfgNoState.source.edits.push({
+    file: 'chapters/ch-tasks/chapter.yaml', from: 'state: 未着手, detail: 画面で使うデータ', to: 'detail: 画面で使うデータ',
+  });
+  const run = async (config) => {
+    const irText = buildIr({ bin, config });
+    const { dir: copy, cleanup } = prepareDelivery({ webDir, irText });
+    try {
+      const ir = JSON.parse(irText);
+      const info = stepsOf(ir);
+      let out;
+      await withCspMode({ dir: copy, csp: true }, (dir) => withServer({ dir, base: config.base }, async (srv) => {
+        out = await runJourney({
+          browser, srv, ir, refIr: ir, sequence: config.sequence, expect: config.sequence.map((s) => s.expect), initial: config.initial,
+          titles: info.titles, finals: info.finals, viewport: config.viewport,
+        });
+      }));
+      return judge(config, out);
+    } finally {
+      cleanup();
+    }
+  };
+  assert.deepEqual(only(await run(cfgBase)), [], 'with row states, the screen never shows the fallback word');
+  const why = only(await run(cfgNoState));
+  assert.ok(why.includes('screenTextAbsent@op[0]'), `the fallback word is detected: ${why.join(',')}`);
+  assert.ok(!why.includes('screenTextAbsent@start'), 'the start screen has no rows yet');
 });

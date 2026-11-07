@@ -13,7 +13,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${DIR}/lib.sh"
 
 reject_args "$(basename "$0")" "$@"
-for c in mktemp mkdir git rm grep sed ln dirname bash awk cmp head wc cat mv tr; do
+for c in mktemp mkdir git rm grep sed ln dirname bash awk cmp head wc cat mv tr chmod seq; do
   require_cmd "${c}"
 done
 
@@ -113,6 +113,23 @@ has "worktree-clean is skipped" '^SKIP worktree-clean'
 r="$(new_repo)"; rc=0
 "${CHECK}" --root "${r}" --base "$(git -C "${r}" rev-parse HEAD)" --manifest "${TMP_DIR}/m.$(basename "${r}")" --pack template-workshop/examples/p >/dev/null 2>&1 || rc=$?
 expect "base after the pack was added" 1 "${rc}"
+# base-before-pack の先頭の行の取得は、読み手が先に閉じてもパイプラインが SIGPIPE で無言に死なない（#2086）。
+# 包みの git が --diff-filter=A のときだけ本物の出力の後に大量の行を足すので、head で打ち切る実装は書き手が EPIPE で非 0 になる。
+wrap="${TMP_DIR}/wrapbin"
+mkdir -p "${wrap}"
+real_git="$(command -v git)"
+cat > "${wrap}/git" <<WRAP
+#!/usr/bin/env bash
+"${real_git}" "\$@" || exit \$?
+case " \$* " in
+  *" --diff-filter=A "*) seq 1 300000 ;;
+esac
+WRAP
+chmod +x "${wrap}/git"
+r="$(new_repo)"; rc=0
+PATH="${wrap}:${PATH}" "${CHECK}" --root "${r}" --base "$(base_of "${r}")" --manifest "${TMP_DIR}/m.$(basename "${r}")" --pack template-workshop/examples/p >"${TMP_DIR}/out" 2>"${TMP_DIR}/err" || rc=$?
+expect "writer after the first line does not break base-before-pack" 0 "${rc}"
+has "base-before-pack passes with a noisy git" '^PASS base-before-pack'
 r="$(new_repo)"; run "base is not an ancestor of head" 1 "${r}" --base "$(git -C "${r}" rev-parse HEAD)" --head "$(base_of "${r}")"
 r="$(new_repo)"; run "unknown base" 2 "${r}" --base 0000000000000000000000000000000000000000
 r="$(new_repo)"; run "unknown option" 2 "${r}" --bogus

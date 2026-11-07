@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 最小の画面（Hello）の初回表示の時間を、回線 10Mbps・遅延 40ms に絞った Chromium で測る（tools/measure/all.sh から呼ばれる）。
+# 最小の画面の初回表示の時間を、回線 10Mbps・遅延 40ms に絞った Chromium で測る（tools/measure/all.sh から呼ばれる）。
 #
 # 使い方: tools/measure/first-paint.sh（引数なし）
 #

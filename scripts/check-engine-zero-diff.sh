@@ -310,7 +310,10 @@ fi
 if [ -n "$(git -C "${root}" ls-tree "${base_sha}" -- "${pack}")" ]; then
   fail base-before-pack "${pack} already exists at base"
 else
-  first_added="$(git -C "${root}" log --diff-filter=A --reverse --format='%H %P' "${base_sha}..${head_sha}" -- "${pack}" | head -n 1)"
+  # head で打ち切ると pipefail の下で git が SIGPIPE を受けて無言で死ぬため、全出力を受けてから先頭の行を取る。
+  # git log の -1 は --reverse より先に件数を絞るので使えない。
+  added_log="$(git -C "${root}" log --diff-filter=A --reverse --format='%H %P' "${base_sha}..${head_sha}" -- "${pack}")"
+  first_added="${added_log%%$'\n'*}"
   if [ -z "${first_added}" ]; then
     fail base-before-pack "${pack} was never added between base and head"
   else

@@ -153,16 +153,21 @@ function parseTexts(v, where) {
     str(k, `${where} key`, PATH_RE);
     const w = `${where}[${JSON.stringify(k.slice(0, 40))}]`;
     const a = v[k];
-    if (!Array.isArray(a) || a.length < 1 || a.length > MAX_TEXTS_PER_PATH) fail(w, 'must be a non-empty array of limited size');
-    a.forEach((t, j) => {
-      if (typeof t !== 'string' || t.length < 1 || t.length > TEXT_MAX) fail(`${w}[${j}]`, 'must be a string of 1 to 200 characters');
-      // eslint-disable-next-line no-control-regex
-      if (/[\u0000-\u001f\u007f]/.test(t)) fail(`${w}[${j}]`, 'must not contain control characters');
-      if (t !== t.replace(/\s+/g, ' ').trim()) fail(`${w}[${j}]`, 'must have collapsed whitespace and no edge whitespace');
-    });
-    if (new Set(a).size !== a.length) fail(w, 'must not repeat a text');
-    return [k, [...a]];
+    return [k, textList(a, w)];
   }));
+}
+
+/** 文字の一覧（1〜MAX_TEXTS_PER_PATH 件・各 1〜200 文字・制御文字なし・空白を詰めた形・重複なし）の検証。parseTexts と expect.screenTextAbsent が共用する。 */
+function textList(a, w) {
+  if (!Array.isArray(a) || a.length < 1 || a.length > MAX_TEXTS_PER_PATH) fail(w, 'must be a non-empty array of limited size');
+  a.forEach((t, j) => {
+    if (typeof t !== 'string' || t.length < 1 || t.length > TEXT_MAX) fail(`${w}[${j}]`, 'must be a string of 1 to 200 characters');
+    // eslint-disable-next-line no-control-regex
+    if (/[\u0000-\u001f\u007f]/.test(t)) fail(`${w}[${j}]`, 'must not contain control characters');
+    if (t !== t.replace(/\s+/g, ' ').trim()) fail(`${w}[${j}]`, 'must have collapsed whitespace and no edge whitespace');
+  });
+  if (new Set(a).size !== a.length) fail(w, 'must not repeat a text');
+  return [...a];
 }
 
 /** 操作の後に左の行が持つ変化の印（経路 → add | remove | change）。載せない行は印なしの主張になる。`{}` は「印なし」。 */
@@ -225,7 +230,7 @@ function parseExpect(v, where) {
     'completed', 'stoppedAfter', 'reviewAchieved', 'nextChapter', 'inputAreaAbsent', 'viewSwitchVisible',
     'rejectScenes', 'rejectCategories', 'excluded',
     'entryPorts', 'entryAtStart', 'inputGuidesAbsent', 'fileInputs', 'controls',
-    'visibleViews', 'leftSwitchAbsent', 'rowPaths', 'rowTexts', 'appearance', 'narrowTabs', 'docBodyRows',
+    'visibleViews', 'leftSwitchAbsent', 'rowPaths', 'rowTexts', 'screenTextAbsent', 'appearance', 'narrowTabs', 'docBodyRows',
   ], where);
   const out = { completed: bool(v.completed, `${where}.completed`) };
   if (v.stoppedAfter !== undefined) {
@@ -268,6 +273,8 @@ function parseExpect(v, where) {
   if (v.leftSwitchAbsent !== undefined) out.leftSwitchAbsent = bool(v.leftSwitchAbsent, `${where}.leftSwitchAbsent`);
   if (v.rowPaths !== undefined) out.rowPaths = pathList(v.rowPaths, `${where}.rowPaths`);
   if (v.rowTexts !== undefined) out.rowTexts = parseTexts(v.rowTexts, `${where}.rowTexts`);
+  // 画面に出てはいけない文字（含まないことの主張。rowPaths は前提にしない）。
+  if (v.screenTextAbsent !== undefined) out.screenTextAbsent = textList(v.screenTextAbsent, `${where}.screenTextAbsent`);
   if (v.docBodyRows !== undefined) {
     out.docBodyRows = count(v.docBodyRows, `${where}.docBodyRows`);
     if (out.rowPaths !== undefined && out.docBodyRows > out.rowPaths.length) fail(`${where}.docBodyRows`, 'must not exceed expect.rowPaths');
@@ -530,6 +537,7 @@ function judgeTabs(config, r) {
 /**
  * 左の領域（measureLeft の結果）の照合（TASK-749 2/3。SECOND-6・SECOND-8）。理由は欄名と時点（start・end・op[i]）だけ。
  * 見えるビューと切り替えの不在は測った全時点、行の集合は終了と marks のある操作、変化の印は marks のある操作で見る。
+ * expect.screenTextAbsent は測った全時点で画面全体の文字（screenText）に宣言した文字が無いことを見る。
  * 行の文字は texts のある操作（texts@op[i]）と終了（rowTexts@end）で見る（Issue #2052）。
  * 印の 3 手段（data-mark・記号・文字）の一致は、何も主張しない設定でも測った全時点の全行で見る。
  */
@@ -538,7 +546,7 @@ function judgeLeft(config, r) {
   const why = [];
   const marked = config.sequence.some((op) => op.marks !== undefined);
   const texted = config.sequence.some((op) => op.texts !== undefined);
-  const wants = e.visibleViews !== undefined || e.leftSwitchAbsent !== undefined || e.rowPaths !== undefined || e.docBodyRows !== undefined || e.rowTexts !== undefined || marked || texted;
+  const wants = e.visibleViews !== undefined || e.leftSwitchAbsent !== undefined || e.rowPaths !== undefined || e.docBodyRows !== undefined || e.rowTexts !== undefined || e.screenTextAbsent !== undefined || marked || texted;
   if (!wants) return why;
   const l = r.left;
   if (!l || !l.start || !l.end) return ['left-missing'];
@@ -559,6 +567,11 @@ function judgeLeft(config, r) {
     if (m.settled !== true) why.push(`leftUnsettled@${label}`);
     // 左の領域が実際に見えていること（幅 960px 未満で操作タブのまま測った素通りの合格を防ぐ。TASK-749 3/3）。
     if (m.panes?.left !== true) why.push(`leftHidden@${label}`);
+    // 画面全体の文字に宣言した文字が無いこと。測れていなければ不合格（素通り防止）。理由に文字は出さない。
+    if (e.screenTextAbsent !== undefined) {
+      if (typeof m.screenText !== 'string' || m.screenText === '') why.push(`screenTextMissing@${label}`);
+      else if (e.screenTextAbsent.some((t) => m.screenText.includes(t))) why.push(`screenTextAbsent@${label}`);
+    }
     if (e.visibleViews !== undefined && JSON.stringify([...m.views.shown].sort()) !== JSON.stringify([...e.visibleViews].sort())) why.push(`visibleViews@${label}`);
     if (e.leftSwitchAbsent === true) {
       const s = m.select;

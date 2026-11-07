@@ -1,4 +1,4 @@
-// ページの入口。wasm を読み込んで Hello をマウントし、結果を html の data-mounted に残す。最上位のウィンドウでなければ何も読み込まず framed を残す。
+// ページの入口。wasm を読み込んで画面をマウントし、結果を html の data-mounted に残す。最上位のウィンドウでなければ何も読み込まず framed を残す。
 // ブラウザ試験はこの属性を待つ。試験用の meta がある設定でだけ test-hooks.js を読む。
 import init, { mount_app, import_history, history_read_limit, ir_read_limit } from "./wasm/fandhe_workshop_web.js";
 
