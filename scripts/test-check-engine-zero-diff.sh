@@ -13,7 +13,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${DIR}/lib.sh"
 
 reject_args "$(basename "$0")" "$@"
-for c in mktemp mkdir git rm grep sed ln dirname bash awk cmp head wc cat mv tr; do
+for c in mktemp mkdir git rm grep sed ln dirname bash awk cmp head wc cat mv tr chmod seq; do
   require_cmd "${c}"
 done
 
