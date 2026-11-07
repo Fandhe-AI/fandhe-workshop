@@ -12977,3 +12977,19 @@ WASM の gzip -9: #2065 の本文に基点 519646 bytes（`5014cac3`、`SKIP_WAS
   - `.sh-step pre`（`crates/web/static/app.css`）も同じ形の横スクロールだが、キーボードでの到達は確かめていない
   - 人の目・支援技術（スクリーンリーダー等）での確認は 0 件で、作成者と実装が同じ AI。フォーカスの見え方は観察だけ。スクロールする `pre` の名前（アクセシブルネーム）は付けていない
   - 実行した検証: L8 を含む `doc-body-limits` 18 件（手元）。ブラウザ試験の全体は手元で流しておらず、CI の `browser-test` に任せる（未実施）
+- 追記（2026-11-07。#2096）: `.sh-step pre`・表のキーボードでの到達と、スクロールする `pre` の AX の役割・名前は 5.480 で確かめた
+
+### 5.480 Step の本文の横にスクロールする `pre`・表へのキーボードでの到達と、スクロールする本文の領域の名前（#2096。5.479 の続き）
+
+- 目的: 5.479 で残した 2 件を確かめる。(1) Step の本文（右エリア。`.sh-step pre`・`.sh-step table` の `overflow-x: auto`）の横にスクロールする `pre`・表に、キーボードだけで届くか。(2) スクロールする領域（文書の本文の `pre`、Step の本文の `pre`・表）が AX ツリーでどう見えるか
+- 方法: `tools/browser/step-body.test.mjs` に S1・S2 を足した。最小教材の写し（一時ディレクトリ）の `st-1.md` に、600 文字の空白なしの英字・日本語の行のコードの囲みと 80 列の表（架空の内容）を書き、実物の `fandhe-pack compile` で IR にして配信する設定の写しで開く。フォーカスを外してから Tab を 70 回まで押し、本文の中の `PRE`・`TABLE` に初めて届いた回数を記録し、届いたまま `ArrowRight` で `scrollLeft` が増え、`ArrowLeft` で 0 に戻ることを確かめる。ページと `section.sh-step` が横にはみ出さないことと、`collectSafety` の全区分 0 件も確かめる。幅 1280px と 360px（「操作」のタブを選ぶ）。AX は CDP（`Accessibility.getPartialAXTree`）で読み、名前は本文を出さず、空か・長さだけを比べる。文書の本文は `doc-body-limits.test.mjs` の L9 で同じ読み方をする
+- 負の対照: 短い本文（`pre`・表がはみ出さない）では Tab で止まらない。配信物の写しの `app.css` から `.sh-step pre` の `overflow-x`、`.sh-step table` の `overflow-x` をそれぞれ外す（一致はちょうど 1 回）と、長い行でも止まらない。AX の対照は、固定の `aria-label`（`対照`）を付けると名前が読めること（付けた属性はその場で外す）
+- 結果（2026-11-07。Playwright 同梱の Chromium、channel `chromium`、`browser.version()` は 153.0.8010.12、headless）:
+  - 到達: 届いた。Tab の回数は幅 1280px で `PRE` が 13 回目・`TABLE` が 14 回目、360px で 1 回目と 2 回目（画面の順序が変わるため）。どちらも右矢印で `scrollLeft` が増え、左矢印で 0 に戻った。フォーカスの輪郭は `outline-style: auto`（観察だけ）。ページの横のはみ出しは 0、`pre`・表は `section` を越えない。CSS・DOM・Rust は変えていない（修正は要らなかった）
+  - AX: Step の本文の `pre` は役割 `generic` で、名前は付けていないのに中身の文字から計算される（長さ 1,202）。表は役割 `table` で名前が空。文書の本文の `pre` も役割 `generic` で名前は中身から計算される（長さ 1,212・601）。固定の `aria-label` を付けると名前は 2 文字の `対照` になる
+  - 名前は付けていない。付けるには spec で付け方（教材の文字列に頼らない方法）を決め、a11y 契約（`crates/web/src/a11y.rs`）の閉じた一覧と `A11Y_CONTRACT_VERSION` を更新する必要がある。`docs/known-gaps.md` に記録した
+- 件数の期待値（`scripts/expected-test-counts.txt`）: `browser|total` を 1890 → 1897 にした。`step-body` が 4 件から 10 件（S1 の到達 2・負の対照 3、S2 1）、`doc-body-limits` が 18 件から 19 件（L9）になったことの導出で、全体の実測ではない。PR の `counts browser` で確かめる。Rust の件数は変わらない
+- 限界:
+  - Chrome の原本（`FANDHE_BROWSER_CHANNEL=chrome`）と最小の版（`MIN_CHROME_MAJOR` = 152）では確かめていない（未実施）
+  - 人の目・支援技術での確認は 0 件で、作成者と実装が同じ AI。AX は Chromium の計算の観察で、読み上げの実際ではない。表は、空白なしの長いセルが `overflow-wrap: anywhere` で折れて広がらないと見込み（測っていない）、列の多い表にした
+  - 実行した検証: `step-body` 10 件・`doc-body-limits` 19 件（手元）。ブラウザ試験の全体は手元で流しておらず、CI の `browser-test` に任せる（未実施）
