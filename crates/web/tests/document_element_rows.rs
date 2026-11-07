@@ -154,3 +154,24 @@ fn app_css_に行の_span_のクラスがある() {
     assert!(APP_CSS.contains(".dr-state"));
     assert!(APP_CSS.contains(".dr-detail"));
 }
+
+#[test]
+fn app_css_の文書の節が行を折り返し_補足を列として残す() {
+    let start = APP_CSS
+        .find("左のビュー: 文書（document）")
+        .expect("開始の印");
+    let end = APP_CSS.find("ここまで document").expect("終了の印");
+    let section = &APP_CSS[start..end];
+    assert!(
+        section.contains("[data-view=\"document\"] > li[data-kind=\"item\"] { flex-wrap: wrap; }"),
+        "{section}"
+    );
+    assert!(
+        section.contains(".dr-title, .dr-state { max-width: 100%; overflow-wrap: anywhere; }"),
+        "{section}"
+    );
+    assert!(
+        section.contains(".dr-detail { flex: 1 1 8rem; min-width: 0; overflow-wrap: anywhere; }"),
+        "{section}"
+    );
+}

@@ -31,6 +31,7 @@
 # preview の URL を開いた 20 Step の通し・診断ありで配らない・文章を直した再実行の反映の試験（preview-command。AUTHOR-22。TASK-429 3/3。記録は docs/testing.md 5.428）を含む。
 # 試験用クエリ 7 種（persist・store・manual・tick・os・osmode・flood）を付けて開いても配信する設定の画面・取得資源・保存先・再読み込みの後が変わらない試験（query-inert。CSP あり・なし。SHELL-35。TASK-547 2/3。記録は docs/testing.md 5.405）と、配信物の部品を CH-0〜CH-3 の 20 Step の全時点で調べ check-delivery.sh と項目ごとに突き合わせる試験（delivery-ports。SHELL-35。TASK-547 3/3。記録は docs/testing.md 5.407）を含む。
 # 開発用の残り物（「Hello」の文字と受け付けた入力の数）が配信する設定の画面で見えないことの試験（dev-leftovers。SHELL-35。#2081。記録は docs/testing.md 5.475）も含む。
+# 左エリアの文書の行の語の途中の折り返しとカードの先頭の空の行が直っていることの試験（left-row-layout。#2087。記録は docs/testing.md 5.476）も含む。
 # 操作要素の `data-payload` の書き換えの試験（data-payload-tamper。実行 0・外部通信 0・形の合わない値は状態を変えない・タブが落ちない。値の読み込みは data-payload-cases。SAFE-6。TASK-148 1/2。IR を同梱した配信する設定の場面は #1937。記録は docs/testing.md 5.369・5.431）を含む。
 # IR の大きさの上限の境界の試験（ir-size-limit。配信する設定の画面で、上限ちょうどは読め、+1 バイトと 10 倍は理由つきで断り、取得の終わりから 1 秒未満・タブが落ちない。SAFE-17・SAFE-45。TASK-154。docs/testing.md 5.373）を含む。
 # 構造の合わない巨大な入力の拒否の試験（shape-mismatch。100 万・500 万要素の配列・巨大な文字列・連想配列を含む IR と履歴が malformed・missing_version で断られタブが落ちず、100,000 要素・文字の形の合うものは開く。SAFE-24。TASK-161。docs/testing.md 5.375）を含む。
@@ -309,6 +310,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/doc-view.test.mjs" \
   "${ROOT_DIR}/tools/browser/card-view.test.mjs" \
   "${ROOT_DIR}/tools/browser/left-row-spacing.test.mjs" \
+  "${ROOT_DIR}/tools/browser/left-row-layout.test.mjs" \
   "${ROOT_DIR}/tools/browser/card-row-mark.test.mjs" \
   "${ROOT_DIR}/tools/browser/check-view.test.mjs" \
   "${ROOT_DIR}/tools/browser/app-demo-view.test.mjs" \

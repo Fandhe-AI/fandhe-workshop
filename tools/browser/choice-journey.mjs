@@ -365,7 +365,7 @@ const readReview = (page) => page.evaluate(() => [...document.querySelectorAll('
  * 最後まで到達し、finals の節点が復習で達成になったときだけ真。
  */
 export async function runJourney({
-  browser, srv, ir, refIr = ir, sequence, expect, initial, titles, finals, clickTimeout = 4000, viewport = { width: 1280, height: 800 },
+  browser, srv, ir, refIr = ir, sequence, expect, initial, titles, finals, clickTimeout = 4000, viewport = { width: 1280, height: 800 }, probe = null,
 }) {
   const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport });
   const obs = domObserver(titles);
@@ -387,7 +387,13 @@ export async function runJourney({
       return false;
     };
     result.left = { start: null, ops: [], end: null };
-    const leftNow = async (i, kind) => ((await toTab('artifacts', i, kind)) ? measureLeft(page) : null);
+    // probe は左の領域を測った各時点で呼ぶ試験側の測定（省略時は何もしない。戻りは ops[i].probe・endProbe に入る。#2087）。
+    const leftNow = async (i, kind) => {
+      if (!(await toTab('artifacts', i, kind))) return null;
+      const m = await measureLeft(page);
+      if (probe) m.probe = await probe(page);
+      return m;
+    };
     const run = async () => {
       if (tabbed) {
         if (!(await toTab('artifacts', -1, 'start'))) return;
@@ -447,6 +453,7 @@ export async function runJourney({
       else result.stoppedAt ??= { index: sequence.length, kind: 'end', cause: 'no-tab', after: result.reached[result.reached.length - 1] };
     }
     result.left.end = await measureLeft(page);
+    if (probe) result.left.endProbe = await probe(page);
     result.review = await readReview(page);
     result.completed = result.stoppedAt === null
       && finals.every((u) => result.review.some((r) => r.step === u && r.achieved === 'true'));
