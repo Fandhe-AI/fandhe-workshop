@@ -10,7 +10,7 @@
 //!
 //! 受け持たない行（glue は何もしない）と担当:
 //! - `Newline`: textarea の既定動作で改行する。`preventDefault` しない（JUDGE-13。`tools/browser/enter-submit.test.mjs` が確かめる）
-//! - `DelegateToIme`: IME に任せる。自前の変換中の印は TASK-276
+//! - `DelegateToIme`: IME に任せる。自前の変換中の印は `EngineHost::key_field_state`（TASK-276）
 //! - `Pending(_)`: 版 2 の `decide` は返さない（修飾キー付き Enter は `Nothing`。TASK-281）。版 1 の表を読むために残る変種で、返ったら送信も `preventDefault` もしない
 //! - `CloseCandidates`・`CancelInput`: `effect_for` では何もしない。Esc の行き先は `esc_route` が求める（候補を閉じる・取り消しの入力。TASK-277 2/2）
 //! - `Stop`: `effect_for` では何もしない。root の中の Esc は上流の `esc` 属性で Component に届くため、glue で重ねて
@@ -72,7 +72,7 @@ impl KeydownEffect {
 /// 判定表へ渡す入力欄の状態。`has_text` は App の下書きから取る（DOM の値は読まない）。
 ///
 /// 他の値は、対応する状態がまだ存在しないため偽にする。状態が加わるタスクが、この関数の 1 か所を差し替える。
-/// - `composing_marker`: 自前の変換中の印は TASK-276 の担当。印が無くても、`isComposing`・keyCode 229・
+/// - `composing_marker`: 自前の変換中の印は呼び出し元が `FieldState` の更新構文か `EngineHost::key_field_state` で入れる（TASK-276）。印が無くても、`isComposing`・keyCode 229・
 ///   `Process` のいずれかで判定表が変換中と見なすため、変換中の Enter は送信されない
 /// - `busy`: Esc の経路ではホストが Session から取って差し替える（TASK-436 2/2）。glue の Enter・Tab の経路では偽のままでよい
 ///   （処理中の送信は core が EVT-7 の busy で拒否する）

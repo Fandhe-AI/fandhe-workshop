@@ -48,6 +48,7 @@
 use core::fmt;
 use std::collections::BTreeMap;
 
+use crate::key_route::field_state;
 use crate::shell_notice::RefusedNotice;
 #[cfg(feature = "test-hooks")]
 use fandhe_frontend_core::text;
@@ -64,6 +65,7 @@ use fandhe_workshop_contract::history_version::{
 };
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::Judgment;
+use fandhe_workshop_contract::key_decide::FieldState;
 use fandhe_workshop_contract::load_reason::{HistoryLoadStage, LoadReason};
 use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey, StorageError};
 use fandhe_workshop_core::addr::StepUid;
@@ -623,6 +625,13 @@ pub type SaveFailureProbe = Box<dyn Fn() -> Option<StorageError>>;
 /// `Runtime` にも `App` にも触れてはならない（再入になる）。
 pub type StaleProbe = Box<dyn Fn() -> bool>;
 
+/// 自前の変換中の印（compositionstart〜compositionend）を読む口（JUDGE-14・JUDGE-16。TASK-276）。読み取り専用。
+///
+/// 実体は glue の `is_composing` で、Enter の判定（glue）と Esc の判定（`HostAction::Input(HelloAction::Esc)`）が
+/// `key_field_state` 経由で同じ印を使う。Esc は上流が Component の action として届けるため、glue が介在できない。
+/// `Runtime` にも `App` にも触れてはならない（再入になる）。
+pub type ComposingProbe = Box<dyn Fn() -> bool>;
+
 /// 書き出しのバイト列からダウンロード用の URL を作る口（TASK-531 1/2）。未設定・作れないときは `None`（リンクを出さない）。
 ///
 /// ホストは native でも試験するため `web_sys` に触れず、wasm 側（`glue`）が `history_download::object_url` を包んで結ぶ。
@@ -785,6 +794,7 @@ pub struct EngineHost {
     save_failure_probe: Option<SaveFailureProbe>,
     /// 古いタブかを読む口（SAVE-13）。未設定なら通知は出ない。
     stale_probe: Option<StaleProbe>,
+    composing_probe: Option<ComposingProbe>,
     /// 直近の同期の保存（saver）の失敗。表示は「これ、無ければ probe の値」で決める。
     sync_save_failure: Option<StorageError>,
     /// 即時の保存の世代。遅延保存の結果は、書き込んだ時点の世代が今と一致するときだけ反映する。
@@ -908,6 +918,7 @@ impl EngineHost {
             secret_acknowledged: Vec::new(),
             save_failure_probe: None,
             stale_probe: None,
+            composing_probe: None,
             sync_save_failure: None,
             save_epoch: 0,
             save_due: false,
@@ -1066,6 +1077,7 @@ impl EngineHost {
             secret_acknowledged: Vec::new(),
             save_failure_probe: None,
             stale_probe: None,
+            composing_probe: None,
             sync_save_failure: None,
             save_epoch: 0,
             save_due: false,
@@ -1501,6 +1513,27 @@ impl EngineHost {
             if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
                 self.dirty.push(SHELL_NOTICES_FIELD.name);
             }
+        }
+    }
+
+    /// 自前の変換中の印を読む口を結ぶ。`glue::mount_host` が mount の前に 1 回だけ呼ぶ（TASK-276）。
+    pub fn set_composing_probe(&mut self, f: ComposingProbe) {
+        self.composing_probe = Some(f);
+    }
+
+    /// 自前の変換中の印。口が無ければ偽（native の試験・未結線）。
+    ///
+    /// 印が立つと Enter・Esc は IME に任せる側（送信しない・停止しない）へ倒れる。印が下りる経路は compositionend だけで、
+    /// 口の実体は借用に失敗しても立つ側（真）を返すが、借用は印の更新の中で閉じるため実際には通らない。
+    fn composing_marker(&self) -> bool {
+        self.composing_probe.as_ref().is_some_and(|probe| probe())
+    }
+
+    /// keydown の判定表へ渡す入力欄の状態（glue の Enter・Tab の経路が使う）。印は読み取り口から引く（JUDGE-14）。
+    pub fn key_field_state(&self) -> FieldState {
+        FieldState {
+            composing_marker: self.composing_marker(),
+            ..field_state(!self.draft().is_empty(), self.candidates_open())
         }
     }
 
@@ -2933,7 +2966,8 @@ impl Component for EngineHost {
             HostAction::Input(HelloAction::Submit) => self.submit(),
             HostAction::Input(HelloAction::Esc) => {
                 let busy = self.is_busy();
-                let route = self.input.esc(busy);
+                let composing = self.composing_marker();
+                let route = self.input.esc(busy, composing);
                 // 処理中の停止と、処理中でなく候補が閉じているときの取り消しの入力（TASK-441 2/2。TERM-8）を
                 // Session へ適用する。候補を閉じるだけの Esc は op を持たず、ログを増やさない。取り消しの規則が
                 // 無い Step の拒否は core が記録する。許可する op を明示し、将来の行き先が黙って流れないようにする。

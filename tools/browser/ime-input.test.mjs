@@ -7,8 +7,8 @@
 // 証拠の種類はシミュレーター（CDP の模擬）で、実 IME でも人の評価でもない（実 IME は TASK-93 / BUILD-18）。
 // 合成が起きていなかったための空振りの 0 件でないことは、ime.test.mjs とここの対照（I-8）で示す。
 //
-// 範囲: 試験文は kind ごとに 1 文の代表 5 文（S-01・S-11・S-16・S-21・S-29）。30 文の全行列と変換中の Esc
-// （cancel の 3 文・K-12・K-13）は TASK-276（#945・#946）の担当。Enter・Shift+Enter・Tab・貼り付けの非 IME の場面は
+// 範囲: 試験文は kind ごとに 1 文の代表 5 文（S-01・S-11・S-16・S-21・S-29）。変換中の Esc は最小の場面
+// （I-10〜I-13。TASK-276 1/3・#945）だけを持ち、30 文の全行列と停止 0 件の集計は #946 の担当。Enter・Shift+Enter・Tab・貼り付けの非 IME の場面は
 // enter-submit・tab-complete・paste の各試験が確かめ済みのため、ここでは IME と組み合わさる場面だけを持つ。
 // 変換中の文字列が確定前に状態へ入らないこと（PoC-2 F-3）は、現行の挙動を固定する根拠が無いため assert しない。
 //
@@ -25,7 +25,7 @@ import {
 } from './harness.mjs';
 import {
   SIM_LABEL, loadSentences, openIme, assertFocused, imeCompose, imeCommit, imeCancel,
-  imeEnterKey, imeTabKey, composeSentence, installKeyProbe, readKeyProbe, clearKeyProbe,
+  imeEnterKey, imeTabKey, imeEscKey, composeSentence, installKeyProbe, readKeyProbe, clearKeyProbe,
 } from './ime.mjs';
 
 const BASE = '/fandhe-ime-input/';
@@ -298,3 +298,104 @@ for (const draft of ['', '先にある下書き']) {
     });
   });
 }
+
+// 処理中にする（進行は実タイマー。入力欄の送信は使わず、見えない raw-trigger で届ける）。
+async function makeBusy(page) {
+  await page.evaluate(([sel, json]) => {
+    const el = document.querySelector(sel);
+    el.setAttribute('data-payload', json);
+    el.click();
+  }, [RAW, JSON.stringify({ input: { command: '/make-note first-note' } })]);
+  await page.focus(INPUT);
+}
+
+// 変換中の Esc（keyCode 229・isComposing=true）は IME に任せ、エンジンに届けない（JUDGE-16。TASK-276 1/3）。
+test('I-10 処理中の変換中の Esc は世代・停止・進行を変えず、IME に任せる（JUDGE-16）', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
+    const { page, context, cdp, rec } = await open(srv);
+    const receivedBefore = (await page.$$(RECEIVED)).length;
+    await makeBusy(page);
+    await imeCompose(cdp, 'へんかん');
+    const e0 = (await engine(page)).engine;
+    assert.equal(e0.runStatus, 'busy', SIM_LABEL);
+    await clearKeyProbe(page);
+    await imeEscKey(cdp);
+    await settle(page);
+    const kd = await keydowns(page);
+    assert.equal(kd.length, 1, SIM_LABEL);
+    assert.equal(kd[0].isComposing, true, SIM_LABEL);
+    assert.equal(kd[0].defaultPrevented, false, `IME に任せる ${SIM_LABEL}`);
+    const e1 = (await engine(page)).engine;
+    assert.equal(e1.generation, e0.generation, `世代 ${SIM_LABEL}`);
+    assert.notEqual(e1.runStatus, 'stopped', SIM_LABEL);
+    assert.equal(e1.ignoredReasons.length, e0.ignoredReasons.length, SIM_LABEL);
+    assert.equal(await page.inputValue(INPUT), 'へんかん', `変換中の文字 ${SIM_LABEL}`);
+    // 処理は止められず最後まで進む。
+    await page.waitForFunction(() => window.__fandheTest.nextTick() === 'null', null, { timeout: 15000 });
+    const e2 = (await engine(page)).engine;
+    assert.equal(e2.generation, e0.generation, SIM_LABEL);
+    assert.notEqual(e2.runStatus, 'stopped', SIM_LABEL);
+    // 確定して通常の Enter で送信できる。
+    await imeCommit(cdp, '変換');
+    await waitValue(page, '変換');
+    await page.waitForFunction((v) => window.__fandheTest.draft() === v, '変換');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(([sel, n]) => document.querySelectorAll(sel).length === n, [RECEIVED, receivedBefore + 2]);
+    assertClean(rec);
+    await context.close();
+  });
+});
+
+test('I-11 対照 変換していない Esc は処理中を停止し、世代が 1 進む（I-10 の 0 件が空振りでないこと）', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
+    const { page, context, rec } = await open(srv);
+    await makeBusy(page);
+    const e0 = (await engine(page)).engine;
+    assert.equal(e0.runStatus, 'busy');
+    await page.keyboard.press('Escape');
+    await settle(page);
+    const e1 = (await engine(page)).engine;
+    assert.equal(e1.generation, e0.generation + 1);
+    assert.equal(e1.runStatus, 'stopped');
+    assertClean(rec);
+    await context.close();
+  });
+});
+
+test('I-12 変換を取り消すと印が下り、次の通常の Enter で 1 件送信される（送信漏れ 0 件）', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
+    const { page, context, cdp, rec } = await open(srv);
+    await page.fill(INPUT, '先にある下書き');
+    await page.focus(INPUT);
+    await settle(page);
+    await imeCompose(cdp, 'へ');
+    await clearKeyProbe(page);
+    await imeCancel(cdp);
+    await settle(page);
+    const ended = (await readKeyProbe(page)).filter((r) => r.type === 'compositionend');
+    assert.equal(ended.length, 1, `取り消しで compositionend が 1 回出る ${SIM_LABEL}`);
+    await page.keyboard.press('Enter');
+    await page.waitForFunction((sel) => document.querySelectorAll(sel).length === 1, ITEMS);
+    assert.deepEqual(await itemTexts(page), ['先にある下書き'], `送信漏れ ${SIM_LABEL}`);
+    assertClean(rec);
+    await context.close();
+  });
+});
+
+test('I-13 待機中の変換中の Esc は取り消しの拒否を足さず、下書きも変えない', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
+    const { page, context, cdp, rec } = await open(srv);
+    await page.fill(INPUT, '先にある下書き');
+    await page.focus(INPUT);
+    await settle(page);
+    await imeCompose(cdp, 'へ');
+    const logLen0 = (await engine(page)).engine.logLen;
+    await imeEscKey(cdp);
+    await settle(page);
+    assert.equal((await engine(page)).engine.logLen, logLen0, `ログ ${SIM_LABEL}`);
+    assert.equal(await draftOf(page), '先にある下書き', SIM_LABEL);
+    await imeCancel(cdp);
+    assertClean(rec);
+    await context.close();
+  });
+});
