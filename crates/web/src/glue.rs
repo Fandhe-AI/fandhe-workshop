@@ -322,6 +322,12 @@ pub(crate) fn esc_count() -> Option<u32> {
     with_app(|app| app.esc_count())
 }
 
+/// 上流からの下書きの配送の回数。未マウント・借用中は `None`。読み取りだけ（FEND-10 の試験用）。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn draft_set_count() -> Option<u32> {
+    with_app(|app| app.draft_set_count())
+}
+
 /// 起動の種類だけ（`EngineHost::boot_kind_str`）。未マウント・借用中は `None`。
 #[cfg(feature = "test-hooks")]
 pub(crate) fn boot_kind() -> Option<String> {
