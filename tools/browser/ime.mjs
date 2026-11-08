@@ -4,7 +4,7 @@
 // （Input.imeSetComposition・Input.insertText・Input.dispatchKeyEvent）で作る。変換中の Enter・Tab・Esc が
 // isComposing=true・keyCode=229 で届くことは、PoC-2 の観察（logs/cdp-ime-probe.txt）に合わせている。
 // これはシミュレーターであり、実 IME でも人の評価でもない。実 IME の確認は TASK-93 / BUILD-18 の担当で、ここでは扱わない。
-// 呼び出し元: ime.test.mjs（ヘルパの自己確認）・ime-input.test.mjs（入力欄と IME の層 3）。後続の TASK-276 の試験文 30 文の行列も使う。
+// 呼び出し元: ime.test.mjs（ヘルパの自己確認）・ime-input.test.mjs（入力欄と IME の層 3）。ime-sentences.test.mjs（TASK-276 2/3。試験文 30 文の行列と集計）。
 // CDP は Chromium 系でしか使えない（FANDHE_BROWSER_CHANNEL=chrome でも可。Firefox・WebKit は対象外）。
 // 引数は page・CDP セッションと文字列だけで、page.evaluate へ文字列からコードを組み立てない。
 import fs from 'node:fs';
