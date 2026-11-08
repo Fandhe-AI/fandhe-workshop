@@ -1,0 +1,10 @@
+id: JUDGE16-2
+package: fandhe-workshop-web
+test: composing_marker_host
+target: crates/web/src/host.rs
+find:                 let composing = self.composing_marker();
+replace:                 let composing = false;
+expect-fail: c1_印が立つと処理中の_esc_でも世代とログが変わらない
+expect-fail: c3_印が立つと待機中の_esc_は取り消しの拒否を足さない
+expect-fail: c4_印が立つと待機中の_esc_は候補を閉じない
+note: Esc の経路に自前の印を渡さない（印だけが立つ変換中の Esc が、処理中は停止、待機中は取り消し・候補の閉じるになる。PoC-2 の M3 の web 側）

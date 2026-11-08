@@ -1,0 +1,9 @@
+id: JUDGE14-3
+package: fandhe-workshop-web
+test: composing_marker_host
+target: crates/web/src/host.rs
+find:             composing_marker: self.composing_marker(),
+replace:             composing_marker: false,
+expect-fail: c5_key_field_state_は口の値と下書きに従う
+expect-fail: c6_c7_印が立つ_enter_は送信せず_立たなければ送信する
+note: Enter の経路の判定表に自前の印を渡さない（印だけが立つ変換中に、下書きあり・複数行の Enter が送信になる。PoC-2 の M1 の web 側）

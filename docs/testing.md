@@ -13168,3 +13168,55 @@ product-redraw-shaped（描画部品の実際の形の行。`artifact-redraw-sha
 - 証拠の種類: シミュレーターであり、実 IME でも人の評価でもない。実 IME の確認（TASK-93／BUILD-18）は未実施である
 - 範囲外: 変異 M1・M3 の注入と検出、完了報告での区別の記録は #947
 - 試験の件数の期待値: `scripts/expected-test-counts.txt` は版上げ PR でだけ照合するため更新していない
+
+### 5.486 変換中の判定の変異注入（M1・M3）の検出と、実 IME が未実施であることの区別（TASK-276 3/3。JUDGE-14・JUDGE-16。#947）
+
+変換中の判定を外す変異（PoC-2 の M1＝Enter の除外を外す、M3＝Esc の除外を外す）を入れ、試験が検出することを確かめた（2026-11-08）。native は定義ファイルで、ブラウザは作業ツリーの写しで確かめた。1.3 の表の行は足していない（M1・M3 の主は契約の `JUDGE14-2`・`JUDGE16-1` のまま）。本件で足したのは、自前の印を web のホストの結線で外す変異である。
+
+- 対応: M1 の契約側は `JUDGE14-2`、web 側は `JUDGE14-3`（`EngineHost::key_field_state` が印を判定表へ渡さない）。M3 の契約側は `JUDGE16-1`、web 側は `JUDGE16-2`（`EngineHost` の Esc の経路）と `JUDGE16-3`（`HelloView::esc`）。印だけを外す `JUDGE14-1` も確かめ直した
+- 定義の追加（`crates/web/tests/mutations/`）: `JUDGE14-3`・`JUDGE16-2`・`JUDGE16-3`。対象の試験は `composing_marker_host`（5.484）。`expect-fail` は元の状態で `ok` と出る名前を使った
+
+#### native の検出（`scripts/check-mutations.sh`）
+
+全件を一括した `make check-mutations` は `MOD9-*` の既知の件で終了コード 2 になるおそれがあるため流さず、定義ファイルを明示した。終了コードは 0（6 件とも DETECTED）。出力は次のとおりである。
+
+実行日: 2026-11-08
+元にしたコミット: 50a60796-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/JUDGE14-3.mutation crates/web/tests/mutations/JUDGE16-2.mutation crates/web/tests/mutations/JUDGE16-3.mutation crates/contract/tests/mutations/JUDGE14-1.mutation crates/contract/tests/mutations/JUDGE14-2.mutation crates/contract/tests/mutations/JUDGE16-1.mutation
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| JUDGE14-3 | crates/web/src/host.rs: Enter の経路の判定表に自前の印を渡さない（印だけが立つ変換中に、下書きあり・複数行の Enter が送信になる。PoC-2 の M1 の web 側） | c5_key_field_state_は口の値と下書きに従う, c6_c7_印が立つ_enter_は送信せず_立たなければ送信する | c5_key_field_state_は口の値と下書きに従う, c6_c7_印が立つ_enter_は送信せず_立たなければ送信する | DETECTED | - |
+| JUDGE16-2 | crates/web/src/host.rs: Esc の経路に自前の印を渡さない（印だけが立つ変換中の Esc が、処理中は停止、待機中は取り消し・候補の閉じるになる。PoC-2 の M3 の web 側） | c1_印が立つと処理中の_esc_でも世代とログが変わらない, c3_印が立つと待機中の_esc_は取り消しの拒否を足さない, c4_印が立つと待機中の_esc_は候補を閉じない | c4_印が立つと待機中の_esc_は候補を閉じない, c3_印が立つと待機中の_esc_は取り消しの拒否を足さない, c1_印が立つと処理中の_esc_でも世代とログが変わらない | DETECTED | - |
+| JUDGE16-3 | crates/web/src/hello.rs: HelloView の esc が受けた印を判定表に渡さない（Esc の経路の web 側の第 2 の結線） | c1_印が立つと処理中の_esc_でも世代とログが変わらない, c3_印が立つと待機中の_esc_は取り消しの拒否を足さない, c4_印が立つと待機中の_esc_は候補を閉じない | c4_印が立つと待機中の_esc_は候補を閉じない, c1_印が立つと処理中の_esc_でも世代とログが変わらない, c3_印が立つと待機中の_esc_は取り消しの拒否を足さない | DETECTED | - |
+| JUDGE14-1 | crates/contract/src/key_decide.rs: 変換中の判定から自前の印を外す（印だけが立つ変換中に Enter が送信になる） | judge14_any_single_signal_means_composing, expected_table_matches | judge14_any_single_signal_means_composing, expected_table_matches | DETECTED | - |
+| JUDGE14-2 | crates/contract/src/key_decide.rs: 変換中の除外から Enter を外す（PoC-2 の M1 相当。変換の確定の Enter が送信になる） | judge14_any_single_signal_means_composing, expected_table_matches | judge14_any_single_signal_means_composing, expected_table_matches | DETECTED | - |
+| JUDGE16-1 | crates/contract/src/key_decide.rs: 変換中の除外から Escape を外す（PoC-2 の M3 相当。変換の取り消しの Esc がエンジンへ届く） | judge16_composing_esc_never_reaches_engine, expected_table_matches | judge16_composing_esc_never_reaches_engine, expected_table_matches | DETECTED | - |
+
+#### ブラウザでの検出（定義ファイルを置かない手当て。5.342 の M2 と同じ方式）
+
+`check-mutations.sh` は `cargo test` の試験だけを流すため、ブラウザ試験の変異は定義ファイルにしない。一時ディレクトリに作業ツリーの写し（`Cargo.toml`・`Cargo.lock`・`rust-toolchain.toml`・`crates/`・`testdata/`・`tools/build-web.sh`・`scripts/lib.sh`）を作り、1 か所だけ文字どおりに置換して、配信する設定と試験の設定（`TEST_HOOKS=1`）を `SKIP_WASM_OPT=1 tools/build-web.sh` でビルドし、`tools/browser/ime-sentences.test.mjs` を流した。作業ツリーは書き換えていない。元にしたコミットは `50a60796`。Chromium。
+
+| 変異 | 置換した箇所 | 結果 |
+|---|---|---|
+| 元の状態 | なし | 22 件合格・失敗 0 件（集計は組 198 件・誤送信 0・送信漏れ 0・変換中の Esc での停止 0） |
+| B-M1（M1） | `crates/contract/src/key_decide.rs` の `JUDGE14-2` の置換（変換中の除外から `"Enter"` を外す） | 検出。22 件中 15 件合格・7 件失敗。S-A の 6 件（下書きなし・1 行・複数行 × CSP あり・なし）と集計が失敗し、S-B・S-C・C-1〜C-3 は合格 |
+| B-M3（M3） | 同じ箇所の `JUDGE16-1` の置換（`"Escape"` を外す） | 生き残り（SURVIVED）。22 件全件合格 |
+
+- B-M1 の失敗の理由: 6 件とも最初の文 S-01 の変換中の Enter で、`assertComposingKeydown` の `defaultPrevented === false` の表明が `true !== false` で落ちた（変換中の Enter をエンジンが送信として扱い、既定動作を止めたため）。「誤送信 0 件」の表明（`misSendCount`）より前に落ちるため、失敗の文言は誤送信の件数ではなく S-01 の位置である。下書きなしでも S-01 で落ちる点は、予測（下書きなしは単文を通り、複数行で初めて落ちる）と違った。試験は変えていない
+- B-M3 が生き残る理由: 上流の `fandhe-frontend-wasm-full` 0.46.0 の `src/events.rs` で、`action_from_keydown` が `is_composing_keydown`（`isComposing` または keyCode 229）の keydown を先に除外する（737 行・812 行）。CDP の模擬の変換中の Esc は `isComposing=true`・keyCode 229 のため `HelloView::esc` に届かず、契約の除外を外しても観察できない。Esc の除外の検出先は native（`JUDGE16-1`・`JUDGE16-2`・`JUDGE16-3`）である。上流の除外を外した場合のブラウザでの検出力は、上流の crate が repo の外にあり写しで変えられないため示していない
+- 受け入れ条件との対応: 変換中の判定を外す M1 を、ブラウザの下書きあり（1 行）・複数行の S-A が検出した。native では `JUDGE14-2`・`JUDGE14-3` が検出した
+- 印だけを外す変異（`JUDGE14-1`・`JUDGE14-3`）のブラウザでの検出は、確かめていない。CDP の keydown には `isComposing`・keyCode 229 も立つため、印を外しても他の信号が残る（1 つの条件に頼らない設計どおり）と見込むが、実測していない
+
+#### 証拠の種類と未実施の区別
+
+- 上の結果は CDP による IME の模擬（シミュレーター）の結果である。実 IME でも人の評価でもない（D-28 の代わりの確認）
+- 未実施: 実 IME（macOS の日本語入力、Chrome）での確認（TASK-93／BUILD-18）。Firefox・Safari での確認。人の確認。いずれも行っていない
+- 作成者と実装者が同じ AI である。変異の結果は上の実行の記録であり、実 IME の挙動の保証ではない
+
+#### 範囲外
+
+- ブラウザの変異（B-M1・B-M3）を再現するスクリプトと Make のターゲット
+- 変異注入の CI への組み込み（TASK-33）
+- blur で印を下ろす処理（5.484 から引き継ぐ）
+- 試験の件数の期待値: `scripts/expected-test-counts.txt` は版上げ PR でだけ照合するため更新していない（試験は変えていない）
