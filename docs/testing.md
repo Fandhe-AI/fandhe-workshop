@@ -13061,7 +13061,7 @@ product-redraw-shaped（描画部品の実際の形の行。`artifact-redraw-sha
 ### 5.483 基準端末 A の Chrome の原本での、2 周分の通しと本体の画面の再描画の測り直し（#1846。5.319・5.481 の続き）
 
 - 目的: #1846（TASK-232・TASK-485）の人の作業として、5.319 の「基準端末 A は未実施」と、5.481 の「1 回だけ」を補う。2 周分の通し（`log-rounds`）と 1 グループの傾き（`log-slope`）を基準端末 A の Chrome の原本で初めて測り、本体の画面の再描画（`product-redraw`・`product-redraw-shaped`）を回数を増やして測り直した。測定は人の依頼を受けて基準端末 A の AI（Claude Code）が流し、本記録は別の AI が受け取った値から書いた。再描画の改善・判定の変更・CPU 4 倍の測定は範囲外
-- 方式: 次の 5 本をこの順に 1 回ずつ流した（`make` は経由しない。出力は repo の外に書いた）。道具・固定データ・行数・操作・10 試行 × 20 操作・p95 と閾値 16,000 us は 5.319・5.471・5.472・5.481 と同じ道具の既定で、条件を変えていない。測る前・後とも `git status --short` は空で、終了コードは 5 本とも 0。測り直しはしていない
+- 方式: 次の 5 本をこの順に 1 回ずつ流した（`make` は経由しない。出力は repo の外に書いた）。道具・固定データ・行数・操作・試行の数・p95 と閾値 16,000 us は 5.319・5.471・5.472・5.481 と同じ道具の既定で、条件を変えていない。試行の数は、`log-rounds` が段階ごとに 5 試行 × 40 操作（`tools/measure/browser.mjs` の `ROUNDS_TRIALS`・`ROUNDS_SAMPLES`。5.319 と同じ）、`log-slope`・`product-redraw`・`product-redraw-shaped` が 10 試行 × 20 操作である。測る前・後とも `git status --short` は空で、終了コードは 5 本とも 0。測り直しはしていない
   1. `FANDHE_BROWSER_CHANNEL=chrome tools/measure/log-rounds.sh`
   2. `FANDHE_BROWSER_CHANNEL=chrome tools/measure/log-slope.sh`
   3. `FANDHE_BROWSER_CHANNEL=chrome tools/measure/product-redraw.sh`（2 回目。1 回目は 5.481）
