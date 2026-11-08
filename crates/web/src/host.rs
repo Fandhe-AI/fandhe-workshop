@@ -841,6 +841,9 @@ pub struct EngineHost {
     /// 補完の action を受け取った回数（試験用の口が読む）。
     #[cfg(feature = "test-hooks")]
     complete_count: u32,
+    /// 上流から届いた下書きの配送（`SetDraft`）の回数（試験用）。変換中の延期と確定値が 1 回だけ届くことを数える（FEND-10）。
+    #[cfg(feature = "test-hooks")]
+    draft_set_count: u32,
 }
 
 impl fmt::Debug for EngineHost {
@@ -940,6 +943,8 @@ impl EngineHost {
             probe: ImportProbe::default(),
             #[cfg(feature = "test-hooks")]
             complete_count: 0,
+            #[cfg(feature = "test-hooks")]
+            draft_set_count: 0,
         }
     }
 
@@ -1099,6 +1104,8 @@ impl EngineHost {
             probe: ImportProbe::default(),
             #[cfg(feature = "test-hooks")]
             complete_count: 0,
+            #[cfg(feature = "test-hooks")]
+            draft_set_count: 0,
         })
     }
 
@@ -2389,6 +2396,12 @@ impl EngineHost {
         self.input.esc_count()
     }
 
+    /// 上流からの下書きの配送の回数（試験用の口が読む）。復元の経路（`input.update` の直接呼び出し）は数えない。
+    #[cfg(feature = "test-hooks")]
+    pub(crate) fn draft_set_count(&self) -> u32 {
+        self.draft_set_count
+    }
+
     /// 補完の action を受け取った回数（試験用の口が読む）。
     #[cfg(feature = "test-hooks")]
     pub(crate) fn complete_count(&self) -> u32 {
@@ -2983,6 +2996,10 @@ impl Component for EngineHost {
                 }
             }
             HostAction::Input(a) => {
+                #[cfg(feature = "test-hooks")]
+                if matches!(a, HelloAction::SetDraft(_)) {
+                    self.draft_set_count = self.draft_set_count.saturating_add(1);
+                }
                 let before = self.input.draft().to_owned();
                 self.input.update(a);
                 // 打鍵が選択のタイマーより先に届いたら、予約は取り下げる（打った文字を消す全選択をさせない）。

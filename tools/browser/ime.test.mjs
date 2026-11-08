@@ -9,6 +9,7 @@ import { launchBrowser, channelFromEnv } from './harness.mjs';
 import {
   SIM_LABEL, loadSentences, openIme, assertFocused, imeCompose, imeCommit, imeCancel, imeEnterKey,
   installKeyProbe, readKeyProbe, clearKeyProbe,
+  installValueWriteProbe, readValueWriteProbe, clearValueWriteProbe,
 } from './ime.mjs';
 
 const T = '#t';
@@ -87,4 +88,32 @@ test('loadSentences は 30 文を返し、kind の内訳が仕様どおりであ
   const by = {};
   for (const r of rows) by[r.kind] = (by[r.kind] ?? 0) + 1;
   assert.deepEqual(by, { kanji: 10, mixed: 5, symbol: 5, candidate: 5, cancel: 3, multi: 2 });
+});
+
+test(`書き込みの器は変換中の value の書き込みを composing に、変換していないときを idle に数える（${SIM_LABEL}）`, async () => {
+  const context = await browser.newContext();
+  await installValueWriteProbe(context, T);
+  const page = await context.newPage();
+  await page.goto('data:text/html,<textarea id=t></textarea>');
+  await page.focus(T);
+  const cdp = await openIme(page);
+  assert.deepEqual(await readValueWriteProbe(page), { composing: 0, idle: 0 }, SIM_LABEL);
+  await page.evaluate(() => { document.querySelector('#t').value = 'x'; });
+  assert.deepEqual(await readValueWriteProbe(page), { composing: 0, idle: 1 }, SIM_LABEL);
+  await clearValueWriteProbe(page);
+  await imeCompose(cdp, 'へん');
+  await page.evaluate(() => { document.querySelector('#t').value = 'y'; });
+  assert.deepEqual(await readValueWriteProbe(page), { composing: 1, idle: 0 }, SIM_LABEL);
+  await imeCancel(cdp);
+  await context.close();
+});
+
+test(`書き込みの器は対象の selector に合わない要素の書き込みを数えない（${SIM_LABEL}）`, async () => {
+  const context = await browser.newContext();
+  await installValueWriteProbe(context, T);
+  const page = await context.newPage();
+  await page.goto('data:text/html,<textarea id=t></textarea><textarea id=u></textarea>');
+  await page.evaluate(() => { document.querySelector('#u').value = 'z'; });
+  assert.deepEqual(await readValueWriteProbe(page), { composing: 0, idle: 0 }, SIM_LABEL);
+  await context.close();
 });

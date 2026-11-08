@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_view_fixture_mount, debug_view_fixture_dispatch, debug_view_fixture_state, debug_save_stage, debug_save_install_pagehide, debug_save_flush, debug_save_stale, debug_export_prepare, debug_export_prepare_loadable, debug_export_prepare_live, debug_loadable_history_text, debug_export_revoke, debug_last_import_state_json, debug_autosave_state, debug_history_save_len, debug_large_history_text, debug_secret_gate_len, debug_ops_history_text, debug_boot_kind, debug_receptor_activation } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_draft_set_count, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_view_fixture_mount, debug_view_fixture_dispatch, debug_view_fixture_state, debug_save_stage, debug_save_install_pagehide, debug_save_flush, debug_save_stale, debug_export_prepare, debug_export_prepare_loadable, debug_export_prepare_live, debug_loadable_history_text, debug_export_revoke, debug_last_import_state_json, debug_autosave_state, debug_history_save_len, debug_large_history_text, debug_secret_gate_len, debug_ops_history_text, debug_boot_kind, debug_receptor_activation } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -13,6 +13,11 @@ export function rerender() {
 // 状態側の下書き本文。欄の value との一致を確かめるために使う。
 export function draft() {
   return debug_draft();
+}
+
+// 上流からの下書きの配送の回数（TASK-355 1/2）。数字の JSON。未マウントは null。
+export function draftSetCount() {
+  return JSON.parse(debug_draft_set_count());
 }
 
 // 入れ子の深さの検査（TASK-157）。固定形の JSON 文字列（ok / reason）を返す。

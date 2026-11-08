@@ -10,7 +10,7 @@
 // 範囲: 試験文は kind ごとに 1 文の代表 5 文（S-01・S-11・S-16・S-21・S-29）。変換中の Esc は最小の場面
 // （I-10〜I-13。TASK-276 1/3・#945）だけを持ち、30 文の全行列と停止 0 件の集計は ime-sentences.test.mjs（TASK-276 2/3）。Enter・Shift+Enter・Tab・貼り付けの非 IME の場面は
 // enter-submit・tab-complete・paste の各試験が確かめ済みのため、ここでは IME と組み合わさる場面だけを持つ。
-// 変換中の文字列が確定前に状態へ入らないこと（PoC-2 F-3）は、現行の挙動を固定する根拠が無いため assert しない。
+// 変換中の文字列が確定前に状態へ入らないこと（PoC-2 F-3。FEND-10）は、ime-defer.test.mjs（TASK-355 1/2）が確かめる。
 //
 // 待ち: 確定の後の欄の書き戻しは compositionend → set_timeout(0) → sync_draft の遅延を通る。固定の sleep は使わず、
 // 予約済みのタイマーの後ろに自分のタイマーを積んで（settle）順序で待つか、値の収束を waitForFunction で待つ。

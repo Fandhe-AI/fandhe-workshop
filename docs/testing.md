@@ -5142,7 +5142,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 574`（2026-10-30 に TASK-546 の `mount_app` の引数 `ir_not_found`（取得の 404 の旗。SHELL-32）で 573 から上げた。その前は 2026-10-29 に TASK-191 2/2 の試験用の口 `receptor_activation_probe`（受け口の有効・無効の読み取り。`test-hooks` のときだけ）で 567 から上げた。その前は 2026-10-29 に TASK-156 の試験用の口 `boot_kind`（起動の種類だけの読み取り。`test-hooks` のときだけ）で 563 から上げた。その前は 2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 577`（2026-11-08 に TASK-355 1/2 の試験用の口 `draft_set_count`（下書きの配送の回数の読み取り。`test-hooks` のときだけ）で 574 から上げた。その前は 2026-10-30 に TASK-546 の `mount_app` の引数 `ir_not_found`（取得の 404 の旗。SHELL-32）で 573 から上げた。その前は 2026-10-29 に TASK-191 2/2 の試験用の口 `receptor_activation_probe`（受け口の有効・無効の読み取り。`test-hooks` のときだけ）で 567 から上げた。その前は 2026-10-29 に TASK-156 の試験用の口 `boot_kind`（起動の種類だけの読み取り。`test-hooks` のときだけ）で 563 から上げた。その前は 2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -13220,3 +13220,35 @@ product-redraw-shaped（描画部品の実際の形の行。`artifact-redraw-sha
 - 変異注入の CI への組み込み（TASK-33）
 - blur で印を下ろす処理（5.484 から引き継ぐ）
 - 試験の件数の期待値: `scripts/expected-test-counts.txt` は版上げ PR でだけ照合するため更新していない（試験は変えていない）
+
+### 5.487 変換中の入力の延期と確定値が 1 回だけ届くことの試験（TASK-355 1/2。FEND-10。#960）
+
+目的は、変換中の文字列が状態にも履歴にも入らず、確定値がちょうど 1 回だけ届き、変換中に glue が欄の値を書かないことを層 3 で固定することである。5.485 までの IME の試験は誤送信・送信漏れ・欄の値の保持を見ており、状態と履歴は assert していなかった。
+
+#### 試験の口と器
+
+- `draftSetCount`（試験の設定だけ。Rust の `EngineHost` が上流からの `SetDraft` の配送を数える）。復元の経路は数えない。`debug_state_json` のキーには足していない（全キーを比べる試験を壊さないため）。配信する設定には入らない（配信する設定の wasm／JS で `debug_draft_set_count` は 0 件、試験の設定で確認した）
+- `ime.mjs` の書き込みの器（`installValueWriteProbe`）: `<textarea>` の `value` の setter を包み、変換中（composing）と変換していないとき（idle）に分けて数える。自己確認は `ime.test.mjs` に 2 件
+- ops は書き出しや保存の時点の下書きを記録し途中の値は畳まれる（実測）。そのため ops は `exportPrepareLive` のダウンロードで読み、列の中身（確定値以外の値が入らないこと）で判定し、「1 回だけ」は配送の回数で見る
+
+#### 場面（`tools/browser/ime-defer.test.mjs`、23 件）
+
+- D-1・D-2: 代表 5 文 × 下書き（なし・あり）。変換中は状態の下書き・配送の回数・ops の draft の列が変わらず、欄の値は下書き＋変換中の文字列、欄への書き込み 0 回。確定で配送がちょうど 1 回。複数行は行ごと
+- D-3: 処理中（ログが増える間）の変換でも同じ
+- D-4: 取り消しで状態・ops・欄が変わらない。配送の回数は高々 1 を assert し、実測は 1 回だった
+- D-5: 配信する設定（CSP あり・なし、試験の口なし）。変換中に欄を書かず、確定後の Enter で受付が 1 件、保存先の ops の submit が確定値、draft の列が確定値だけ（この Step は自由な入力を拒否し下書きが残る）
+- C-1〜C-3（負の対照）: 変換せずに打つと配送の計数と ops が増える、変換中の書き込みを器が数える、変換せずに入れた読みが ops の列を期待と違うものにする
+
+#### 結果
+
+- 実行日 2026-11-08、元は `b4d1b517`。`ime.test.mjs`・`ime-defer.test.mjs` は失敗 0 件（`ime-defer` は 23 件）。`make test` ・`make lint`・`make check-deps`・`make check-dom-reads`・`make check` を通した
+- `glue.rs` のコード行の上限を 574 から 577 に上げた（`draft_set_count` の読み取り口。5.166 の表）
+
+#### 証拠の種類と未実施の区別
+
+- 結果は CDP による IME の模擬（シミュレーター）で、実 IME でも人の評価でもない。未実施: 実 IME での確認（TASK-93／BUILD-18）
+
+#### 範囲外
+
+- 変換中の再読み込み（R-6）・ログ 100 件の追加中の消失 0 件・変異 M2 の検出（#961）
+- 試験の件数の期待値: `scripts/expected-test-counts.txt` は版上げ PR でだけ照合するため更新していない

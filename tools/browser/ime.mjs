@@ -4,7 +4,7 @@
 // （Input.imeSetComposition・Input.insertText・Input.dispatchKeyEvent）で作る。変換中の Enter・Tab・Esc が
 // isComposing=true・keyCode=229 で届くことは、PoC-2 の観察（logs/cdp-ime-probe.txt）に合わせている。
 // これはシミュレーターであり、実 IME でも人の評価でもない。実 IME の確認は TASK-93 / BUILD-18 の担当で、ここでは扱わない。
-// 呼び出し元: ime.test.mjs（ヘルパの自己確認）・ime-input.test.mjs（入力欄と IME の層 3）。ime-sentences.test.mjs（TASK-276 2/3。試験文 30 文の行列と集計）。
+// 呼び出し元: ime.test.mjs（ヘルパの自己確認）・ime-input.test.mjs（入力欄と IME の層 3）。ime-sentences.test.mjs（TASK-276 2/3。試験文 30 文の行列と集計）・ime-defer.test.mjs（TASK-355 1/2。変換中の延期と確定値の経路）。
 // CDP は Chromium 系でしか使えない（FANDHE_BROWSER_CHANNEL=chrome でも可。Firefox・WebKit は対象外）。
 // 引数は page・CDP セッションと文字列だけで、page.evaluate へ文字列からコードを組み立てない。
 import fs from 'node:fs';
@@ -111,4 +111,42 @@ export function readKeyProbe(page) {
 
 export function clearKeyProbe(page) {
   return page.evaluate(() => { if (window.__fandheKeyProbe) window.__fandheKeyProbe.length = 0; });
+}
+
+// 変換中の <textarea> への value の書き込みを数える器（TASK-355 1/2。FEND-10）。
+//
+// window の捕捉の段で compositionstart／compositionend の印を立て・下ろし、prototype の value の setter を包んで、
+// 対象の要素への書き込みを変換中（composing）と変換していないとき（idle）に分けて数える。
+// window の捕捉の段は root の捕捉の段より先に走るため、glue が compositionend の捕捉の段で行う書き戻しは
+// 印が下りた後（idle）に入り、変換中の書き込みとは数えない。web-sys の set_value も生成された JS から
+// prototype の setter を通るため、この器で捉えられる（ime.test.mjs で自己確認する）。
+// 固定の関数だけを渡し、selector は引数として渡す（文字列からコードを組み立てない）。
+export async function installValueWriteProbe(context, selector) {
+  await context.addInitScript((sel) => {
+    const counts = { composing: 0, idle: 0 };
+    let composing = false;
+    window.__fandheValueWrites = counts;
+    window.addEventListener('compositionstart', () => { composing = true; }, true);
+    window.addEventListener('compositionend', () => { composing = false; }, true);
+    const desc = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+    Object.defineProperty(HTMLTextAreaElement.prototype, 'value', {
+      configurable: true,
+      enumerable: desc.enumerable,
+      get() { return desc.get.call(this); },
+      set(v) {
+        if (this.matches(sel)) counts[composing ? 'composing' : 'idle'] += 1;
+        desc.set.call(this, v);
+      },
+    });
+  }, selector);
+}
+
+export function readValueWriteProbe(page) {
+  return page.evaluate(() => ({ ...(window.__fandheValueWrites ?? { composing: -1, idle: -1 }) }));
+}
+
+export function clearValueWriteProbe(page) {
+  return page.evaluate(() => {
+    if (window.__fandheValueWrites) { window.__fandheValueWrites.composing = 0; window.__fandheValueWrites.idle = 0; }
+  });
 }

@@ -7,6 +7,7 @@
 //! `debug_storage_open` と `debug_storage_write` は、試験用の保存先（`STORAGE`）を開く・書くだけで、画面の状態には触れない。
 //! `debug_view_fixture_mount` と `debug_view_fixture_dispatch` は、`#app` の外の別の root に代役の部品（`view_fixture`）を
 //! マウントして action（`fixture_select`・`fixture_phase`・項目の外の部品を出し入れする `fixture_control`・差分・文書の (a) だけを受ける対照の口 `fixture_contrast`・行のデータを切り替える `fixture_data`。未信頼の値の 4 行 `<種類>:escape` を含む。TASK-482 1/2）を届けるだけで、本体の画面の状態には触れない。`debug_view_fixture_state` は読み取りのみ。
+//! `debug_draft_set_count`（TASK-355 1/2）は、上流からの下書きの配送の回数を読むだけである。
 //! `debug_storage_state` は、`kind_for` を通して試験用の保存先の切り替えの状態（このセッションの保存先）だけを変えうる。
 //! `debug_save_stage`・`debug_save_install_pagehide`・`debug_save_flush`（TASK-317 2/2）は、試験用の保留（`PENDING`）へ積む・
 //! `pagehide` のリスナーを付ける・保留を試験用の保存先へ書き出すだけである。保留から保存先へ値が届く経路はこの 2 つ（`pagehide`・
@@ -118,6 +119,16 @@ pub fn debug_state_json() -> String {
         over,
         engine
     )
+}
+
+/// 上流からの下書きの配送の回数を数字の文字列で返す（読み取りのみ）。未マウント・借用中は `"null"`。
+///
+/// `debug_state_json` のキーには足さない（全キーを比べる試験を壊さないため）。
+#[wasm_bindgen]
+pub fn debug_draft_set_count() -> String {
+    crate::glue::draft_set_count()
+        .map(|n| n.to_string())
+        .unwrap_or_else(|| "null".to_string())
 }
 
 /// 状態の下書き本文を返す（読み取りのみ）。未マウントなら空文字列。

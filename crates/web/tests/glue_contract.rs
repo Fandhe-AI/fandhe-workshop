@@ -112,6 +112,7 @@ const NON_DOM_CALLS: &[&str] = &[
     "over_limit",
     "keydown_probe",
     "esc_count",
+    "draft_set_count",
     // 進行・補完の配送（TASK-349）。`dispatch_action` は Runtime の口で、DOM には触れない。
     "dispatch_action",
     "encode",
