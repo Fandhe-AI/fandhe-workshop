@@ -13149,7 +13149,7 @@ product-redraw-shaped（描画部品の実際の形の行。`artifact-redraw-sha
 
 - 結線: glue の `is_composing`（compositionstart〜compositionend）→ ホストの読み取り口 `ComposingProbe`（`EngineHost::set_composing_probe`。`mount_host` が `Runtime::mount` の前に結ぶ）→ `EngineHost::key_field_state`（Enter の経路。glue が `decide` に渡す）と `HelloView::esc(busy, composing)`（Esc の経路。上流が Component の action として届けるため、glue は介在できない）
 - 倒れる向き: 印が立つと Enter は送信せず、Esc は停止・取り消し・候補の閉じるのどれもしない（誤送信 0 の側）。印が下りる経路は compositionend だけで、取り消し（空の `imeSetComposition`）でも出ることを I-12 で確かめた。blur で印を下ろす処理は足していない（glue のリスナーのイベントが増え、`glue_contract` の L3 と 5.166 の改訂が要るため）。印が残る症状が見つかったら別の Issue にする
-- native 試験: `crates/web/tests/composing_marker_host.rs` の C-1〜C-7（印が立つ処理中の Esc で世代・ログ・候補が不変／印が下りた対照で停止の行が 1 件／待機中の Esc で取り消しの拒否が増えない／`key_field_state` の値／印が立つ Enter は送信せず立たなければ送信する。複数行を含む）と、`hello.rs` の内側の試験 1 件。`glue_contract` の許可表と `state_paths` の R3 の表に `set_composing_probe` を足した
+- native 試験: `crates/web/tests/composing_marker_host.rs` の 6 件（関数名の接頭辞 `c1`〜`c5`・`c6_c7`。印が立つ処理中の Esc で世代・ログ・候補が不変／印が下りた対照で停止の行が 1 件／待機中の Esc で取り消しの拒否が増えない／`key_field_state` の値／印が立つ Enter は送信せず立たなければ送信する。複数行を含む）と、`hello.rs` の内側の試験 1 件。`glue_contract` の許可表と `state_paths` の R3 の表に `set_composing_probe` を足した
 - ブラウザ試験: `tools/browser/ime-input.test.mjs` の I-10（処理中の変換中の Esc で世代・停止・進行が不変、`defaultPrevented=false`、確定後の Enter で送信）・I-11（対照。変換しない Esc は停止し世代が 1 進む）・I-12（取り消しの後の Enter で 1 件）・I-13（待機中の変換中の Esc でログと下書きが不変）。確定の Enter と確定後の Enter は既存の I-1〜I-3 が確かめる。実行結果（2026-11-08）: ime-input・ime・enter-submit・esc-key・esc-once・esc-outcomes・stop-redo で 91 件合格・失敗 0 件（Chromium）
 - 証拠の種類: CDP の模擬はシミュレーターであり、実 IME でも人の評価でもない。実 IME の確認（TASK-93／BUILD-18）は未実施である
 - 範囲外: 30 文の全行列と停止 0 件の集計は #946、変異（印を外す・Enter／Esc を除外から外す）の web 側での検出と実 IME が未実施であることの記録は #947
