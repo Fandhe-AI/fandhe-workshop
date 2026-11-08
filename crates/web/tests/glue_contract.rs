@@ -125,6 +125,8 @@ const NON_DOM_CALLS: &[&str] = &[
     "set_draft_sync_request",
     // 拒否の後の下書きの全選択（TASK-284 2/2）。通知先の結線と、host の印の読み取り。DOM の値は読まない。
     "set_draft_select_request",
+    // 自前の変換中の印の読み取り口の結線（DOM に触れない。TASK-276）。
+    "set_composing_probe",
     "set_pane_focus_request",
     "draft_select_pending",
     // 変更の後の遅延保存（TASK-318）。通知先の結線・畳み込みの判定・時刻・書き出しの入口。DOM には触れない。

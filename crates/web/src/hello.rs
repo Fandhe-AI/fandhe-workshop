@@ -267,11 +267,12 @@ impl HelloView {
 
     /// Esc を 1 回受け取り、行き先を返す。候補を閉じる処理は中で行い、Session への適用は呼び出し元（ホスト）が
     /// 返り値の `op` で行う。`busy` はホストが Session から取る（処理中なら停止の行き先になる。TERM-7）。
-    pub(crate) fn esc(&mut self, busy: bool) -> EscRoute {
+    pub(crate) fn esc(&mut self, busy: bool, composing: bool) -> EscRoute {
         // `update` と同じく前の操作の dirty を引き継がない（今回変わった field だけを載せる）。
         self.dirty.clear();
         let state = FieldState {
             busy,
+            composing_marker: composing,
             ..field_state(!self.draft.is_empty(), self.candidates_open())
         };
         let route = esc_route(decide(&esc_input(), &state));
@@ -360,7 +361,7 @@ impl Component for HelloView {
                 }
             }
             HelloAction::Esc => {
-                self.esc(false);
+                self.esc(false, false);
             }
             // 停止の適用はホストの責務。単体では何も変えない。
             HelloAction::Stop => {}
@@ -562,7 +563,7 @@ mod tests {
         let mut v = HelloView::new();
         v.set_command_table(table(&["help"]));
         v.update(HelloAction::SetDraft("/he".to_owned()));
-        v.esc(false);
+        v.esc(false, false);
         assert!(!v.complete());
         assert_eq!(v.draft(), "/he");
         assert!(v.dirty_fields().is_empty());
@@ -668,8 +669,18 @@ mod tests {
     fn esc_は処理中なら停止へ向かう() {
         use fandhe_workshop_core::input::{Control, Op};
         let mut v = HelloView::new();
-        assert_eq!(v.esc(true).op, Some(Op::Control(Control::Stop)));
-        assert_ne!(v.esc(false).op, Some(Op::Control(Control::Stop)));
+        assert_eq!(v.esc(true, false).op, Some(Op::Control(Control::Stop)));
+        assert_ne!(v.esc(false, false).op, Some(Op::Control(Control::Stop)));
+    }
+
+    #[test]
+    fn esc_は印が立つと停止も閉じるも取り消しもしない() {
+        let mut v = HelloView::new();
+        v.set_command_table(table(&["help"]));
+        v.update(HelloAction::SetDraft("/he".to_owned()));
+        let route = v.esc(true, true);
+        assert_eq!(route.op, None);
+        assert!(v.candidates_open());
     }
 
     #[test]
@@ -691,7 +702,7 @@ mod tests {
         v.update(HelloAction::SetDraft("下書き".to_owned()));
         v.update(HelloAction::SetDraft("x".repeat(100_000)));
         assert!(!v.dirty_fields().is_empty());
-        v.esc(false);
+        v.esc(false, false);
         assert!(v.dirty_fields().is_empty());
     }
 

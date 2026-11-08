@@ -24,7 +24,7 @@ use fandhe_workshop_core::addr::TickAddr;
 use crate::action::{dispatch_effect, DispatchEffect, RuntimeAction, Scheduled};
 use crate::host::EngineHost;
 use crate::input_limit::clip_paste;
-use crate::key_route::{effect_for, field_state, outside_root_esc, row_key_effect};
+use crate::key_route::{effect_for, outside_root_esc, row_key_effect};
 use crate::save_schedule::{Fire, SaveDebounce};
 use crate::tick_interval::TICK_INTERVAL_MS;
 use fandhe_frontend_wasm_full::events::{KeyModifiers, KeydownInput};
@@ -450,6 +450,8 @@ fn clear_draft_sync_pending() {
 }
 
 /// 変換中かどうか。借用中は `true`（書かない側＝安全側）。
+///
+/// `decide` の自前の印としてホストの読み取り口（`ComposingProbe`）からも読まれる（JUDGE-14・JUDGE-16）。
 fn is_composing() -> bool {
     COMPOSING.with(|c| c.try_borrow().map(|b| *b).unwrap_or(true))
 }
@@ -598,12 +600,10 @@ fn wire_enter_submit(root: &web_sys::Element) -> Result<(), JsValue> {
             alt: kev.alt_key(),
             meta: kev.meta_key(),
         };
-        let Some((has_text, candidates_open)) =
-            with_app(|app| (!app.draft().is_empty(), app.candidates_open()))
-        else {
+        let Some(state) = with_app(EngineHost::key_field_state) else {
             return;
         };
-        let effect = effect_for(decide(&input, &field_state(has_text, candidates_open)));
+        let effect = effect_for(decide(&input, &state));
         if effect.prevent_default {
             ev.prevent_default();
         }
@@ -767,6 +767,8 @@ pub(crate) fn mount_host(root_id: &str, mut host: EngineHost) -> Result<(), JsVa
         host.set_tick_reset(Box::new(on_tick_reset));
         host.set_draft_sync_request(Box::new(on_draft_sync_request));
         host.set_draft_select_request(Box::new(on_draft_select_request));
+        // 自前の変換中の印を Enter・Esc の判定に届ける（JUDGE-14・JUDGE-16。TASK-276）。
+        host.set_composing_probe(Box::new(is_composing));
         host.set_pane_focus_request(Box::new(on_pane_focus_request));
         host.set_save_request(Box::new(on_save_request));
         host.set_save_cancel(Box::new(on_save_cancel));
