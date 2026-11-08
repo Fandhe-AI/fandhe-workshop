@@ -1,0 +1,10 @@
+id: JUDGE16-3
+package: fandhe-workshop-web
+test: composing_marker_host
+target: crates/web/src/hello.rs
+find:             composing_marker: composing,
+replace:             composing_marker: false,
+expect-fail: c1_印が立つと処理中の_esc_でも世代とログが変わらない
+expect-fail: c3_印が立つと待機中の_esc_は取り消しの拒否を足さない
+expect-fail: c4_印が立つと待機中の_esc_は候補を閉じない
+note: HelloView の esc が受けた印を判定表に渡さない（Esc の経路の web 側の第 2 の結線）
