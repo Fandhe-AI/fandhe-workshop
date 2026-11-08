@@ -286,6 +286,7 @@ make measure-ir-memory | jq .               # 直接: tools/measure/ir-memory.sh
 - `product-redraw` の値は本体の画面の `switch`（選択のボタンの click の同期区間。委譲を含む）の値で、`view-redraw` の値（委譲を含まない）・教材の値と比べない。2026-11-05 の結線より前の値（`docs/testing.md` 5.318。`dirty: true` で §6 により基点として比べられない）は世界状態の経路の行の値、結線の後の値（5.471）は種類ごとの描画部品が属性の無い経路の行を描いた値である。測り方は同じだが描画の経路が違うため、両者の増減を論じない。固定データの行は各部品の実際の形（hunk・dir/file など）を通らない
 - `product-redraw-shaped` の値は描画部品の実際の形の行（hunk・dir/file・入れ子のタスク・文書の本文・アプリのデモの kind）の `switch` の値で、操作・行数・閾値は `product-redraw` と同じだが行の形が違う。`product-redraw` の値と同じ条件ではないため、増減は条件の違いを併記したうえで読む。文書の本文は先頭の 1 行にだけ 80 ブロックを付けており、仕様の前提（1 文書 80 ブロック）に近いが、全行に付けた量ではない
 - 基準端末 A の Chrome の原本での `product-redraw`・`product-redraw-shaped` の記録（2026-11-07）は `docs/testing.md` 5.481 にある
+- 基準端末 A の Chrome の原本での `log-rounds`・`log-slope` の記録と、`product-redraw`・`product-redraw-shaped` の測り直しの記録（2026-11-08）は `docs/testing.md` 5.483 にある
 - `history_*` の値（native の様式）は、PoC-6 の CSV の値と直接比べない（履歴の形が違い、誤入力が無く、`GoTo` で飛ばしているため）。WASM・ブラウザの側の値とも比べない。`baseline.ops_sequence.ops_sha256` が違う値どうしを比べない
 - `ir_memory_*` の値は、断った後の値であり上限を外した値ではない。chromium と chrome の値、Linux の値と基準端末 A の値を比べない。`conditions.cases[].ir_sha256` が違う値どうしを比べない
 - 最小の画面の値は、教材全体の値ではない
