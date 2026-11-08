@@ -12,7 +12,7 @@
 // 証拠の種類はシミュレーター（CDP による IME の模擬）で、実 IME でも人の評価でもない（実 IME は TASK-93 / BUILD-18。未実施）。
 // 空振りでないことは、負の対照 C-1〜C-3 と ime.test.mjs の書き込みの器の自己確認で示す。
 //
-// 範囲外（#961 TASK-355 2/2）: 変換中の再読み込み（R-6）・ログ 100 件の追加中の消失 0 件・変異 M2 の検出。
+// 変換中の再読み込み（R-6）・ログの追加中の消失 0 件・変異 M2 の検出は ime-reload-flood.test.mjs（TASK-355 2/2）。
 //
 // 待ち: 固定の sleep は使わない。予約済みの set_timeout(0) の後ろに積んで順序で待つ（settle）か、値の収束を waitForFunction で待つ。
 // Chrome では確定の input が compositionend より前に出る（F-6）ため、状態の標本は imeCompose の各段の後と imeCommit の前に取る。
