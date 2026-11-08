@@ -23,7 +23,7 @@
 | AUTHOR-13（1） | flow 形式の中で引用符なしの `{{step_do}}` を書くと `E-PARSE` になるが、その注意書きが無かった | 資料の説明の欠けとして解消（`docs/schema-format-b.md` の 9 節、TASK-411） | 差し込みの枠を含む値は引用符で囲む | `crates/pack/tests/format_b.rs` の `author13_` |
 | AUTHOR-13（2） | 「Claude Code 風」に当たる外観の定義が無かった | 資料の説明の欠けとして解消（`docs/operation-profile.md` の 2 節、TASK-411）。外観ごとの見た目の画面への反映は未実装 | 外観の 4 値の意味と、製品名つきの外観が無いことを読む | `crates/pack/tests/appearance.rs`（4 値の閉じた集合と、スタイル欄が 0 件であること） |
 | AUTHOR-15 | エディタの補完・検証に使う機械可読のスキーマ（JSON Schema）が無く、エディタが欄の名前と型を補完しない | 初期は文書だけと決定（TASK-414 の決定、2026-10-31。TASK-418）。欄・型の正は `docs/schema-format-b.md` | `docs/schema-format-b.md` を見て書き、`fandhe-pack validate` で確かめる | なし（文書の記述だけ） |
-| FEND-22 | 4,096 件の安全弁（左のビューの 4,095・4,096・4,097 件はブラウザ試験 `artifact-limit` で確認済み。`docs/testing.md` 5.295。表示は先頭の 4,095 件と状態の行で、ART-14 の文の「先頭の 4,096 件」とは 1 件違う）に当たった list は、4,096 件目以降が見えない（先頭の 4,095 件と状態の行だけを出す。ログ・復習は畳みで届かないが、届けば最新の側が隠れる。左のビューは最新の Step の行だけで 4,096 件を超えると届く）。1,000 項目を超えて畳んだ右のログ・復習の要約行は、開いて中身を見られない。章の単位のグループは無く、古い Step をまとめた集約行で代える。左のビューは古い Step の行を要約 1 行に畳む（TASK-484 1/2）が、最新の Step だけで 1,000 項目を超える場合は目安を超えたまま出る。差分の hunk 単位の畳みは決定 D-46 が触れておらず未実装（要確認）。7 種のビューの本体を製品へ結線したら、本体ごとに畳みを見直す | 未実装（TASK-360 1/2・2/2。開き方は開くと目安を超えうるため未試作。左のビューの畳みは TASK-484 1/2 で実装。世代をまたぐ畳みの固定は TASK-232 2/3・`docs/testing.md` 5.317。右のログは畳まれる行の複製を作らないが、種類の判定の走査は全ログに残る。2 周分の通しの再描画は開発機で行の数 500 なら p95 が閾値以内、1,200 以上は超える場合がある。基準端末 A は未測定。TASK-232 3/3・`docs/testing.md` 5.319。2 周分の通し（試験用の `module-reuse-rounds`・条件 A）の右のログの項目数の最大は 56 で目安以内。native の描画で数えた値で、ブラウザの値は未確認。TASK-454 1/2・`docs/testing.md` 5.349。右のログは元の行が 4,097 件を超える入力でも 1,000 項目に畳まれ、`data-list-error`・`data-list-limit` が出ず、安全弁に届かないことをブラウザ試験 `log-limit` で確認済み。TASK-454 2/2・`docs/testing.md` 5.350） | 古い行は畳まれる前に右のログで読む。畳まれる前の行数は要約行の `data-fold-rows` に出る | `crates/web/tests/list_fold.rs`・`crates/web/tests/list_limit.rs`・`crates/web/tests/artifact_fold.rs` |
+| FEND-22 | 4,096 件の安全弁（左のビューの 4,095・4,096・4,097 件はブラウザ試験 `artifact-limit` で確認済み。`docs/testing.md` 5.295。表示は先頭の 4,095 件と状態の行で、ART-14 の文の「先頭の 4,096 件」とは 1 件違う）に当たった list は、4,096 件目以降が見えない（先頭の 4,095 件と状態の行だけを出す。ログ・復習は畳みで届かないが、届けば最新の側が隠れる。左のビューは最新の Step の行だけで 4,096 件を超えると届く）。1,000 項目を超えて畳んだ右のログ・復習の要約行は、開いて中身を見られない。章の単位のグループは無く、古い Step をまとめた集約行で代える。左のビューは古い Step の行を要約 1 行に畳む（TASK-484 1/2）が、最新の Step だけで 1,000 項目を超える場合は目安を超えたまま出る。差分の hunk 単位の畳みは決定 D-46 が触れておらず未実装（要確認）。7 種のビューの本体を製品へ結線したら、本体ごとに畳みを見直す | 未実装（TASK-360 1/2・2/2。開き方は開くと目安を超えうるため未試作。左のビューの畳みは TASK-484 1/2 で実装。世代をまたぐ畳みの固定は TASK-232 2/3・`docs/testing.md` 5.317。右のログは畳まれる行の複製を作らないが、種類の判定の走査は全ログに残る。2 周分の通しの再描画は開発機で行の数 500 なら p95 が閾値以内、1,200 以上は超える場合がある。基準端末 A の Chrome の原本 155 では、行の数 500〜2,000 の 6 段階すべてで p95 が閾値以内（最大 14,700 us。2026-11-08）で、1 グループのログは 3,000 項目以上で超える。TASK-232 3/3・`docs/testing.md` 5.319・5.483。2 周分の通し（試験用の `module-reuse-rounds`・条件 A）の右のログの項目数の最大は 56 で目安以内。native の描画で数えた値で、ブラウザの値は未確認。TASK-454 1/2・`docs/testing.md` 5.349。右のログは元の行が 4,097 件を超える入力でも 1,000 項目に畳まれ、`data-list-error`・`data-list-limit` が出ず、安全弁に届かないことをブラウザ試験 `log-limit` で確認済み。TASK-454 2/2・`docs/testing.md` 5.350） | 古い行は畳まれる前に右のログで読む。畳まれる前の行数は要約行の `data-fold-rows` に出る | `crates/web/tests/list_fold.rs`・`crates/web/tests/list_limit.rs`・`crates/web/tests/artifact_fold.rs` |
 | SAVE-12 | 古いタブの保存を止める照合（起動番号）と書き込みは、タブ間で原子的ではない。照合の直後に別のタブが同じ教材を開くと、古いタブが 1 回だけ書きうる | 排他は入れないと判断（TASK-324 1/2。原子性を要件にするには仕様の決定が要る） | 同じ教材は 1 つのタブで開く。古いタブは再読み込みする | `crates/web/tests/boot_guard.rs` の `限界_` |
 | SAVE-13 | 古いタブで行った操作は保存されず、新しいタブの履歴とも合流しない | 合流の規則は足さないと決定（D-56。TASK-325 2/2）。古いタブには保存されていない旨の表示を出す | 同じ教材は 1 つのタブで開く。古いタブで続けたいときは再読み込みする（新しいタブの保存済みの履歴から続く） | `tools/browser/stale-tab.test.mjs`・`crates/web/tests/boot_guard.rs` の交互 10 回ずつの試験 |
 | SAFE-30 | 秘密情報の検出は固定の 15 形に限り、一般の検出率を保証しない（見逃しも過剰な検出もある）。履歴ファイルの読み込みの内容は調べない | 教材パックの `validate`（`E-SECRET-SHAPE`。TASK-420 1/2）も同じ 15 形の限界を共有する。練習データの【架空】の印（`E-FICTIONAL-MARK`。TASK-420 2/2）は印の有無だけを見て内容の真偽を判定せず、宣言のない練習データ・章の本文も調べない。実在の名前との紛らわしさは D-81 により `validate` の対象外（公開前の確認）。形を少数追加すると決定（D-45。TASK-165 1/2）。追加の 5 形の選定は 2026-10-21 にユーザーが確定（D-66）。見逃し・誤検出を減らす規則の調整は未実施 | 検出されない形の値は入力しない。誤検出は「このまま保存する」で保存できる | `crates/core/tests/secret_scan.rs`・`crates/web/tests/secret_notice.rs`・`tools/browser/secret-warning.test.mjs`・`crates/web/tests/history_import.rs`（記録は `docs/testing.md` 5.184・5.185） |
@@ -40,7 +40,7 @@
 | ビューの綴り（専用の ID なし） | ビューの `kind` の綴りの誤り（例: `task-tree`・`cardlist`）が `validate`・`compile` で止まらず、画面は一覧にない綴りを黙って飛ばす。専用の ID は無い | 解消した（2026-11-03、TASK-796）。`validate`・`compile` が `E-VIEW-KIND-UNKNOWN` で止める。専用の ID は D-97 で `E-VIEW-KIND-UNKNOWN` と決まった | 不要（診断が示すビューの綴りを `docs/views.md` の 2 節の表で直す） | `crates/pack/tests/view_kind.rs`。解消前の観察は `template-workshop/examples/task-breakdown/docs/requirements.md` の 5.1（2026-11-03）、記録は `docs/testing.md` 5.457・5.459・5.461 |
 | SECOND-14（依頼文の見せ方） | 第 2 教材は 5 行の属性の形のままで、4 つの選択が 1 つの依頼文に連結されて見えない。文書のビューは本文を出さない（G-4）。語彙 1.4 の `body: shown` を使えば本文は出せるが、選んだ値を文中に差し込めない（H-3）ため、選び方の組み合わせごとの練習データが要り、連結された依頼文は作れない | 属性の形のままにした（TASK-755。2026-11-03）。SECOND-14 は spec 上は検討中で、人の決定は得ていない。自動運転の安全側の選択で、人が覆せる。D-100 で左エリアの結線から切り離した | 文面の違いはデータ側の検査（`check-second-pack`）で確かめる | `tools/browser/choice-journey.test.mjs` の場面 I・J（`docs/testing.md` 5.454）。記録は `template-workshop/examples/review-request/docs/requirements.md` の 7h |
 | ART-24 | 模擬ログインの画面にパスワード欄が無いことの確認は、代役のデータの上で行った。ワイヤーの変種 (b) は製品に結線され（#2068）、製品の画面でもパスワードの欄が 0 件で、`kind: password` を書いても欄が増えないことを確かめた（`app_demo_product.rs`、変異 `ART24-1`）。本物の掲示板のデモ（TASK-664）での確認と人の試行は無い | 検討中のまま（解除の判断は人の承認点。本タスクは材料の記録まで。TASK-492） | 教材は名前を選ぶ行だけを置き、パスワードに当たる行・属性を書かない | `crates/web/tests/app_demo_login_contract.rs`・`tools/browser/app-demo-login.test.mjs`（記録は `docs/testing.md` の 5.301） |
-| ART-26 | 本体の画面の差分 500 行の `switch`（選択のボタンの click の同期区間）の p95 が、判定の 16,000 us を超える。開発機（i7-13700K・Playwright 同梱の Chromium 153）で、属性の無い経路の行は 18,600 us（2026-11-05。commit `10393de1`）、描画部品の実際の形の行（hunk つき）は 19,000 us（同日。commit `534407ca`）。タスク 50 件・文書 200 行は閾値内。基準端末 A（Apple M4・Chrome の原本 155）では閾値内で、p95 は属性の無い経路の行 13,700 us・実際の形の行 13,900 us（2026-11-07。commit `ef8b2407`） | 検討中のまま（仕様の ART-26。改善は未着手で、判定は緩めていない） | 差分のビューの行数を抑える（教材側の Step で差分の範囲を絞る）。速度を示す値として使うときは、端末とブラウザ（開発機の Chromium か、基準端末 A の Chrome の原本か）を併記する | `tools/measure/product-redraw.sh`・`tools/measure/product-redraw-shaped.sh`（記録は `docs/testing.md` の 5.471・5.472・5.481） |
+| ART-26 | 本体の画面の差分 500 行の `switch`（選択のボタンの click の同期区間）の p95 が、判定の 16,000 us を超える。開発機（i7-13700K・Playwright 同梱の Chromium 153）で、属性の無い経路の行は 18,600 us（2026-11-05。commit `10393de1`）、描画部品の実際の形の行（hunk つき）は 19,000 us（同日。commit `534407ca`）。タスク 50 件・文書 200 行は閾値内。基準端末 A（Apple M4・Chrome の原本 155）では閾値内で、p95 は属性の無い経路の行 13,700〜13,900 us・実際の形の行 13,900 us（2026-11-07・2026-11-08。commit `ef8b2407`・`b5c33bdc`） | 仕様の ART-26 は 2026-11-08 に検討中を解除して確定にした（ユーザーの判断。#1846。toggle は製品に無く switch だけ・実際の描画を含まない・端末 1 台）。改善は未着手で、判定は緩めていない。開発機の Chromium では超える | 差分のビューの行数を抑える（教材側の Step で差分の範囲を絞る）。速度を示す値として使うときは、端末とブラウザ（開発機の Chromium か、基準端末 A の Chrome の原本か）を併記する | `tools/measure/product-redraw.sh`・`tools/measure/product-redraw-shaped.sh`（記録は `docs/testing.md` の 5.471・5.472・5.481・5.483） |
 | PACK-36 | 誤答の拒否に前後比較のビューを結ぶ語は無く、誤答のときに比較を自動で見せない。拒否文で前後の切り替え（ART-2）を案内するだけである。製品の画面には前後の切り替えの口が結線されていない（7 種の行は結線済みだが、前後の切り替え（ART-2）の口は製品に無い。`docs/views.md` の 1 節）。2026-11-01 に画面で確かめた（ART-19）: 拒否文は見えるが、拒否の後に比較のビューは自動では開かず、案内が指す切り替えの操作要素は 0 件。選び直しはできる（根拠 `tools/browser/wrong-answer-compare.test.mjs`） | 足さないと決定（D-69、PACK-36）。ART-19 の証拠（拒否文の案内だけでは比較にたどり着けないという観察など）が出たら見直す | 誤答の拒否文（`message`・`next_action`）で前後の切り替えを案内する（`docs/pack-authoring.md` の「誤答の拒否で前後の比較を案内する」） | `crates/pack/tests/wrong_answer_compare.rs` の `pack36_`、`tools/browser/wrong-answer-compare.test.mjs`（`docs/testing.md` 5.429） |
 | ART-19 | 誤答の後に前後の比較を自動で見せない。拒否文は前後の切り替えを案内するが、製品の画面にその切り替えの操作要素が無く、案内の先を操作できない | 自動で開かないと決定（D-69、TASK-509（2026-10-31））。見直すかどうかは人の承認点。見直しの材料は下の ART-19 の節 | 本文・`do`・拒否文で、変わる箇所と変わらない箇所を言葉で書く | `tools/browser/wrong-answer-compare.test.mjs`（`docs/testing.md` 5.429） |
 | PACK-35 | 入力のない確認だけの Step は表せない。読むだけの Step は 1 択の `choice` と `answer` で書き、受講者の操作が 1 回増える | 足さないと決定（D-69、PACK-35） | 1 択の `choice` で書く（`docs/pack-authoring.md` の「読むだけの Step」） | `crates/pack/tests/read_only_step.rs` の `pack35_`・`tools/browser/read-only-step.test.mjs`（画面の操作の回数） |
@@ -496,7 +496,7 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 
 根拠の試験: `crates/web/tests/app_demo_login_contract.rs`、`tools/browser/app-demo-login.test.mjs`（ML1〜ML5 と負の対照）。製品の画面では `docs/testing.md` の 5.283 が全 Step で 0 件を確かめている。記録は 5.301。
 
-## ART-26: 本体の画面の差分 500 行の再描画が 16ms を超える
+## ART-26: 本体の画面の差分 500 行の再描画が開発機の Chromium で 16ms を超える
 
 限界: 本体の画面（製品の `view()` に 7 種の描画部品を結線した画面）で、差分 500 行を別の種類から切り替えたときの `switch` の p95 が、開発機（Playwright 同梱の Chromium）では判定の 16,000 us を超える。基準端末 A の Chrome の原本では閾値内だった（下記）。判定は `switch` だけの部分的なもの（`partial: true`）で、前後の切り替え（toggle）は製品に無いため測っていない。
 
@@ -509,20 +509,23 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 
 5.318 の 21,300 us は `dirty: true` で、`docs/measurement.md` §6 により基点として比べられない。2 つの値は固定データの行の形が違うが、同じ桁である。
 
-基準端末 A の値（2026-11-07。Apple M4・macOS・Chrome の原本 155.0.8059.80。試験の設定。wasm-opt 適用済み。CPU の減速なし。1 回だけの測定）:
+基準端末 A の値（Apple M4・macOS・Chrome の原本 155.0.8059.80。試験の設定。CPU の減速なし。1 回目は 2026-11-07・wasm-opt 適用済み、2・3 回目は 2026-11-08・commit `b5c33bdc`・wasm-opt の適用の有無と端末の欄は受け取っていない）:
 
 | 固定データ | commit | p95（us） | 中央値 | 最大 |
 |---|---|---|---|---|
 | 属性の無い経路の行（`artifact-redraw-500`） | `ef8b2407561ebe2faf215e45138a1cd84eacab9a`（`dirty: false`） | 13,700 | 12,300 | 15,400 |
 | 実際の形の行（`artifact-redraw-shaped-diff-500`） | `ef8b2407561ebe2faf215e45138a1cd84eacab9a`（`dirty: false`） | 13,900 | 12,700 | 14,800 |
+| 属性の無い経路の行・2 回目 | `b5c33bdcb5a2e4cfd565f3146e8783cb29cb5de3`（`dirty: false`） | 13,900 | 12,500 | 15,600 |
+| 属性の無い経路の行・3 回目 | 同上 | 13,800 | 12,300 | 15,100 |
+| 実際の形の行・2 回目 | 同上 | 13,900 | 12,700 | 14,300 |
 
-端末・ブラウザ・wasm-opt・commit が開発機の値と違うため、2 つの表の増減は論じない。最大は閾値との差が小さい。
+端末・ブラウザ・wasm-opt・commit が開発機の値と違うため、2 つの表の増減は論じない。最大は閾値との差が小さい。基準端末 A の 3 種（タスク・文書・差分）は全 5 回で閾値内だった。
 
-状態: 検討中のまま（仕様の ART-26）。再描画の速さの改善は本件の範囲外で、判定は緩めていない。基準端末 A での Chrome の原本による測定は 2026-11-07 に行い、判定の対象の 3 種（タスク・文書・差分）とも閾値内だった（`docs/testing.md` 5.481）。「検討中」の解除は仕様の人間の承認点（TASK-485）で、ここでは解除しない。
+状態: 仕様の ART-26 は 2026-11-08 に「検討中」を解除して確定にした（ユーザーの判断。#1846）。再描画の速さの改善は本件の範囲外で、判定は緩めていない。基準端末 A での Chrome の原本による測定は 2026-11-07 と 2026-11-08 に行い（5 回）、判定の対象の 3 種（タスク・文書・差分）とも閾値内だった（`docs/testing.md` 5.481・5.483）。確定にあたっての注意は、製品に toggle が無く `switch` だけの判定であること、実際のウィンドウの描画を含まないこと、端末 1 台であること。開発機の Chromium では超えるため、値を引用するときは端末とブラウザを併記する。
 
 回避: 差分のビューに出す行数を教材側で絞る。値を引用するときは、端末とブラウザ（開発機の Chromium か、基準端末 A の Chrome の原本か）を併記する。
 
-根拠の試験: `tools/measure/product-redraw.sh`・`tools/measure/product-redraw-shaped.sh`（`tools/browser/product-redraw.test.mjs` が固定データとページ内の関数を確かめる）。記録は `docs/testing.md` の 5.471・5.472・5.481。
+根拠の試験: `tools/measure/product-redraw.sh`・`tools/measure/product-redraw-shaped.sh`（`tools/browser/product-redraw.test.mjs` が固定データとページ内の関数を確かめる）。記録は `docs/testing.md` の 5.471・5.472・5.481・5.483。
 
 ## SAVE-27: 全章の履歴の大きさは本物の教材で未測定
 
