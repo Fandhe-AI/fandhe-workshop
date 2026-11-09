@@ -40,6 +40,7 @@
 | `hint_select` | `hints_at`・`current_hints` | 現在の Step と案内レベルで出せるヒントの ID の一覧（規則は契約の `visible_hints`。GUIDE-2、TASK-293）。`CONTRACT_VERSION` の署名の対象に含まない | ヒントを開く判定（TASK-295）・画面（TASK-530）・教材テスト（pack） |
 | `lo_observe` | `answer_phase`・`observe_op`・`observe_history`・`records_from_history`・`AnswerPhase` | 履歴から確認ごとの最初の回答の正誤と開いたヒントの段を `CheckObservation` の列として取り出す（TASK-304 1/3、GUIDE-11）。適用し直しは `history_replay::replay_with`（`replay` の前後に hook を足した口）を通す。前後の比較の観測は作らない。`CONTRACT_VERSION` の署名の対象に含まない | 教材テスト（pack）・講師資料・復習・体験会の集計 |
 | `lo_self_reliant` | `SelfRelianceRule`（`reselectable`・`no_reselection`）・`CheckKind`（`Reselectable`・`NoReselection`）・`classify`・`tally`・`count_participants`・`SelfRelianceOutcome`（`CorrectAfterWrong` を含む）・`SelfRelianceTally`・`ParticipantCount` | 選び直しの手順を持つ確認と持たない確認の自力の数え方（TASK-304 2/3・3/3、GUIDE-11・GUIDE-12、TASK-3 の決定 #484）。1・2 段目のヒントの後の正答と選び直しの正答は自力、答えの段（呼び出し側が渡す。0 は拒否）以上を開いた後の正答は自力に数えない。選び直しの手順を持たない確認（`no_reselection`）は最初の回答の正答だけが自力で、誤答の後の正答は自力に数えない。束ねは「すべて自力」の参加者の数で、割合は返さない。`CONTRACT_VERSION` の署名の対象に含まない | 教材テスト（pack）・講師資料・復習・体験会の集計 |
+| `fast_forward` | `fast_forward`・`FastForward`・`FastForwardEnd`（`RecordedSession::fast_forward` も同じ） | 処理中の進行の連続適用（EVT-17。TASK-227 1/2）。通常の `Op::Tick` を間隔を待たずに 1 件ずつ `apply` へ渡すだけで、新しい操作の種類を作らない。早送りの入・切は D-54 で `ops` に入れない。`CONTRACT_VERSION` の署名の対象に含まない | web のホスト（結線は後続）・試験 |
 | `step_status` | `StepStatus` | Step の状態の 5 値 | 表示・保存 |
 | `world` | `World`・`Element` | 世界状態（経路から要素への写像） | 表示・保存 |
 | `session` | `Session`・`SessionState`（`hints_opened` を含む）・`RunState`（`guidance_level` を含む）・`Busy`・`Slice`（`clarifying` を含む）・`EntryCopy`・`Checkpoint`・`Engine`・`apply`・`reload`（`Session::instances`・`slice`・`step_status`・`steps_of`・`current_draft`、`SessionState::draft_root`・`current_draft` の読み取り用メソッドを含む。`RecordedSession::current_draft` も同じ） | 実行環境と遷移関数。再読み込み（`session::reload`・`Session::reload`、SAVE-4）は `apply()` の外にある | web・保存 |
@@ -93,7 +94,7 @@
 
 次は意図して版 8 に含めない。足すときは版上げの契約タスクとする。
 
-- 早送りの入・切（EVT-27）
+- 早送りの入・切（EVT-27）。連続適用そのものは版の対象外の `fast_forward` が持ち、入・切は D-54 で `ops` に入れない
 - 実体ごとの案内レベル（`use.guidance`）とヒントの上限 3 段の定数。D-55 で語彙・エンジンに入れないと決めた。3 段は教材側の約束である
 - 案内レベルの切り替えのイベント化と履歴での扱い（GUIDE-16）。TASK-307・TASK-308 が決める。版 2 の `Control::SetGuidance` はイベントを出さない
 - ヒントの使用回数が停止・復帰・移動で減らないことと送信 0 件は、型や API を足さず試験で固定した（GUIDE-7。TASK-297 2/2。`hint_count_monotone`・`round_hint_counts`・`egress-count` の G3）。型の置き場（`SessionState.hints_opened`）は版 2 で固定し、鍵（Step の実体 ID）と合計の読み取り口（`hints_opened_at`・`hints_opened_in`）は TASK-297 1/2 で足した

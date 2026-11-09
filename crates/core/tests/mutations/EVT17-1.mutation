@@ -1,0 +1,9 @@
+id: EVT17-1
+package: fandhe-workshop-core
+test: fast_forward
+target: crates/core/src/recorded_session.rs
+find:         self.apply(op).to_vec()
+replace:         self.session.apply(op).to_vec()
+expect-fail: fast_forward_records_same_ops
+expect-fail: fast_forward_on_off_same_final_state
+note: 連続適用の進行を ops に記録せず適用だけ行い、通常の速さの履歴と食い違わせる

@@ -10,6 +10,7 @@
 //! 2. `ops` が 0 件のときは保存用の包みを作らない（[`RecordedSession::envelope_for_save`]）。
 //!    最初の変更まで保存しないことが、未操作の再読み込みで世代が上がらないことの根拠である（SAVE-28）
 //! 3. 包みを組み立てられないとき（開始点が IR に無い等）は保存しない側に倒す（fail-closed）
+//! 4. 早送り（[`RecordedSession::fast_forward`]）の入・切は記録しない（D-54）。適用した進行を 1 件ずつ通常の操作として記録する
 //!
 //! 文字列（下書き・送信の本文）は利用者由来で信頼できない。加工せず保持し、表示時のエスケープは web 層が行う。
 
@@ -17,11 +18,12 @@ use fandhe_workshop_contract::ir::Ir;
 
 use crate::addr::{Root, StepUid};
 use crate::event::Event;
+use crate::fast_forward::{drive, FastForward, TickTarget};
 use crate::history_envelope::{build_envelope, record_draft, record_submit, SessionEnvelope};
 use crate::history_replay::submit_input;
 use crate::input::Op;
 use crate::ops_record::{OpsRecorder, SessionOp};
-use crate::session::Session;
+use crate::session::{Session, SessionState};
 
 /// 記録つきの実行環境。実行環境・記録器・最初の開始点の ID を束ねる。
 #[derive(Debug, Clone)]
@@ -114,6 +116,13 @@ impl RecordedSession {
         self.session.reload()
     }
 
+    /// 処理中の進行を、間隔を待たずに最大 `limit` 件まで 1 件ずつ記録してから適用する（EVT-17）。
+    ///
+    /// 記録の規則は [`RecordedSession::apply`] と同じで、早送りの入・切そのものは記録しない（D-54）。
+    pub fn fast_forward(&mut self, limit: u32) -> FastForward {
+        drive(self, limit)
+    }
+
     /// 保存用の包み。`ops` が 0 件のとき、組み立てられないときは `None`（保存しない）。
     pub fn envelope_for_save(&self) -> Option<SessionEnvelope> {
         if self.recorder.is_empty() {
@@ -126,5 +135,15 @@ impl RecordedSession {
             self.session.state().clone(),
         )
         .ok()
+    }
+}
+
+impl TickTarget for RecordedSession {
+    fn state(&self) -> &SessionState {
+        self.session.state()
+    }
+
+    fn apply_tick(&mut self, op: Op) -> Vec<Event> {
+        self.apply(op).to_vec()
     }
 }

@@ -51,6 +51,7 @@
 //! 履歴から確認ごとの最初の回答の正誤と開いたヒントの段を観測の列として取り出す写像（[`lo_observe`]、TASK-304 1/3、GUIDE-11）も持つ。
 //! 学習目標の確認の記録に当てる自力の数え方（選び直しの手順を持つ確認と持たない確認、[`lo_self_reliant`]、TASK-304 2/3・3/3、GUIDE-11・GUIDE-12）も持つ。
 //! 将来の受け口の有効化の規則（[`receptor_gate`]、TASK-191 1/2、EXT-10・D-53。実行環境の設定と受講者の同意の両方を要し、既定は無効）も持つ。
+//! 進行の連続適用（[`fast_forward`]、TASK-227 1/2、EVT-17。契約の版の対象外）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -74,6 +75,7 @@ pub mod effect;
 mod entry_derive;
 mod env_input;
 pub mod event;
+pub mod fast_forward;
 mod go_to;
 mod hint_open;
 pub mod hint_select;
@@ -152,7 +154,7 @@ pub use value_limits::check_value_limits;
 /// `Event::Refused` の形は変えない。
 ///
 /// 意図して含めないもの（版上げで足す）。
-/// - 早送りの入・切（EVT-27）
+/// - 早送りの入・切（EVT-27）。連続適用は版の対象外の [`fast_forward`] が持ち、入・切は D-54 で `ops` に入れない
 /// - 下書きの操作
 ///
 /// 状態変化の提供元の境界の版は [`provider::PROVIDER_CONTRACT_VERSION`] で別に持つ。

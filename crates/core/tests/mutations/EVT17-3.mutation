@@ -1,0 +1,8 @@
+id: EVT17-3
+package: fandhe-workshop-core
+test: fast_forward
+target: crates/core/src/fast_forward.rs
+find:         if applied >= limit {
+replace:         if applied > limit {
+expect-fail: fast_forward_limit_splits_without_difference
+note: 上限の比較を 1 つずらし、limit 件を超えて 1 件多く適用する

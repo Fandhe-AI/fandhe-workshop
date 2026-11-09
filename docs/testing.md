@@ -21,6 +21,7 @@
 
 | 区分 | 試験ファイル | 主な試験関数 | ビヘイビア |
 |---|---|---|---|
+| 進行管理 | `crates/core/tests/fast_forward.rs` | `fast_forward_matches_tick_by_tick`・`fast_forward_records_same_ops` | 進行の連続適用（EVT-17） |
 | 進行管理 | `crates/core/tests/tick_progress.rs` | `matching_tick_advances_once`・`duplicate_index_advances_once` | 進行の照合と重複の無視 |
 | 進行管理 | `crates/core/tests/generation_keep.rs` | `keep_on_accept`・`keep_on_confirm_achieve` | 世代の維持 |
 | 進行管理 | `crates/core/tests/busy_resend.rs` | `burst_of_20_accepts_once_and_rejects_19_as_busy` | 処理中の再送 |
@@ -13353,3 +13354,20 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 
 - 試験用の口 `rerender` は上流の `set_inner_html` を通り、先頭の改行が再び欠けうる（`docs/known-gaps.md`）
 - spec の FEND-11 の文言の更新は private の spec repo 側の要対応事項。`scripts/expected-test-counts.txt` は更新していない
+
+### 5.491 進行の連続適用の変異注入（TASK-227 1/2。EVT-17。#939）
+
+目的は、`fast_forward`（処理中の進行を間隔を待たずに 1 件ずつ `Op::Tick` として適用する）が、通常の速さと最終の状態・イベント列・履歴の `ops` で一致することを、誤りを入れても検出できることの確認である。
+
+実行日: 2026-11-09
+元にしたコミット: 65df57b9（作業ツリーに本件の変更を含む）
+コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/EVT17-1.mutation crates/core/tests/mutations/EVT17-2.mutation crates/core/tests/mutations/EVT17-3.mutation`
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| EVT17-1 | `recorded_session.rs`: 連続適用の進行を `ops` に記録しない | `fast_forward_records_same_ops`・`fast_forward_on_off_same_final_state` | 左の 2 件に加え `fast_forward_limit_splits_without_difference`・`fast_forward_on_off_same_final_state_guided`（最小の反例 `[Cmd(0)]`） | DETECTED |
+| EVT17-2 | `fast_forward.rs`: 番号が進まないときの打ち切りを外す | `fast_forward_stalls_on_unreadable_processing` | 同左 | DETECTED |
+| EVT17-3 | `fast_forward.rs`: 上限の比較を 1 つずらす | `fast_forward_limit_splits_without_difference` | 同左 | DETECTED |
+
+- 契約の版（`CONTRACT_VERSION`）・`scripts/expected-test-counts.txt` は変えていない。`fast_forward` は版の対象外のモジュールである
+- 範囲外: 早送りの途中の停止と場面を削らないことの試験（TASK-227 2/2）、入・切の網羅的な性質テスト（TASK-228）
