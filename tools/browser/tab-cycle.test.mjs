@@ -5,6 +5,7 @@
 // 候補が無い画面なので、一巡の間の Tab は preventDefault されない（FEND-21）。
 // 要素の数は固定せず、生きている DOM から列挙する。要素が増えても試験が素通りしないため。
 // 候補の一覧が開いている画面・部品がそろった画面での再確認は TASK-451 の担当。
+// 一巡の判定（findCycleProblems）と列挙・押下の部品は tab-focus.mjs に集約した（単体の試験は tab-focus.test.mjs）。
 // 対照の自己確認として、罠を試験のページの中だけに入れ、判定が検出できることを確かめる（配信物には残さない）。
 //
 // 入力: FANDHE_WEB_DIR（配信設定）。未設定・不在は skip にせず失敗にする。
@@ -14,11 +15,13 @@ import fs from 'node:fs';
 import {
   launchBrowser, channelFromEnv, withServer, withCspMode, openPage, waitMounted, summarize,
 } from './harness.mjs';
+import {
+  listFocusables, focusIndex, installTabProbe, walkTracked, findCycleProblems,
+} from './tab-focus.mjs';
 
 const BASE = '/fandhe-tab-cycle/';
 const INPUT = '[data-testid="draft-input"]';
 const SUBMIT = '[data-testid="submit-input"]';
-const OUT = 'OUT';
 
 let browser;
 
@@ -50,79 +53,17 @@ function assertClean(rec) {
   assert.equal(s.consoleErrors, 0, detail);
 }
 
-// フォーカスできる要素を DOM の順に列挙して window に保持し、各要素の testid の一覧を返す。DOM には属性を足さない。
-async function enumerate(page) {
-  return page.evaluate(() => {
-    const els = [...document.querySelectorAll('a[href], button, textarea, input, select, [tabindex]')]
-      .filter((e) => e.tabIndex >= 0 && !e.disabled && e.getClientRects().length > 0);
-    window.__tabCycle = els;
-    return {
-      ids: els.map((e) => e.getAttribute('data-testid') ?? e.tagName),
-      positive: els.filter((e) => e.tabIndex > 0).length,
-    };
-  });
-}
-
-async function position(page) {
-  return page.evaluate(() => {
-    const a = document.activeElement;
-    if (!a || a === document.body) return 'OUT';
-    return window.__tabCycle.indexOf(a);
-  });
-}
-
-// key を presses 回押し、押すたびの位置と defaultPrevented の列を返す。
-async function walk(page, key, presses) {
-  await page.evaluate(() => {
-    window.__tabPrevented = [];
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Tab') window.__tabPrevented.push(e.defaultPrevented);
-    });
-  });
-  const seq = [];
-  for (let i = 0; i < presses; i += 1) {
-    await page.keyboard.press(key);
-    seq.push(await position(page));
-  }
-  return { seq, prevented: await page.evaluate(() => window.__tabPrevented) };
-}
-
-// 位置の列 seq（始点 start から dir 向きに歩いた結果）の問題の一覧を返す。空なら一巡して罠が無い。
-export function findCycleProblems(seq, n, start, dir) {
-  const problems = [];
-  let cur = start;
-  let prevOut = false;
-  seq.forEach((pos, i) => {
-    if (pos === OUT) {
-      if (prevOut) problems.push(`press ${i + 1}: stuck outside the document`);
-      prevOut = true;
-      return;
-    }
-    prevOut = false;
-    const expected = (((cur + dir) % n) + n) % n;
-    if (pos === -1) problems.push(`press ${i + 1}: focus moved to an unlisted element`);
-    else if (pos === cur) problems.push(`press ${i + 1}: focus did not move (trap at ${pos})`);
-    else if (pos !== expected) problems.push(`press ${i + 1}: expected ${expected} but got ${pos}`);
-    cur = pos;
-  });
-  const first = seq.slice(0, n + 1);
-  if (!first.includes(start)) problems.push(`did not return to start within ${n + 1} presses`);
-  for (let k = 0; k < n; k += 1) {
-    if (!first.includes(k)) problems.push(`element ${k} was not visited in the first cycle`);
-  }
-  return problems;
-}
-
 async function cycle(page, key, dir) {
-  const { ids, positive } = await enumerate(page);
+  const { ids, positive } = await listFocusables(page);
   assert.ok(ids.length >= 2, JSON.stringify(ids));
   assert.ok(ids.includes('draft-input') && ids.includes('submit-input'), JSON.stringify(ids));
   assert.equal(positive, 0, 'tabindex > 0 makes DOM order differ from Tab order');
   await page.focus(INPUT);
-  const start = await position(page);
+  const start = await focusIndex(page);
   assert.equal(ids[start], 'draft-input');
   const n = ids.length;
-  const { seq, prevented } = await walk(page, key, 2 * (n + 1));
+  await installTabProbe(page);
+  const { seq, prevented } = await walkTracked(page, key, 2 * (n + 1));
   return { ids, n, start, seq, prevented, problems: findCycleProblems(seq, n, start, dir) };
 }
 
@@ -194,12 +135,3 @@ for (const [name, install] of traps) {
     }));
   });
 }
-
-test('findCycleProblems は一巡と body の経由を許し、罠と食い違いを検出する', () => {
-  assert.deepEqual(findCycleProblems([1, 0, 1, 0], 2, 0, 1), []);
-  assert.deepEqual(findCycleProblems([1, OUT, 0, 1, OUT, 0], 2, 0, 1), []);
-  assert.deepEqual(findCycleProblems([OUT, 1, 0, OUT, 1, 0], 2, 0, -1), []);
-  assert.ok(findCycleProblems([1, 1, 1], 2, 0, 1).length > 0);
-  assert.ok(findCycleProblems([1, OUT, OUT], 2, 0, 1).length > 0);
-  assert.ok(findCycleProblems([2, 0, 1], 3, 0, 1).length > 0);
-});
