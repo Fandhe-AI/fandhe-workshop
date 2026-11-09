@@ -149,7 +149,8 @@ test('幅 360px で枠の部品が欠けない（N1〜N4・N6）', { timeout: 30
         await base.nextChapter();
       },
     };
-    await journey(page, driver, 'N', L, 'main/st-1-1', { chaptered: true, onStep });
+    // stopAt が効くのは st-1-3・st-1-4・st-2-1・st-2-6 だけ。st-2-1 なら CH-0→CH-1・CH-1→CH-2 の 2 つの章の境目（N6）を測って止まる。
+    await journey(page, driver, 'N', L, 'main/st-2-1', { chaptered: true, onStep });
     L.check('N2', '保存が 2 件', saves === 2);
     await measureBothPanes(page, 'N2 一覧', [...FRAME, '[data-testid="checkpoint-restore"]'], L);
     L.check('N2', 'ヒントを 1 回以上開いた', hints >= 1);
