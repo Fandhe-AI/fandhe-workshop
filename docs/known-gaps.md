@@ -683,3 +683,19 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 ### 根拠の試験
 
 - `tools/browser/step-body.test.mjs` の S1・S2、`tools/browser/doc-body-limits.test.mjs` の L8・L9。記録は `docs/testing.md` の 5.480・5.482（VoiceOver での人の確認）
+
+## FEND-11: 書き戻しは更新の次のタスクで行う（TASK-356 1/2）
+
+### 限界
+
+- spec の FEND-11 は「更新の後（マイクロタスク）」に状態の下書きを `<textarea>` へ書くとしている。実装は `set_timeout(0)`（次のタスク）で書く。同じタスクの中では、欄は書き戻しの前の値のままである
+- 書き戻しは毎回の更新の後ではなく、ホストの書き戻しの要求・変換中でない `input`・`compositionend` の段で行う。変換中は書かない
+
+### 理由
+
+- 完了条件は値の一致と変換中に書かないことで、仕組みは問われていない。マイクロタスクへ変えると glue の DOM 呼び出しの許可一覧（`glue_contract.rs`）・FEND-20 の操作の分類・送信の試験（#1510 の保留）の順序の前提に触れるため、挙動を変えなかった（2026-11-08）
+- spec 側の文言の更新は private の spec repo で行う要対応事項で、未了である
+
+### 根拠の試験
+
+- `tools/browser/draft-sync.test.mjs`。記録は `docs/testing.md` の 5.489
