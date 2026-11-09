@@ -21,7 +21,7 @@
 
 | 区分 | 試験ファイル | 主な試験関数 | ビヘイビア |
 |---|---|---|---|
-| 進行管理 | `crates/core/tests/fast_forward.rs` | `fast_forward_matches_tick_by_tick`・`fast_forward_records_same_ops` | 進行の連続適用（EVT-17） |
+| 進行管理 | `crates/core/tests/fast_forward.rs` | `fast_forward_matches_tick_by_tick`・`fast_forward_records_same_ops`・`fast_forward_stop_midway_restores_entry`・`fast_forward_keeps_point_at_scene` | 進行の連続適用（EVT-17） |
 | 進行管理 | `crates/core/tests/tick_progress.rs` | `matching_tick_advances_once`・`duplicate_index_advances_once` | 進行の照合と重複の無視 |
 | 進行管理 | `crates/core/tests/generation_keep.rs` | `keep_on_accept`・`keep_on_confirm_achieve` | 世代の維持 |
 | 進行管理 | `crates/core/tests/busy_resend.rs` | `burst_of_20_accepts_once_and_rejects_19_as_busy` | 処理中の再送 |
@@ -13371,3 +13371,21 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 
 - 契約の版（`CONTRACT_VERSION`）・`scripts/expected-test-counts.txt` は変えていない。`fast_forward` は版の対象外のモジュールである
 - 範囲外: 早送りの途中の停止と場面を削らないことの試験（TASK-227 2/2）、入・切の網羅的な性質テスト（TASK-228）
+
+### 5.492 早送りの途中の停止と場面を削らないことの変異注入（TASK-227 2/2。EVT-17・EVT-9。#940）
+
+目的は、早送りを `limit` で区切った間に停止（`Control::Stop`）を挟んでも入・切で結果が一致し、停止の前の世代の宛先が通らず、確認・選択・承認・復帰の場面を早送りが削らないことを、誤りを入れても検出できることの確認である。
+
+実行日: 2026-11-09
+元にしたコミット: b7db0f04（作業ツリーに本件の変更を含む）
+コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/EVT17-4.mutation crates/core/tests/mutations/EVT17-5.mutation crates/core/tests/mutations/EVT17-6.mutation`
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| EVT17-4 | `stop.rs`: 停止が世代を進めない | `fast_forward_stop_midway_restores_entry`・`fast_forward_stale_ticks_after_stop_ignored` | 同左 | DETECTED |
+| EVT17-5 | `judge.rs`: 進行の宛先の世代の照合を外す | `fast_forward_stale_ticks_after_stop_ignored` | 同左 | DETECTED |
+| EVT17-6 | `tick.rs`: 処理の最後で確認・承認の待ちを飛ばして達成する | `fast_forward_keeps_point_at_scene`・`fast_forward_keeps_choice_and_approval_scenes` | 同左 | DETECTED |
+
+- 当初の案の「停止が `busy` を解かない」変異は、入口の写しへ戻す時点で `busy` が `None` になるため等価で SURVIVED だった。世代を進めない変異に差し替えた
+- 契約の版（`CONTRACT_VERSION`）・`scripts/expected-test-counts.txt` は変えていない
+- 範囲外: 入・切の網羅的な性質テスト（TASK-228）、web のホストでの結線（SHELL-24〜）、`wait` の Step の停止（TASK-231）、早送り時の間隔（未決）

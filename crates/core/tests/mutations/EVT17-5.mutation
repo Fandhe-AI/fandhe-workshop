@@ -1,0 +1,8 @@
+id: EVT17-5
+package: fandhe-workshop-core
+test: fast_forward
+target: crates/core/src/judge.rs
+find:     if addr.generation != run.generation || addr.step != *current {
+replace:     if addr.step != *current {
+expect-fail: fast_forward_stale_ticks_after_stop_ignored
+note: 停止の前の世代の宛先が、送り直した受付の後に進行として通る
