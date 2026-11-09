@@ -13438,3 +13438,18 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 - 実測: 画面に `live-response`・`live-left`・`view-notice`・右の領域の `aria-label` はまだ無い（TASK-370 の担当）。本試験は「無い」まま差 0 として数え、あれば `aria-live=polite`・`aria-atomic=true` だけを確かめる
 - 未実施: 製品側の属性を外した写しで L1 が落ちることの手での確認（N1 の検出器の対照で代える）
 - 限界: 読み上げそのものの証拠ではない（支援技術での確認は TASK-381）。幅は 1280px、ブラウザは Chromium だけ
+
+### 5.496 Tab で入力欄から出入りできることの試験（TASK-373 1/2。A11Y-16・JUDGE-19。#975）
+
+目的: 試験用の口が無い製品の画面（教材の IR を同梱した配信する設定の `?start=s-1-1`）で、候補の一覧が開きうる状態の Tab の出入りを固定する。既存の `tab-complete`・`tab-cycle`・`shift-tab` は IR なしの画面（一覧が開かない）、`candidates`・`key-invariants` は試験の設定で、IR ありの製品の画面の Tab は未確認だった。実行日 2026-11-09、元にしたコミット cd0d00ff。製品のコードは変えない。
+コマンド: `FANDHE_WEB_AUTHOR_DIR=<IR_FILE つきの配信する設定> node --test tools/browser/tab-exit.test.mjs tools/browser/tab-focus.test.mjs`（`tab-exit` 18 件・`tab-focus` 3 件合格、`tab-exit` は約 3 秒。Chromium）。
+
+- 前提の確認: (a) `?start=s-1-1` で `draft-input`・`submit-input` が見え、`window.__fandheTest` は未定義。(b) `/he` で `candidate-list` の `hidden` が外れ `/help` が出る。`/sy`（unsupported の `sync-cloud` だけ）・`/zzz`・`/help` では閉じたまま
+- 観察したフォーカスの順（幅 1024px）: `checkpoint-save`・`hint-open`・`shell-delete`・`shell-export`・読み込みの `INPUT`・`view-select-button` ×7・`draft-input`・`submit-input`・`os-select`・`stop-btn`
+- 場面 X1 空欄・X2 `/zzz`・X3 `/help`・X4 `/sy`・X5 `/he` を Esc で閉じた後（CSP あり・なし）: Tab は preventDefault されず、欄の次の要素（DOM 順）へ移り、値は不変。X5 はログの行数も不変
+- 場面 X6 `/he` の補完の直後: 1 回目は preventDefault されて値が `/help`・フォーカスは欄のまま、2 回目で次の要素へ出る（欄から出るまで 2 回）
+- 場面 E1 欄の直前の要素から Tab で欄へ入る。E2 Esc で閉じて出て戻ると値 `/he` が残り、戻った後も一覧は閉じたまま
+- 対照 N1（欄の Tab を preventDefault）・N2（preventDefault して欄へ focus を戻す）を試験のページの中だけに入れると、判定の関数 `exitProblems` が問題を 1 件以上返す
+- 共通の部品 `tools/browser/tab-focus.mjs`（列挙・位置・記録）は `tab-focus.test.mjs` で自己確認する。2/2 でも使う
+- 未実施: Shift+Tab と一巡・罠 0 件の主張は #976。K-07（変換中の Tab）は既存の `candidates`・`ime-input` の担当で、2/2 の対応の一覧に載せる
+- 限界: ブラウザは Chromium だけ、幅は 1024px だけ（360px の tablist は `shell-boundary`）。実 IME・人の確認は扱わない。自動の操作の証拠で人の評価ではない
