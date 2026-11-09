@@ -13483,3 +13483,15 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 
 - 未実施: K-07 を試験用の口が無い製品の画面で流すこと（変換中の判定は試験の設定の画面で確かめた経路と同じ glue。製品の画面での再確認は TASK-451 の担当に含める）。一覧が開いた状態の Tab（順方向）の一巡（補完が挟まる。TASK-451）
 - 限界: ブラウザは Chromium だけ、幅は 1024px だけ（360px の tablist は `shell-boundary`）。R4 は試験のページの中の配置の変更による観察。実 IME・人の確認・Windows は扱わない。自動の操作の証拠で人の評価ではない
+
+### 5.498 幅 360px で枠の部品が欠けない試験（TASK-518 1/2。SHELL-3。#1018）
+
+目的: 幅 360px で、枠の部品（上部・タブ・通知・書き出し／読み込み／削除の操作・「次の章へ進む」）が、見えない・押せない・はみ出す・横スクロールのどれにもならず、24×24 CSS ピクセル未満の操作対象が 0 件であることを固定する。実行日 2026-11-09、元にしたコミット 15c0aad7。
+コマンド: `TEST_HOOKS=1 make build-web` の後に `FANDHE_WEB_TEST_DIR=dist/web-test node --test tools/browser/shell-narrow.test.mjs`（3 件合格。Chromium）。`shell-widths.test.mjs`（4 件）も合格。
+
+- 原因: `shell-widths` の diagnostic が 4 幅すべてで `small-targets=2` だった。数える集合を契約（`a11y::TARGET_SIZE_SELECTOR`）に揃えて testid を出すと、読み込みの `input[type=file]`（253×21）と試験用の `keydown-probe` ボタン（50×21）だった。どちらも既定の高さが 24px 未満で、下限の規則が無かった
+- 直し: `app.css` に、`TARGET_SIZE_SELECTOR` と同じセレクタへの `min-width`・`min-height: 24px` を幅の条件なしで 1 つ足した。直す前の `shell-narrow` は (b) で 17 件失敗し、直した後は 254/254。横のはみ出しは直す前から観察されず、他の規則は足していない
+- 契約試験: `crates/web/tests/shell_frame_host.rs` の `css_floors_every_target_size_selector_at_all_widths` が、同じセレクタの規則と 24px の下限が `@media` の外にあることを確かめる
+- 場面: N1 開いた直後・N2 チェックポイント 2 件の一覧とヒント・N3 書き出しの後・N4 削除の確認の通知（確定しない）・N5 閉じるボタンのある案内の通知・N6 章の終わりの「次の章へ進む」。N1〜N4 は両タブで測る。各場面で (a) 横スクロールなし (b) 24px 未満 0 件 (c) 部品が見えて 360px に収まる (d) 中心を引くと自身か子孫 (e) ページ内エラー・CSP 違反 0 件
+- 負の対照: 高さ 20px のボタン・幅 500px の要素・部品を覆う要素を CSSOM で入れると、(b)・(a)・(d) がそれぞれ検出する
+- 限界: Chromium だけ。自動の観察で人は見ていない。縦の長さ・読みやすさは見ない（TASK-387）。CH-1 を `s-1-1` から通す 28/28 は TASK-518 2/2。`scripts/expected-test-counts.txt` は版上げ PR でだけ照合されるため更新していない

@@ -283,6 +283,30 @@ fn css_has_two_columns_and_hides_tabs_from_960px() {
     assert!(!APP_CSS.contains("data:"));
 }
 
+/// 操作対象の最小寸法の下限（SHELL-3・A11Y-3。TASK-518）が、契約の集合と同じセレクタで、幅の条件なしに効くこと。
+/// 要素ごとの下限の積み残しで 360px の枠の部品が 24px を割る事故を、字体に頼らず CSS の規則で防ぐ。
+#[test]
+fn css_floors_every_target_size_selector_at_all_widths() {
+    let normalize = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let wanted = normalize(a11y::TARGET_SIZE_SELECTOR);
+    let px = a11y::MIN_TARGET_SIZE_CSS_PX;
+    let mut found = false;
+    let mut from = 0;
+    while let Some(open) = APP_CSS[from..].find('{').map(|i| from + i) {
+        let close = open + APP_CSS[open..].find('}').expect("closing brace");
+        let head = APP_CSS[from..open].rsplit('}').next().unwrap_or("");
+        let selector = normalize(head.rsplit("*/").next().unwrap_or(head));
+        let body = &APP_CSS[open..close];
+        if selector == wanted {
+            assert!(body.contains(&format!("min-width: {px}px")), "min-width");
+            assert!(body.contains(&format!("min-height: {px}px")), "min-height");
+            found = true;
+        }
+        from = close + 1;
+    }
+    assert!(found, "a rule for TARGET_SIZE_SELECTOR must exist");
+}
+
 #[test]
 fn root_keeps_esc_keydown_attrs_and_container_has_no_testid() {
     let h = EngineHost::new();

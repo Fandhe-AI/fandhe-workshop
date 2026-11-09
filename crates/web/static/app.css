@@ -216,6 +216,17 @@
   min-height: 24px;
 }
 
+/* 枠・部品を問わず、操作の対象は最小寸法 24×24 を下回らない（A11Y-3・SHELL-3。TASK-518）。
+  セレクタは crates/web/src/a11y.rs の TARGET_SIZE_SELECTOR と同じ集合（契約試験 shell_frame_host.rs が一致を確かめる）。
+  ボタンや file input の既定の高さは字体で 24px を割りうるため、字体に頼らず下限で保つ。 */
+button,
+select,
+input:not([type="hidden"]),
+[data-action] {
+  min-width: 24px;
+  min-height: 24px;
+}
+
 @media (min-width: 960px) {
   [data-testid="pane-tabs"] {
     display: none;
