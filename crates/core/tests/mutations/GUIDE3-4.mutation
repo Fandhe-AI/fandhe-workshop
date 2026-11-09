@@ -1,0 +1,8 @@
+id: GUIDE3-4
+package: fandhe-workshop-core
+test: set_guidance
+target: crates/core/src/set_guidance.rs
+find:     state.run.guidance_level = level;
+replace:     let _ = level;
+expect-fail: set_guidance_sets_the_level
+note: 受講者の選んだ水準を反映しない

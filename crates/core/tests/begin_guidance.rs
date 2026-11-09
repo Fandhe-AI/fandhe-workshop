@@ -2,7 +2,7 @@
 //!
 //! `Control::Begin` が `starts[].guidance` で実行全体の案内レベルを決めること、宣言が無いときは新しい状態で
 //! `pack.guidance`・開始済みでは今の水準のままであること、読めない値と拒否・上限の停止では水準を変えないことを確かめる。
-//! 変異は `GUIDE3-1`〜`GUIDE3-3`。`SetGuidance` と判定の不変の性質は TASK-294 2/2 の範囲。
+//! 変異は `GUIDE3-1`〜`GUIDE3-3`。`SetGuidance` の反映と判定の不変の性質は TASK-294 2/2（`set_guidance.rs`・`guidance_judge_invariance.rs`）。
 
 mod common;
 

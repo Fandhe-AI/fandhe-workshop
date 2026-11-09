@@ -431,6 +431,12 @@ impl<'a> Harness<'a> {
             }
             self.last_tick = Some(addr.clone());
         }
+        self.step_op(op)
+    }
+
+    /// 解決済みの `Op` をそのまま流す。生成器の表に無い操作（`SetGuidance` など）を挟む試験が使う。
+    /// 進行の宛先の履歴は更新しない（`step` が先に更新する）。
+    pub fn step_op(&mut self, op: Op) -> Applied {
         let before = self.state.clone();
         let events = match &mut self.route {
             Route::Pure => {

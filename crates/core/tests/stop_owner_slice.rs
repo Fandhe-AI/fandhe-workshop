@@ -191,12 +191,13 @@ fn stop_restores_position_and_bumps_generation() {
 }
 
 #[test]
-fn stop_keeps_global_flags_and_restores_guidance_level() {
+fn stop_keeps_global_flags_and_guidance_level() {
     let ir = ir();
     let (next, _) = apply(&ir, stopping_state(), stop());
     assert!(next.run.global_flags.contains("g1"));
     assert!(next.run.global_flags.contains("g0"));
-    assert_eq!(next.run.guidance_level, GuidanceLevel::B);
+    // 写しは B だが、停止の直前の水準 A（受講者の選択）を保つ（TASK-294 2/2）。
+    assert_eq!(next.run.guidance_level, GuidanceLevel::A);
 }
 
 #[test]
