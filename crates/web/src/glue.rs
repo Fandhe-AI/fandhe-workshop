@@ -801,7 +801,13 @@ pub(crate) fn mount_host(root_id: &str, mut host: EngineHost) -> Result<(), JsVa
         wire_outside_esc(root)?;
         *slot = Some(runtime);
         Ok(())
-    })
+    })?;
+    // 上流の初回マウントは `set_inner_html` で、HTML の読み込みが `<textarea>` 直後の先頭の改行を捨てる。
+    // 借用を解いた後に欄を状態の下書きへ揃える（`sync_draft` は `try_borrow` のため閉包の中では書けない。FEND-11）。
+    if let Some(root) = DRAFT_ROOT.with(|r| r.try_borrow().ok().and_then(|slot| slot.clone())) {
+        sync_draft(&root, false);
+    }
+    Ok(())
 }
 
 /// 離れる直前に保存する値。保存しないとき（未操作・開けなかった履歴がある・未マウント）は `None`（TASK-319）。

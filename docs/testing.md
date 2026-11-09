@@ -5142,7 +5142,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 577`（2026-11-08 に TASK-355 1/2 の試験用の口 `draft_set_count`（下書きの配送の回数の読み取り。`test-hooks` のときだけ）で 574 から上げた。その前は 2026-10-30 に TASK-546 の `mount_app` の引数 `ir_not_found`（取得の 404 の旗。SHELL-32）で 573 から上げた。その前は 2026-10-29 に TASK-191 2/2 の試験用の口 `receptor_activation_probe`（受け口の有効・無効の読み取り。`test-hooks` のときだけ）で 567 から上げた。その前は 2026-10-29 に TASK-156 の試験用の口 `boot_kind`（起動の種類だけの読み取り。`test-hooks` のときだけ）で 563 から上げた。その前は 2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 581`（2026-11-09 に TASK-356 2/2 の `mount_host` の直後の書き戻し（初回マウントが捨てる先頭の改行を欄へ戻す。FEND-11）で 577 から上げた。その前は 2026-11-08 に TASK-355 1/2 の試験用の口 `draft_set_count`（下書きの配送の回数の読み取り。`test-hooks` のときだけ）で 574 から上げた。その前は 2026-10-30 に TASK-546 の `mount_app` の引数 `ir_not_found`（取得の 404 の旗。SHELL-32）で 573 から上げた。その前は 2026-10-29 に TASK-191 2/2 の試験用の口 `receptor_activation_probe`（受け口の有効・無効の読み取り。`test-hooks` のときだけ）で 567 から上げた。その前は 2026-10-29 に TASK-156 の試験用の口 `boot_kind`（起動の種類だけの読み取り。`test-hooks` のときだけ）で 563 から上げた。その前は 2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -13302,7 +13302,7 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 - S-2a・S-2b: 拒否の後に欄＝下書き＝送った本文で全体が選択される。表示だけで開いた履歴の間は、欄へ打っても欄が状態の下書きへ戻り、状態・配送の回数が変わらない
 - S-3a・S-3b: 末尾への超過（BMP・サロゲートペア）と途中への超過の貼り付けで、欄＝下書きで 20,000 コードポイント
 - S-4: 単一行・複数行と空行・Tab・末尾の改行・空白だけを、落ち着いた後と入力の直後（`pagehide` の経路）に再読み込みして、欄＝下書き＝入れた値
-- S-4n: 先頭が改行の下書き。状態の下書きが戻ることだけを assert し、欄の値は観察に残す（実測は欄が一致しない。#964 の範囲）
+- S-4n: 先頭が改行の下書き。欄の値は 5.490 で assert に変えた（#964）
 - S-5: 変換中に補完が届いても、同じタスクの中で送信と変換の開始が続いても、変換中の書き込みは 0 回。確定・変換の終わりの後に欄＝下書き
 - C-1〜C-3（負の対照）: 変換中の書き込みを器が数える、変換していないときの補完で書き戻しが起きる、`input` を出さない欄の書き換えを判定器が不一致として検出する
 
@@ -13323,3 +13323,33 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 
 - mount の直後の反映、先頭が改行の下書きの欄の値、`check-deps.sh` の例外の数の静的検査（#964）
 - `scripts/expected-test-counts.txt` は版上げ PR でだけ照合するため更新していない。spec の FEND-11 の文言（マイクロタスク）の更新は private の spec repo 側の要対応事項
+
+### 5.490 mount の直後の反映と先頭が改行の下書き（TASK-356 2/2。FEND-11。#964）
+
+目的は、上流の初回マウントが `set_inner_html` で HTML を流し込み、HTML の読み込みが `<textarea>` 直後の先頭の改行を捨てるため、再読み込みの後に欄の値が状態の下書きと食い違う問題（5.489 の S-4n の観察）を直し、固定することである。
+
+#### 変更
+
+- `glue.rs` の `mount_host` が、`RUNTIME.with` の借用を解いた後に `sync_draft(&root, false)` を同期で 1 回呼ぶ。借用の中では `with_app` が借りられず書き戻しが落ちる。値が同じなら書かず、変換中は書かない（mount の時点では変換中でない）。`set_timeout(0)` には回さず、`data-mounted` の前に揃える
+- DOM の値の読み取りは `sync_draft` の比較の 1 件だけのまま。`tools/check-deps.sh` の `EXC_N=1` は変えていない（例外は理由つきで 1 件）
+- `glue_scale.rs` の `MAX_GLUE_CODE_LINES` を 577 から 581 に上げた（5.166 の表を同時に更新）
+
+#### 試験
+
+- native（`state_paths.rs`）: `mount_host` の本体で `sync_draft(` がちょうど 1 回、`RUNTIME.with(` の閉包の後にあること。負例 2 件（呼び出しなし・借用の中）
+- 変異 FEND11-1（`crates/web/tests/mutations/FEND11-1.mutation`）: 呼び出しを消すと上の試験が落ちる。2026-11-09 に手で当てて検出（DETECTED）を確かめた。`make check-mutation-defs` は通る
+- ブラウザ（`draft-sync.test.mjs`、CSP あり・なし）: S-4n は 1 個・2 個の先頭の改行を再読み込みし、`waitMounted` の直後（`settle` の前）に欄の値＝状態の下書きを assert し、mount の時点の書き込みが 1 回以上であることも見る。値が同じ再読み込みでは書き込み 0 回。C-4（負の対照）は `innerHTML` に `<textarea>\nx</textarea>` を入れると値が `x` になること
+
+#### 結果
+
+- 実行日 2026-11-09、元は `bc8041e2`、Chromium。`draft-sync.test.mjs` の 46 件が合格。native の `state_paths`・`glue_scale`・`glue_contract` が合格
+- 修正前の base で S-4n が落ちることの再確認と、全体の `make test-browser` は未実施
+
+#### 証拠の種類と未実施の区別
+
+- 通常の入力と再読み込みで、CDP の模擬ではない。実 IME（TASK-93）・Firefox・Safari は未実施
+
+#### 範囲外
+
+- 試験用の口 `rerender` は上流の `set_inner_html` を通り、先頭の改行が再び欠けうる（`docs/known-gaps.md`）
+- spec の FEND-11 の文言の更新は private の spec repo 側の要対応事項。`scripts/expected-test-counts.txt` は更新していない
