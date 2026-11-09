@@ -1,0 +1,8 @@
+id: SAVE18-1
+package: fandhe-workshop-core
+test: export_unsent_draft
+target: crates/core/src/history_export.rs
+find:     if drafts.values().any(|v| !v.is_empty()) {
+replace:     if drafts.values().any(|v| v.is_empty() && v.len() > 1) {
+expect-fail: draft_left_in_another_root_counts_while_current_draft_is_empty
+note: 写しの空でない下書きを数える規則を外す（別の根に残った下書きを案内に数えない）

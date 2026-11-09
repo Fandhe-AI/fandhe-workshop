@@ -20,6 +20,7 @@ use crate::addr::{Root, StepUid};
 use crate::event::Event;
 use crate::fast_forward::{drive, FastForward, TickTarget};
 use crate::history_envelope::{build_envelope, record_draft, record_submit, SessionEnvelope};
+use crate::history_export::includes_unsent_draft;
 use crate::history_replay::submit_input;
 use crate::input::Op;
 use crate::ops_record::{OpsRecorder, SessionOp};
@@ -121,6 +122,15 @@ impl RecordedSession {
     /// 記録の規則は [`RecordedSession::apply`] と同じで、早送りの入・切そのものは記録しない（D-54）。
     pub fn fast_forward(&mut self, limit: u32) -> FastForward {
         drive(self, limit)
+    }
+
+    /// 書き出しに未送信の下書きが入るか（SAVE-18。TASK-329）。包みを組み立てず、参照のまま規則に当てる。
+    ///
+    /// 呼び出し元は web の `EngineHost::export_includes_unsent_draft`（画面の案内。SHELL-22）。規則の置き場は
+    /// [`crate::history_export::includes_unsent_draft`]。記録が 0 件なら偽（書き出しが `Empty` になる場面と揃う）。
+    pub fn has_unsent_draft(&self) -> bool {
+        !self.recorder.is_empty()
+            && includes_unsent_draft(self.recorder.ops(), &self.session.state().drafts)
     }
 
     /// 保存用の包み。`ops` が 0 件のとき、組み立てられないときは `None`（保存しない）。

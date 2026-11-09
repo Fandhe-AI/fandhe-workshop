@@ -13495,3 +13495,22 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 - 場面: N1 開いた直後・N2 チェックポイント 2 件の一覧とヒント・N3 書き出しの後・N4 削除の確認の通知（確定しない）・N5 閉じるボタンのある案内の通知・N6 章の終わりの「次の章へ進む」。N1〜N4 は両タブで測る。各場面で (a) 横スクロールなし (b) 24px 未満 0 件 (c) 部品が見えて 360px に収まる (d) 中心を引くと自身か子孫 (e) ページ内エラー・CSP 違反 0 件
 - 負の対照: 高さ 20px のボタン・幅 500px の要素・部品を覆う要素を CSSOM で入れると、(b)・(a)・(d) がそれぞれ検出する
 - 限界: Chromium だけ。自動の観察で人は見ていない。縦の長さ・読みやすさは見ない（TASK-387）。CH-1 を `s-1-1` から通す 28/28 は TASK-518 2/2。`scripts/expected-test-counts.txt` は版上げ PR でだけ照合されるため更新していない
+
+### 5.499 書き出しに未送信の下書きが入ることと案内の口の試験（TASK-329。SAVE-18・D-52）
+
+目的: 未送信の下書きがあるときに書き出すとファイルに下書きが入ること、画面の案内（SHELL-22。TASK-537）が使う口 `EngineHost::export_includes_unsent_draft` がその有無と一致することを固定する。実行日 2026-11-09。
+コマンド: `cargo test --locked -p fandhe-workshop-core --test export_unsent_draft`（10 件）・`cargo test --locked -p fandhe-workshop-web --test export_unsent_draft_host`（3 件）。`TEST_HOOKS=1 make build-web` の後に `FANDHE_WEB_TEST_DIR=dist/web-test node --test tools/browser/export-draft.test.mjs`（8 件。CSP あり・なし。Chromium）。
+
+- 規則: 写し `drafts` に空でない値がある、または `ops` の最後の文字列の操作（`Engine`・`Reload` は飛ばす）が空でない `Draft`。空文字列は偽、空白だけは真。表示だけで開いた履歴は `bytes_include_unsent_draft` で同じ規則を JSON に当て、読めない形は真（fail-closed）
+- core: 現在の根・別の根に残った下書き（現在の下書きは空の対照つき）・現在の Step が無い間の下書き・末尾の `Reload`・送信後・空文字列・包み／バイト列の一致・契約の試料・書き出したファイルに `{"draft": …}` と `snapshot.drafts` の値が入ること。`EXPORT_INCLUDES_DRAFT` の照合はコンパイル時に置いた
+- web: 口が下書きで真・送信後で偽・空文字列で偽、表示だけの履歴（下書きあり・なし）で読み込んだバイト列の判定と一致し、表示だけを抜けると控えが残らない
+- ブラウザ: D-1 下書きを送らず画面の操作で書き出すと `ops` の最後の `draft` と `snapshot.drafts` に値が入り、ファイルから求めた真偽と口が一致する。D-2 下書きを変えるとリンクが外れ、書き出し直すと新しい値が入る。D-3（負の対照）送信後は口が偽でファイルに空でない下書きが無い。D-4（負の対照）空にした後は偽。各場面で外部要求・CSP 違反・ページのエラー 0 件
+- 試験用の口: `engine_snapshot_json` の `exportIncludesUnsentDraft`（`test-hooks` のみ。配信する設定の DOM・JS の口は増やしていない）
+- 変異: 下の表（`scripts/check-mutations.sh` で個別に実施）
+
+| 変異 | 内容 | 結果 |
+|---|---|---|
+| SAVE18-1 | `history_export.rs`: 写しの空でない下書きを数える規則を外す | DETECTED（draft_left_in_another_root_counts_while_current_draft_is_empty） |
+| SAVE18-2 | `history_export.rs`: `ops` の末尾の規則で `Reload`・`Engine` を飛ばさない | DETECTED（trailing_reload_does_not_hide_the_last_draft） |
+
+- 限界: Chromium だけ。実 IME ではない。案内の文面・表示は TASK-537。消した下書きの残りは確かめない（`docs/known-gaps.md`）。`scripts/expected-test-counts.txt` は版上げ PR でだけ照合されるため更新していない

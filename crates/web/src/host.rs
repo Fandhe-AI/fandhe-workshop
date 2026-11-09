@@ -73,7 +73,7 @@ use fandhe_workshop_core::addr::TickAddr;
 use fandhe_workshop_core::changed::replay_changes;
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::history_boot::{boot_session, BootOutcome};
-use fandhe_workshop_core::history_export::export_bytes;
+use fandhe_workshop_core::history_export::{bytes_include_unsent_draft, export_bytes};
 use fandhe_workshop_core::history_limit;
 use fandhe_workshop_core::history_load::load_session;
 use fandhe_workshop_core::history_open::OpeningCaps;
@@ -820,6 +820,8 @@ pub struct EngineHost {
     /// 表示だけで開いた履歴のバイト列の控え（VER-8・TASK-176 1/2）。書き出しが読み込んだバイト列そのものを返すための値で、
     /// 保存先へは書かず、ログ・結果にも出さない（履歴は受講者のデータである）。`model.view_only` と同時に入り、同時に消える。
     view_only_bytes: Option<Vec<u8>>,
+    /// 表示だけで開いた履歴のバイト列に未送信の下書きが入るか（TASK-329）。`enter_view_only` で 1 回だけ求め、控えと同時に消える。
+    view_only_has_draft: bool,
     /// 書き出しの URL を作る口（TASK-531 1/2）。未設定ならリンクを出さない（fail-closed）。
     export_url_maker: Option<ExportUrlMaker>,
     /// 書き出しの結果（リンクか文。`export_result` の元）。表示の状態で、履歴・保存先には書かない。履歴が変わる・差し替わると外す。
@@ -932,6 +934,7 @@ impl EngineHost {
             draft_recorded: String::new(),
             save_blocked: false,
             view_only_bytes: None,
+            view_only_has_draft: false,
             export_url_maker: None,
             export_result: None,
             ir_refusal: None,
@@ -1093,6 +1096,7 @@ impl EngineHost {
             draft_recorded: String::new(),
             save_blocked: false,
             view_only_bytes: None,
+            view_only_has_draft: false,
             export_url_maker: None,
             export_result: None,
             ir_refusal: None,
@@ -1414,6 +1418,22 @@ impl EngineHost {
         if self.export_result.take().is_some() && !self.dirty.contains(&EXPORT_RESULT_FIELD.name) {
             self.dirty.push(EXPORT_RESULT_FIELD.name);
         }
+    }
+
+    /// いま書き出すと未送信の下書きがファイルに入るか（SAVE-18・D-52。TASK-329）。画面の案内（SHELL-22。TASK-537）が読む口。
+    ///
+    /// `export_live` と同じ源を見るため、ずれない。表示だけの間は、開いた時点で求めた控えの値を返す。
+    /// 変換中（IME）で延期した値は記録されておらず書き出しにも入らないため、ここでも数えない（整合している）。
+    /// 真偽だけを返し、下書きの値は返さない（受講者のデータ）。読み取りだけで、状態・保存先・書き出しは変えない。
+    #[must_use]
+    pub fn export_includes_unsent_draft(&self) -> bool {
+        if self.view_only_bytes.is_some() {
+            return self.view_only_has_draft;
+        }
+        self.model
+            .recorded
+            .as_ref()
+            .is_some_and(RecordedSession::has_unsent_draft)
     }
 
     /// 「履歴を書き出す」の押下。前の結果を外してから `export_live` の関門を通し、出せるときだけリンクを作る。
@@ -2070,6 +2090,8 @@ impl EngineHost {
         }
         json!({
             "irLoaded": true,
+            // 書き出しに未送信の下書きが入るか（真偽だけ。SAVE-18・TASK-329）。
+            "exportIncludesUnsentDraft": self.export_includes_unsent_draft(),
             // 警告に出す形の ID だけ（値は入れない。SAFE-27）。
             "secretWarning": self.model.secret_warning.iter().map(|s| s.id()).collect::<Vec<_>>(),
             // 確認済みの件数だけ（形・指紋・値は入れない。SAFE-28）。
@@ -2313,6 +2335,7 @@ impl EngineHost {
         // 表示だけのモードも前の履歴のものなので、開ける履歴に替えるときに出る（`dirty` は全 field で作り直し済み）。
         self.model.view_only = None;
         self.view_only_bytes = None;
+        self.view_only_has_draft = false;
         // `shell_notices` は registry の外にあり、dirty の作り直しに入らない。前の通知を DOM から消すため明示して積む（FEND-15）。
         if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
             self.dirty.push(SHELL_NOTICES_FIELD.name);
@@ -2567,6 +2590,7 @@ impl EngineHost {
         let ops_shown = self.checkpoint_offer() != CheckpointOffer::default();
         let hint_before = self.hint_offer();
         self.model.view_only = Some(code);
+        self.view_only_has_draft = bytes_include_unsent_draft(&bytes);
         self.view_only_bytes = Some(bytes);
         self.clear_export_result();
         // 保持中の警告・破棄要求・予約済みの検出と保存は、表示だけの間に状態・ログを差し替えさせない（`install_recorded` と同じ世代の進め方）。

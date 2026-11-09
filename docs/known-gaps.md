@@ -701,3 +701,18 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 ### 根拠の試験
 
 - `tools/browser/draft-sync.test.mjs`。記録は `docs/testing.md` の 5.489
+
+## SAVE-18: 消した下書きの残り（TASK-329）
+
+### 限界
+
+- 書き出しに未送信の下書きが入るかの口（`history_export::includes_unsent_draft`）は、「未送信の下書き」を入力欄の今の値として数える。打った後に消した下書きは、間に `Engine` の操作（例: 進行の `tick`）が挟まると `ops` に値が `{"draft": …}` として残るが、口は偽を返す（例: `Draft("x")`・tick・`Draft("")`）
+- この場合、案内が出ないままファイルに消した値が入りうる
+
+### 理由
+
+- 案内の意味を「欄に残っている下書き」に揃えたため（2026-11-09）。消した値まで案内に数えるか、記録の時点で畳むかは spec の判断が要る
+
+### 根拠の試験
+
+- `crates/core/tests/export_unsent_draft.rs`。記録は `docs/testing.md` の 5.499
