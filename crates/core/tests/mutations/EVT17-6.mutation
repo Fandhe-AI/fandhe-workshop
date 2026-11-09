@@ -1,0 +1,9 @@
+id: EVT17-6
+package: fandhe-workshop-core
+test: fast_forward
+target: crates/core/src/tick.rs
+find:             confirm::OnAccept::AwaitConfirm => None,
+replace:             confirm::OnAccept::AwaitConfirm => Some(Vec::new()),
+expect-fail: fast_forward_keeps_point_at_scene
+expect-fail: fast_forward_keeps_choice_and_approval_scenes
+note: 処理の最後で確認・承認の場面を飛ばして達成する（場面を削る）

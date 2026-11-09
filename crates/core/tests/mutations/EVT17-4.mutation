@@ -1,0 +1,9 @@
+id: EVT17-4
+package: fandhe-workshop-core
+test: fast_forward
+target: crates/core/src/stop.rs
+find:     run.generation = next;
+replace:     run.generation = state.run.generation;
+expect-fail: fast_forward_stop_midway_restores_entry
+expect-fail: fast_forward_stale_ticks_after_stop_ignored
+note: 停止が世代を進めず、早送りの途中の停止の後も停止前の宛先の進行が通る
