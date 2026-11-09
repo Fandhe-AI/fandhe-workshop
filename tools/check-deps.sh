@@ -73,7 +73,7 @@ require_cmd sed || exit 2
 # 例外: crates/web/src 直下の glue.rs にある `field.value()`（F-9）。サブディレクトリの同名ファイルは例外にしない。
 # 理由: 上流の Runtime の束縛は HtmlInputElement の value だけを書き、textarea の現在値を同期しない。
 # そのため textarea の現在値を状態の下書きと比べ、食い違うときだけ書き戻す（毎回書くとカーソルが動く）。
-# 読んだ値は状態に入れない。
+# 読んだ値は状態に入れない。mount の直後にも同じ比較で書き戻す（初回マウントの HTML の読み込みが textarea 直後の先頭の改行を捨てるため。TASK-356 2/2）。
 EXC_FILE="glue.rs"
 EXC_PATTERN='field\.value\(\)'
 EXC_N=1

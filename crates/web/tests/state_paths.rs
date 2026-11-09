@@ -817,3 +817,64 @@ fn 層の負例_コメント内の一致は数えない() {
         Vec::<String>::new()
     );
 }
+
+/// `mount_host` の本体で、`sync_draft(` がちょうど 1 回、`RUNTIME.with(` の閉包が閉じた後（借用の外）にあること
+/// （TASK-356 2/2。FEND-11）。閉包の中では `with_app` が借りられず、書き戻しが黙って落ちる。
+fn mount_sync_violations(code: &str) -> Vec<String> {
+    let mut v = Vec::new();
+    let Some(body) = fn_body(code, "mount_host") else {
+        return vec!["mount_host が無い".to_owned()];
+    };
+    let n = count(body, "sync_draft(");
+    if n != 1 {
+        v.push(format!("sync_draft( が {n} 回（1 回のはず）"));
+    }
+    let Some(start) = body.find("RUNTIME.with(") else {
+        v.push("RUNTIME.with( が無い".to_owned());
+        return v;
+    };
+    let open = start + "RUNTIME.with".len();
+    let mut depth = 0usize;
+    let mut close = None;
+    for (i, c) in body[open..].char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    close = Some(open + i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    match (close, body.find("sync_draft(")) {
+        (Some(c), Some(s)) if s < c => v.push("sync_draft( が借用の中にある".to_owned()),
+        (None, _) => v.push("RUNTIME.with( の閉じが無い".to_owned()),
+        _ => {}
+    }
+    v
+}
+
+#[test]
+fn mount_host_は借用の外で_mount_の直後に_sync_draft_を1回呼ぶ() {
+    let code = glue_code(&glue_source());
+    assert_eq!(mount_sync_violations(&code), Vec::<String>::new());
+}
+
+#[test]
+fn 負例_mount_の直後の書き戻しが無い_または借用の中にあると失敗する() {
+    let good = glue_code(
+        "fn mount_host() { RUNTIME.with(|c| { a(); Ok(()) })?; sync_draft(&root, false); Ok(()) }",
+    );
+    assert_eq!(mount_sync_violations(&good), Vec::<String>::new());
+    let none = glue_code("fn mount_host() { RUNTIME.with(|c| { a(); Ok(()) })?; Ok(()) }");
+    assert!(!mount_sync_violations(&none).is_empty());
+    let inside = glue_code(
+        "fn mount_host() { RUNTIME.with(|c| { sync_draft(&root, false); Ok(()) })?; Ok(()) }",
+    );
+    assert!(mount_sync_violations(&inside)
+        .iter()
+        .any(|m| m.contains("借用の中")));
+}

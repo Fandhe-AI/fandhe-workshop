@@ -7,7 +7,7 @@
 //     S-1  送信後の空化            S-2  拒否の後の保持と全選択・表示だけの間の巻き戻し
 //     S-3  上限の切り捨て          S-4  再読み込みでの復元
 //     S-5  変換中は書かない
-// 範囲外（TASK-356 2/2＝#964）: mount の直後の反映、先頭が改行の下書きの欄の値（S-4n は状態の下書きだけを assert し、欄は観察に残す）。
+//     S-4n 先頭が改行の下書きが mount の直後に欄へ戻る（TASK-356 2/2＝#964）  C-4  HTML の読み込みが先頭の改行を捨てる対照
 // 時機: この repo の書き戻しは set_timeout(0)（更新の次のタスク）で、spec 文言のマイクロタスクではない（docs/known-gaps.md の FEND-11）。
 // 待ち: 固定の sleep は使わない（settle と waitForFunction）。入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。
 // 失敗の文には長さと真偽だけを出し、下書きの本文は出さない。実 IME ではない（TASK-93。未実施）。
@@ -254,7 +254,7 @@ for (const csp of [true, false]) {
     }
   }
 
-  test(`S-4n 先頭が改行の下書き: 状態の下書きが戻る（欄の値は観察だけ。#964 の範囲。CSP ${cspLabel}）`, async (t) => {
+  test(`S-4n 先頭が改行の下書き: mount の直後に欄の値＝状態の下書き（CSP ${cspLabel}）`, async () => {
     await run(async (srv) => {
       const { page, context, rec } = await open(srv);
       for (const text of ['\n先頭が改行', '\n\n二つ']) {
@@ -262,10 +262,44 @@ for (const csp of [true, false]) {
         await settle(page);
         await page.reload();
         await waitMounted(page);
-        await settle(page);
+        // settle・waitSynced の前に見る（後続のイベントによる同期と区別する）。
+        const field = await fieldOf(page);
+        assert.equal(field === text, true, `mount の直後に欄の値が下書きと一致（欄 ${cpLen(field)} 文字・期待 ${cpLen(text)} 文字）`);
         assert.equal(await draftOf(page), text, '状態の下書きが戻る');
-        t.diagnostic(`S-4n 欄＝下書き: ${(await fieldOf(page)) === text}`);
+        assert.ok((await readValueWriteProbe(page)).idle >= 1, 'mount の時点で欄へ書いている');
+        await settle(page);
+        const s = await waitSynced(page, 'S-4n');
+        assert.equal(s.same, true);
       }
+      assertClean(rec);
+      await context.close();
+    });
+  });
+
+  test(`S-4n 値が同じなら mount の直後に書かない（CSP ${cspLabel}）`, async () => {
+    await run(async (srv) => {
+      const { page, context, rec } = await open(srv);
+      await page.fill(INPUT, 'hello');
+      await settle(page);
+      await page.reload();
+      await waitMounted(page);
+      await settle(page);
+      assert.equal((await readValueWriteProbe(page)).idle, 0, '一致していれば書き込み 0 回');
+      assert.equal(await fieldOf(page), 'hello');
+      assertClean(rec);
+      await context.close();
+    });
+  });
+
+  test(`C-4 負の対照: HTML の読み込みは textarea 直後の先頭の改行を捨てる（CSP ${cspLabel}）`, async () => {
+    await run(async (srv) => {
+      const { page, context, rec } = await open(srv);
+      const v = await page.evaluate(() => {
+        const d = document.createElement('div');
+        d.innerHTML = '<textarea>\nx</textarea>';
+        return d.querySelector('textarea').value;
+      });
+      assert.equal(v, 'x', '先頭の改行が捨てられる（S-4n が修正の有無を見分ける根拠）');
       assertClean(rec);
       await context.close();
     });

@@ -1,0 +1,8 @@
+id: FEND11-1
+package: fandhe-workshop-web
+test: state_paths
+target: crates/web/src/glue.rs
+find: sync_draft(&root, false);
+replace: let _ = &root;
+expect-fail: mount_host_は借用の外で_mount_の直後に_sync_draft_を1回呼ぶ
+note: mount の直後の書き戻しを消す（上流の初回マウントが捨てた先頭の改行が欄に戻らなくなる）
