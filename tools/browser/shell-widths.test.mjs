@@ -64,13 +64,15 @@ for (const width of WIDTHS) {
       // 360px の欠けの計数は TASK-518・TASK-368 の担当。assert せず、件数だけを残す。
       const diag = await page.evaluate(() => ({
         overflowX: document.documentElement.scrollWidth - window.innerWidth,
-        small: [...document.querySelectorAll('button, [role="tab"], a[href], input, select, textarea')]
+        // 数える集合は a11y::TARGET_SIZE_SELECTOR（契約）と同じ。どの部品かを testid だけで残す。
+        small: [...document.querySelectorAll('button, select, input:not([type="hidden"]), [data-action]')]
           .filter((el) => {
             const r = el.getBoundingClientRect();
             return r.width > 0 && r.height > 0 && (r.width < 24 || r.height < 24);
-          }).length,
+          })
+          .map((el) => `${el.tagName.toLowerCase()}[${el.getAttribute('data-testid') ?? '-'}]`),
       }));
-      console.log(`diagnostic ${scene}: tab clicks=${counter.clicks} overflowX=${diag.overflowX} small-targets=${diag.small} ledger=${L.summary()}`);
+      console.log(`diagnostic ${scene}: tab clicks=${counter.clicks} overflowX=${diag.overflowX} small-targets=${diag.small.length} (${diag.small.join(',')}) ledger=${L.summary()}`);
       assert.deepEqual(L.failed(), [], JSON.stringify({ rec }));
       await context.close();
     });
