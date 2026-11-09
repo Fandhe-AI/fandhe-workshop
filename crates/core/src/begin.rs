@@ -12,8 +12,11 @@
 //!    `StartUnmet` では解決できた `unmet` の文面 ID を `rejection` に入れる（TASK-240。固定は pack の `start_unmet` の `mod7_*`）
 //! 2. 世代があふれるなら、固定文の `Warning` だけを出して状態を変えない
 //! 3. 開始点の `effects` が 1 件でも読めないなら、固定文の `Warning` だけを出して状態を変えない（全件か無し）
-//! 4. 世代を +1、`busy` と完了を解く。入口の写しは無効化する（作り直しは `transit` の着地の無効化と導出。TASK-242 1/2。`go_to` の前例に合わせる）
-//! 5. `Begun` を返し、開始の節点より前の Step を省略にする（下記）。続けて開始点の `effects` を原因 `Start` で適用し、
+//! 4. 開始点が決める案内レベルを読む（TASK-294 1/2、GUIDE-3・GUIDE-13）。`starts[].guidance` があればそれ、
+//!    無く新しい状態（開始前）なら `pack.guidance`、無く開始済みなら今の水準のまま。読めない値なら固定文の `Warning` だけを出して
+//!    状態を変えない（fail-closed。A に倒さない）
+//! 5. 世代を +1、`busy` と完了を解く。入口の写しは無効化する（作り直しは `transit` の着地の無効化と導出。TASK-242 1/2。`go_to` の前例に合わせる）
+//! 6. `Begun` を返し、開始の節点より前の Step を省略にする（下記）。続けて開始点の `effects` を原因 `Start` で適用し、
 //!    開始の節点へ [`crate::transit`] で着地する。`use` の節点は呼び出し先まで進み、巡回は歩行器の予算で止まって
 //!    `apply` が操作の前へ戻す（状態は戻り、ログの `Begun` は残る。`Skipped` は止まったときに取り消し、ログにも残さない）
 //!
@@ -31,7 +34,8 @@
 //!
 //! # 扱わないこと
 //!
-//! - `start.guidance` による案内の水準（TASK-294）
+//! - `Control::SetGuidance` による水準の切り替え（TASK-294 2/2）
+//! - web の起動（`Session::entered_at`）での開始点の水準の反映（開始点を受け取る入口が無い。`docs/known-gaps.md`）
 //!
 //! 開始用の効果の `${名前}` は、pack の compile（`module_starts`）が実体の引数で置換済みである。本モジュールは実行時に
 //! 置換せず、IR の値をそのまま適用する（TASK-239。固定は pack の `start_instance`、前の周回を流し終えた状態からの省略は `start_skip`）。
@@ -43,14 +47,15 @@
 //! 開始 ID は未信頼の値で、`Warning` の文面に埋め込まない。`Begun.start` は IR から引いた値を入れる。
 
 use fandhe_workshop_contract::effect::EffectItem;
-use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_contract::guidance::GuidanceLevel;
+use fandhe_workshop_contract::ir::{Ir, Start};
 
 use crate::addr::{Root, Stamp, StepUid};
 use crate::condition::VocabConditions;
 use crate::effect::apply_effects;
 use crate::event::{Cause, ControlKind, Event, RefuseReason};
 use crate::instance;
-use crate::session::SessionState;
+use crate::session::{RunState, SessionState};
 use crate::start_gate::{check_start, StartRefusal};
 use crate::step_status::StepStatus;
 use crate::transit;
@@ -59,6 +64,18 @@ use crate::transit;
 const GENERATION_OVERFLOW: &str = "generation overflow; begin ignored";
 /// 開始点の効果が読めないときの固定文。
 const EFFECTS_UNREADABLE: &str = "start effects unreadable; begin ignored";
+
+/// 開始点の水準の値が読めないときの固定文。IR の値は文面に入れない。
+const GUIDANCE_UNREADABLE: &str = "start guidance unreadable; begin ignored";
+
+/// 開始後の案内レベルを決める。案内レベルは実行全体で 1 つで、読めない値は `None`（呼び出し側が断る）。
+fn start_level(ir: &Ir, start: &Start, run: &RunState) -> Option<GuidanceLevel> {
+    match &start.guidance {
+        Some(v) => v.as_str().and_then(GuidanceLevel::parse),
+        None if run.current.is_none() => GuidanceLevel::parse(&ir.pack.guidance),
+        None => Some(run.guidance_level),
+    }
+}
 
 /// `Control::Begin` の分岐。成功なら新しい開始点の周回へ入り、出たイベント列を返す。
 pub(crate) fn on_begin(ir: &Ir, state: &mut SessionState, start_id: &str) -> Vec<Event> {
@@ -103,6 +120,13 @@ pub(crate) fn on_begin(ir: &Ir, state: &mut SessionState, start_id: &str) -> Vec
             message: EFFECTS_UNREADABLE.to_string(),
         }];
     };
+    let level_before = state.run.guidance_level;
+    let Some(level) = start_level(ir, start, &state.run) else {
+        return vec![Event::Warning {
+            at,
+            message: GUIDANCE_UNREADABLE.to_string(),
+        }];
+    };
     let Some(target_idx) = ir.nodes.iter().position(|n| n.uid == start.node) else {
         return vec![Event::Refused {
             at,
@@ -120,6 +144,7 @@ pub(crate) fn on_begin(ir: &Ir, state: &mut SessionState, start_id: &str) -> Vec
         }];
     };
     state.run.generation = next;
+    state.run.guidance_level = level;
     state.run.busy = None;
     state.run.completed = false;
     state.entry = None;
@@ -172,6 +197,7 @@ pub(crate) fn on_begin(ir: &Ir, state: &mut SessionState, start_id: &str) -> Vec
                 .remove(uid);
         }
         events.retain(|e| !matches!(e, Event::Skipped { .. }));
+        state.run.guidance_level = level_before;
     }
     events
 }

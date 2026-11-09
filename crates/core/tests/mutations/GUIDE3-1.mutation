@@ -1,0 +1,8 @@
+id: GUIDE3-1
+package: fandhe-workshop-core
+test: begin_guidance
+target: crates/core/src/begin.rs
+find:     state.run.guidance_level = level;
+replace:     let _ = level;
+expect-fail: begin_takes_the_declared_level
+note: 開始点の宣言した案内レベルを反映しない（水準が既定のまま）

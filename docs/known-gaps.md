@@ -15,7 +15,7 @@
 | PACK-45 | 案内レベル・本文に出す引数の値・ヒントの文面を、モジュールの実体ごとに変えられない | 案内レベルは足さないと決定（D-55、GUIDE-13）。`use` に `guidance` を書くと `compile`・`validate` とも `E-PARSE`。本文への差し込みとヒントの文面は決定が無い（GUIDE-15。IR 版 2 の本文の木と合わせて決める）。本文の木とヒントの文面に引数が入らない現状は、TASK-302 で観察として固定した（2026-10-23） | 水準は章の開始点の `starts[].guidance` で渡す。ヒントは ID を引数で渡し、実体ごとに別のヒントを定義する。本文は言い換え、水準別の版は `body_levels` で書く。実体ごとに変えたい語は引数で `do` に渡し、拒否・問い返しの文面から `{{step_do}}` で引く | `crates/pack/tests/per_instance_guidance_gap.rs` の `pack45_`、`crates/pack/tests/body_arg_gap.rs` の `guide15_` |
 | PACK-46 | Step ごとの上流の行（対応表）を教材パックに持てず、エンジンは Step と結びつけない。参照元の版を上げたときに影響する Step の洗い出しもエンジンに無い。ヒントの括弧書きをコマンドの外に置く約束は検査されない | 足さないと決定（D-70（2026-10-22）、PACK-46）。Step に上流らしい欄を書くと `compile`・`validate` とも `E-PARSE` | 対応表は教材 repo の読み込まれない別の文書に置き、教材テストで Step ID と突き合わせる。Step ID は `fandhe-pack vocab` の表の `scope,step` で取る。洗い出しは `tools/upstream-impact.mjs`（対応表の CSV 版 1。`docs/pack-authoring.md`）で行い、版を上げる手順は `docs/upstream-bump-procedure.md` に従う。参照版はパック全体の `refs` に書く。ヒントの括弧書きはコマンドの外（ヒントの別の文）に置く | `crates/pack/tests/upstream_map_gap.rs` の `pack46_` |
 | PACK-51 | モジュールの先頭の Step を、呼び出しごとに省けない | 省ける語は足さないと決定（D-43、PACK-51）。`use` や Step に省く欄を書くと `compile`・`validate` とも `E-PARSE`。引数の型と範囲は `param_types`（v1.7）で宣言すれば拒否する（宣言しない引数は検査しない） | 先頭の Step を振り分けの Step にし、`next[].when` の `param` で後ろの Step を飛ばす。引数は `param_types` で宣言する | `crates/pack/tests/module_first_step_gap.rs`・`module_arg_types.rs` の `pack51_`、`module_skip_steps.rs` の `mod17_` |
-| PACK-50 | 復元（再読み込み）の後の拒否行の `message` に `{{step_do}}` があると、案内レベルによらず水準 A の `do` が出うる | `do_levels`（語彙 1.6）は実装済み（D-55）。次の行動は判定の時点で充填済みの値を保持するため影響しない。`message` の再充填の水準は未結線（GUIDE-16、TASK-307・TASK-308）。開始点の水準の結線も未実装（TASK-294） | `message` に `{{step_do}}` を使わず、`next_action` に置く | `crates/pack/tests/do_levels.rs` の `pack50_`（復元の経路は未試験） |
+| PACK-50 | 復元（再読み込み）の後の拒否行の `message` に `{{step_do}}` があると、案内レベルによらず水準 A の `do` が出うる | `do_levels`（語彙 1.6）は実装済み（D-55）。次の行動は判定の時点で充填済みの値を保持するため影響しない。`message` の再充填の水準は未結線（GUIDE-16、TASK-307・TASK-308）。開始点の水準は `Begin` が反映する（TASK-294 1/2）が、起動の入口 `Session::entered_at` は反映しない | `message` に `{{step_do}}` を使わず、`next_action` に置く | `crates/pack/tests/do_levels.rs` の `pack50_`（復元の経路は未試験） |
 | G-4 | 本文を出せなかった時代の回避（属性の書き換え）。本文を出すことは解消済み | 一部を語彙 1.4 で解消（EP-13、PACK-38）。画面への表示も結線済み（ART-18、TASK-489 1/2） | 選択ごとに属性へ固定値を書く | 同上と `crates/pack/tests/view_body.rs` |
 | H-6 | 無い要素への `remove`・`set_attr` が、実行時の警告になるまで分からなかった | 一部を解消。`validate` が `E-REF-ELEMENT` で静的に報告する（PACK-30、D-43）。順序に依る不在などの近似の限界は残る | 教材テストの模範解答と実行時の警告で補う（`docs/pack-authoring.md` の「存在しない要素への `remove`・`set_attr`」） | `crates/pack/tests/missing_elements.rs` の `pack30_` |
 | H-7 | 開始点（`starts`）が 0 件の教材が `validate` を通った | 解消。`E-STRUCTURE` で拒否する（PACK-25） | 不要（章に 1 件以上の開始点を書く） | `crates/pack/tests/no_starts.rs` の `pack25_` |
@@ -322,7 +322,7 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 
 限界: `do_levels` で水準別に書いた `do` は、判定の時点の案内レベルで次の行動に入ります。しかし再読み込みの後にログから拒否行の `message` を作り直す経路（`filled_texts_of_log`）は、案内レベルを既定の A で組み直します。`Control::SetGuidance` はイベントを出さないため、水準の変更が履歴に残らないからです。このため `message` に `{{step_do}}` を置くと、再読み込みの後に水準 A の `do`（隠したいコマンド名を含みうる文）が出ることがあります。
 
-理由: 案内レベルの変更を履歴に残す設計が未決です（GUIDE-16、TASK-307・TASK-308）。開始点の `starts[].guidance` から実行時の水準を決める結線も未実装です（TASK-294）。
+理由: 案内レベルの変更を履歴に残す設計が未決です（GUIDE-16、TASK-307・TASK-308）。開始点の `starts[].guidance` は `Begin` が反映します（TASK-294 1/2）。起動の入口 `Session::entered_at` は開始点を受け取らないため反映しません。
 
 回避: `{{step_do}}` は `next_action` に置きます。次の行動は判定の時点で充填した値を保持するため、再読み込みの後も水準の文のままです。`message` には `{{step_title}}` など水準に依らない枠を使います。
 
@@ -412,7 +412,7 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 
 限界（見出し）: 題を `h2` で出すため、本文の `h1` と見出しの段の順が前後することがあります。
 
-限界（水準）: 案内レベルの変更（`Control::SetGuidance`）は core で未実装（TASK-294）のため、実行時の水準は常に A です。B・C の表示は native の試験で状態を注入して確かめています。
+限界（水準）: 案内レベルの変更（`Control::SetGuidance`）は core で未実装（TASK-294）のため、起動時の水準は A で、`Begin`（次の章へ進む）で開始点の宣言した水準になります。B・C の表示は native の試験で状態を注入して確かめています。
 
 限界（a11y）: 右の領域に `aria-label` を TERM の担当が付けたときは、`terminal_area::check_view` の閉じた一覧と本文の区画の関係を確かめ直す必要があります。
 
