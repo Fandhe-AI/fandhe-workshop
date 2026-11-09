@@ -61,7 +61,8 @@ const urlState = (page) => page.evaluate(() => ({ href: location.href, hash: loc
 // 読み込みの結果（lastImport）と、表示だけのモード（viewOnly・書き出しの2欄。TASK-176 1/2）以外の書き出し。
 // 比べるのは文字列の一致の真偽だけにする。表示だけの3欄は下で明示して確かめる。
 const comparable = (e) => {
-  const { lastImport, viewOnly, exportGate, exportBytes, ...rest } = e;
+  // exportIncludesUnsentDraft は表示だけで開いた履歴の控えから求める表示の状態（TASK-329）。viewOnly と同じく履歴・保存先ではないので除く。
+  const { lastImport, viewOnly, exportGate, exportBytes, exportIncludesUnsentDraft, ...rest } = e;
   return JSON.stringify(rest);
 };
 
