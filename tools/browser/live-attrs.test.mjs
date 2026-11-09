@@ -259,7 +259,7 @@ async function liveRegionReport(page) {
 for (const csp of [true, false]) {
   test(`L1: ログが 1 行から ${FINAL_ROWS} 行まで増える ${POINTS} 回の観察で、属性が最初の時点と同じでログの一覧がライブの外（CSP ${csp ? 'あり' : 'なし'}）`, { timeout: 600000 }, async (t) => {
     await withDeliveryCopy((copy) => withCspMode({ dir: copy, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
-      const { page, context, rec } = await openPage(browser, { origin: srv.origin });
+      const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport: { width: 1280, height: 800 } });
       const label = `csp=${csp ? 'on' : 'off'}`;
       try {
         const title0 = await openStart(page, srv);
@@ -331,7 +331,7 @@ for (const csp of [true, false]) {
 
 test('N1: 対照。属性の欠落・書き換え・ライブの欄の追加を、3 つの写しがそれぞれ差として数える', async () => {
   await withDeliveryCopy((copy) => withServer({ dir: copy, base: BASE }, async (srv) => {
-    const { page, context } = await openPage(browser, { origin: srv.origin });
+    const { page, context } = await openPage(browser, { origin: srv.origin, viewport: { width: 1280, height: 800 } });
     try {
       await openStart(page, srv);
       const cdp = await context.newCDPSession(page);
@@ -358,7 +358,7 @@ test('N1: 対照。属性の欠落・書き換え・ライブの欄の追加を�
 
 test('N2: 対照。log-list の祖先に aria-live を付けると、DOM と AX の判定が「ライブの中」と答える', async () => {
   await withDeliveryCopy((copy) => withServer({ dir: copy, base: BASE }, async (srv) => {
-    const { page, context } = await openPage(browser, { origin: srv.origin });
+    const { page, context } = await openPage(browser, { origin: srv.origin, viewport: { width: 1280, height: 800 } });
     try {
       await openStart(page, srv);
       const cdp = await context.newCDPSession(page);
