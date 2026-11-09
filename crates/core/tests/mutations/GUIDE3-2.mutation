@@ -1,0 +1,8 @@
+id: GUIDE3-2
+package: fandhe-workshop-core
+test: begin_guidance
+target: crates/core/src/begin.rs
+find:         state.run.guidance_level = level_before;
+replace:         let _ = level_before;
+expect-fail: transition_limit_reverts_level
+note: 上限で止めた開始でも水準が新しい値のまま残る

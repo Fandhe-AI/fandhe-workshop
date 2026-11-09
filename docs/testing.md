@@ -13389,3 +13389,21 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 - 当初の案の「停止が `busy` を解かない」変異は、入口の写しへ戻す時点で `busy` が `None` になるため等価で SURVIVED だった。世代を進めない変異に差し替えた
 - 契約の版（`CONTRACT_VERSION`）・`scripts/expected-test-counts.txt` は変えていない
 - 範囲外: 入・切の網羅的な性質テスト（TASK-228）、web のホストでの結線（SHELL-24〜）、`wait` の Step の停止（TASK-231）、早送り時の間隔（未決）
+
+### 5.493 開始点が決める案内レベルの試験と変異注入（TASK-294 1/2。GUIDE-3・GUIDE-13。#950）
+
+目的: `Control::Begin` が `starts[].guidance` で実行全体の案内レベルを決めることを固定する。実行日 2026-11-09、元にしたコミット 54cc0757。
+コマンド: `cargo test -p fandhe-workshop-core --test begin_guidance`（9 件合格）、`scripts/check-mutations.sh crates/core/tests/mutations/GUIDE3-{1,2,3}.mutation`。
+
+- 水準の決め方: 開始点の宣言があればそれ。無く新しい状態なら `pack.guidance`。無く開始済みなら今の水準のまま。読めない値は固定文の `Warning` 1 件だけで状態を変えない（fail-closed）
+- 拒否（未知の開始 ID・開始条件を満たさない）と巡回の上限による停止では水準を操作前に戻す
+- 水準の変更はイベントにしない。`Begin` が `ops` に残るため、適用し直しで同じ水準になる
+
+| ID | 変異 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| GUIDE3-1 | 宣言の水準を反映しない | `begin_takes_the_declared_level` | DETECTED |
+| GUIDE3-2 | 上限の停止で水準を戻さない | `transition_limit_reverts_level` | DETECTED |
+| GUIDE3-3 | 宣言の無い続けての開始で `pack.guidance` に倒す | `begin_without_declaration_keeps_current_level` | DETECTED |
+
+- 限界: 宣言が B の開始点へ `Begin` した履歴を旧いエンジンで保存すると、写しの水準（A）と適用し直した結果（B）が食い違いうる。現在配る教材は宣言を持たず該当しない
+- 範囲外: `SetGuidance`・判定が水準によらない性質テスト（TASK-294 2/2）、起動の入口 `Session::entered_at` での反映、再充填の水準（PACK-50。TASK-307・TASK-308）、`module-reuse-rounds` での受け入れ試験（pack 側）、ブラウザでの B の表示

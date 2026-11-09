@@ -37,7 +37,7 @@ pub const GUIDANCE_CONTRACT_VERSION: u32 = 1;
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
 )]
 pub enum GuidanceLevel {
-    /// 最も手厚い案内。既定値（実際の開始値は開始時に `pack.guidance`・`starts[].guidance` から決める。TASK-294）。
+    /// 最も手厚い案内。既定値（実際の開始値は `Control::Begin` が `starts[].guidance`・`pack.guidance` から決める。TASK-294 1/2）。
     #[default]
     A,
     /// 中間の案内。

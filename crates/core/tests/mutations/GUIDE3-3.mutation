@@ -1,0 +1,8 @@
+id: GUIDE3-3
+package: fandhe-workshop-core
+test: begin_guidance
+target: crates/core/src/begin.rs
+find:         None if run.current.is_none() => GuidanceLevel::parse(&ir.pack.guidance),
+replace:         None => GuidanceLevel::parse(&ir.pack.guidance),
+expect-fail: begin_without_declaration_keeps_current_level
+note: 宣言の無い開始点が続けて始めるときに水準を pack の既定へ戻す
