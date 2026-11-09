@@ -1,0 +1,8 @@
+id: EVT17-2
+package: fandhe-workshop-core
+test: fast_forward
+target: crates/core/src/fast_forward.rs
+find:             if n.generation != addr.generation || n.step != addr.step || n.index <= addr.index {
+replace:             if false {
+expect-fail: fast_forward_stalls_on_unreadable_processing
+note: 番号が進まないときの打ち切りを外し、進まない進行を上限まで回す
