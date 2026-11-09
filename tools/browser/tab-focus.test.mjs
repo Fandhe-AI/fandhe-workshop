@@ -6,7 +6,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { launchBrowser, channelFromEnv } from './harness.mjs';
 import {
-  listFocusables, focusIndex, activeTestId, installTabProbe, pressTracked, focusAt,
+  listFocusables, focusIndex, activeTestId, installTabProbe, pressTracked, focusAt, walkTracked, findCycleProblems, OUT,
 } from './tab-focus.mjs';
 
 const HTML = `<!doctype html><body>
@@ -56,4 +56,44 @@ test('preventDefault する listener を足すと prevented: true が記録さ�
   await focusAt(page, 0);
   assert.deepEqual(await pressTracked(page, 'Tab'), { before: 0, after: 0, prevented: [true] });
   await page.close();
+});
+
+test('先頭が入力欄のとき Shift+Tab は preventDefault されず OUT（body）へ出る', async () => {
+  const page = await browser.newPage();
+  await page.setContent('<!doctype html><body><textarea data-testid="t"></textarea><button data-testid="z">z</button></body>');
+  await installTabProbe(page);
+  await listFocusables(page);
+  await focusAt(page, 0);
+  assert.deepEqual(await pressTracked(page, 'Shift+Tab'), { before: 0, after: OUT, prevented: [false] });
+  await page.close();
+});
+
+test('walkTracked は押下ごとの位置と全押下の prevented を返す', async () => {
+  const page = await fresh();
+  await listFocusables(page);
+  await focusAt(page, 0);
+  const r = await walkTracked(page, 'Tab', 4);
+  assert.deepEqual(r.seq, [1, 2, OUT, 0]);
+  assert.deepEqual(r.prevented, [false, false, false, false]);
+  const back = await walkTracked(page, 'Shift+Tab', 2);
+  assert.equal(back.seq.length, 2);
+  assert.deepEqual(back.prevented, [false, false]);
+  await page.close();
+});
+
+test('findCycleProblems は一巡と body の経由を許し、罠と食い違いを検出する', () => {
+  assert.deepEqual(findCycleProblems([1, 0, 1, 0], 2, 0, 1), []);
+  assert.deepEqual(findCycleProblems([1, OUT, 0, 1, OUT, 0], 2, 0, 1), []);
+  assert.deepEqual(findCycleProblems([OUT, 1, 0, OUT, 1, 0], 2, 0, -1), []);
+  assert.ok(findCycleProblems([1, 1, 1], 2, 0, 1).length > 0);
+  assert.ok(findCycleProblems([1, OUT, OUT], 2, 0, 1).length > 0);
+  assert.ok(findCycleProblems([2, 0, 1], 3, 0, 1).length > 0);
+});
+
+test('findCycleProblems を body から歩く始点（Tab は n-1・Shift+Tab は 0 で dir -1）で使える', () => {
+  assert.deepEqual(findCycleProblems([0, 1, 2, 0, 1, 2], 3, 2, 1), []);
+  assert.deepEqual(findCycleProblems([2, 1, 0, 2, 1, 0], 3, 0, -1), []);
+  assert.ok(findCycleProblems([0, 0, 1, 2], 3, 2, 1).length > 0);
+  assert.ok(findCycleProblems([2, 2, 1, 0], 3, 0, -1).length > 0);
+  assert.ok(findCycleProblems([0, 1, 1, 2], 3, 2, 1).length > 0);
 });

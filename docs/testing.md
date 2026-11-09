@@ -13453,3 +13453,33 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 - 共通の部品 `tools/browser/tab-focus.mjs`（列挙・位置・記録）は `tab-focus.test.mjs` で自己確認する。2/2 でも使う
 - 未実施: Shift+Tab と一巡・罠 0 件の主張は #976。K-07（変換中の Tab）は既存の `candidates`・`ime-input` の担当で、2/2 の対応の一覧に載せる
 - 限界: ブラウザは Chromium だけ、幅は 1024px だけ（360px の tablist は `shell-boundary`）。実 IME・人の確認は扱わない。自動の操作の証拠で人の評価ではない
+
+### 5.497 Shift+Tab の逆向き移動とキーボードの罠 0 件の試験（TASK-373 2/2。A11Y-16・JUDGE-19。#976）
+
+目的: 試験用の口が無い製品の画面（教材の IR を同梱した配信する設定の `?start=s-1-1`）で、Shift+Tab が補完にも preventDefault にもならずブラウザの通常の逆向きの移動になること、入力欄が最初の操作対象なら body へ出ること、キーボードの罠が 0 件であることを固定する（PoC-2 の K-02・K-04・K-15）。実行日 2026-11-09、元にしたコミット 080831cc。製品のコードは変えない。
+コマンド: `FANDHE_WEB_AUTHOR_DIR=<IR_FILE つきの配信する設定> FANDHE_AUTHOR_IR=<その IR> node --test tools/browser/tab-trap.test.mjs`（28 件合格、約 15 秒。Chromium）。部品の集約に伴い `tab-focus.test.mjs`（7 件）と `tab-cycle.test.mjs`（10 件、判定と期待は不変）も合格。
+
+- 部品の集約: `findCycleProblems` と押下の列を取る `walkTracked` を `tab-focus.mjs` へ移した。`tab-cycle.test.mjs` もこれを使う。body から歩く始点は 1 つ手前にする（Tab は `n-1`・Shift+Tab は `0` で向き -1）
+- 観察したフォーカスの順（幅 1024px、`s-1-1`）: 16 個（`checkpoint-save`・`hint-open`・`shell-delete`・`shell-export`・読み込みの `INPUT`・`view-select-button` ×7・`draft-input`・`submit-input`・`os-select`・`stop-btn`）。候補の項目（`candidate-btn`）は一覧が開いていてもフォーカスの順に入らない。`C3` の開始点は 4 件（n は 15〜19。選択肢のある開始点は `choice-btn` が加わる。左の指せる行は 0 件）
+- R1 送信ボタンで Shift+Tab → 入力欄へ戻る。R2 `/he` で一覧が開いた欄で Shift+Tab → 補完されず（値は `/he`）、DOM 順で 1 つ前へ移り、ログの行は増えない。R2 の後も一覧は開いたまま（blur で閉じる処理は無い。観察として記録し、期待には入れていない）
+- R3 空欄・`/zzz`・`/help`・Esc で閉じた `/he` の各欄で Shift+Tab → 1 つ前、preventDefault なし、値不変
+- R4 欄より前の操作対象を試験のページの中だけ `tabindex=-1` にして欄を最初の操作対象にすると、空欄でも一覧が開いた状態でも Shift+Tab は preventDefault されず body へ出る
+- C1・C2 開いた直後（body にフォーカス）から Tab・Shift+Tab を 2 周ぶん押すと、全 16 要素を 1 回ずつ通り、末尾（先頭）から body を 1 回経由して戻り、行き止まりと preventDefault が 0 件。C2b 一覧が開いた欄からの Shift+Tab の一巡も同じ。C3 は全 4 開始点で C1・C2 と同じ判定が 0 件（欄の無い Step を前提にしない）
+- 対照（CSP あり）: N1 欄の Shift+Tab を preventDefault・N2 さらに欄へ focus を戻す・N3 送信ボタンの Shift+Tab を捕まえる罠（先頭からの一巡が検出）・N4 最初の操作対象の欄で捕まえる罠（body へ出ないことを検出）を、判定が 1 件以上の問題として返す。判定の関数 `reverseProblems` は受理・拒否の例を固定
+- 注意（実測）: `fill` や `focus` の後に blur しても、Chromium は直前の位置から Tab を始める。先頭からの一巡は、開いた直後の body の状態のまま歩く（歩く前に body であることを assert する）
+- K-01〜K-08・K-15 の対応表:
+
+| K | 内容 | 担当の試験 |
+|---|---|---|
+| K-01 | 空欄で Tab → 次の要素 | `tab-exit` X1（`key-invariants` TAB-EMPTY） |
+| K-02 | 送信ボタンで Shift+Tab → 入力欄 | `tab-trap` R1（IR なしの画面は `shift-tab`） |
+| K-03 | 一覧が開いた `/he` で Tab → 補完 | `tab-exit` X6（`candidates`） |
+| K-04 | 一覧が開いた `/he` で Shift+Tab → 補完せず前の要素 | `tab-trap` R2・R3・R4（`candidates`・`key-invariants` SHIFT-TAB-OPEN） |
+| K-05 | `/zzz` で Tab → 次の要素 | `tab-exit` X2（`candidates`） |
+| K-06 | Esc で閉じた後の Tab → 次の要素 | `tab-exit` X5（`candidates`） |
+| K-07 | 変換中の Tab はアプリが何もしない | `candidates`（合成の `isComposing`）・`ime-input` I-4（CDP の模擬）。製品の画面では流していない |
+| K-08 | `/help` で Tab → 次の要素 | `tab-exit` X3（`candidates`） |
+| K-15 | 先頭から両方向に全要素を通り行き止まりなし | `tab-trap` C1・C2・C2b・C3（IR なしの画面は `tab-cycle`） |
+
+- 未実施: K-07 を試験用の口が無い製品の画面で流すこと（変換中の判定は試験の設定の画面で確かめた経路と同じ glue。製品の画面での再確認は TASK-451 の担当に含める）。一覧が開いた状態の Tab（順方向）の一巡（補完が挟まる。TASK-451）
+- 限界: ブラウザは Chromium だけ、幅は 1024px だけ（360px の tablist は `shell-boundary`）。R4 は試験のページの中の配置の変更による観察。実 IME・人の確認・Windows は扱わない。自動の操作の証拠で人の評価ではない
