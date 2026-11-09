@@ -1,0 +1,8 @@
+id: GUIDE3-6
+package: fandhe-workshop-core
+test: set_guidance
+target: crates/core/src/stop.rs
+find:     run.guidance_level = state.run.guidance_level;
+replace:     let _ = &run;
+expect-fail: stop_keeps_the_selected_level
+note: 停止で受講者の選んだ水準が写しの値へ戻る

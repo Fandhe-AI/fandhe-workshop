@@ -34,7 +34,7 @@
 //!
 //! # 扱わないこと
 //!
-//! - `Control::SetGuidance` による水準の切り替え（TASK-294 2/2）
+//! - `Control::SetGuidance` による水準の切り替え（`set_guidance`、TASK-294 2/2）。開始前に選んでも、宣言の無い `Begin` では新しい状態なら `pack.guidance` が勝つ
 //! - web の起動（`Session::entered_at`）での開始点の水準の反映（開始点を受け取る入口が無い。`docs/known-gaps.md`）
 //!
 //! 開始用の効果の `${名前}` は、pack の compile（`module_starts`）が実体の引数で置換済みである。本モジュールは実行時に

@@ -13407,3 +13407,23 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 
 - 限界: 宣言が B の開始点へ `Begin` した履歴を旧いエンジンで保存すると、写しの水準（A）と適用し直した結果（B）が食い違いうる。現在配る教材は宣言を持たず該当しない
 - 範囲外: `SetGuidance`・判定が水準によらない性質テスト（TASK-294 2/2）、起動の入口 `Session::entered_at` での反映、再充填の水準（PACK-50。TASK-307・TASK-308）、`module-reuse-rounds` での受け入れ試験（pack 側）、ブラウザでの B の表示
+
+### 5.494 受講者の選択と案内レベル不変の判定の試験と変異注入（TASK-294 2/2。GUIDE-3。#951）
+
+目的: `Control::SetGuidance` が実行全体の水準へ反映されること、水準を変えても同じ操作列の判定の結果が変わらないことを固定する。実行日 2026-11-09、元にしたコミット a33e4a22。
+コマンド: `cargo test -p fandhe-workshop-core --test set_guidance`（6 件合格）、`--test guidance_judge_invariance`（3 件合格、約 17 秒）、`scripts/check-mutations.sh crates/core/tests/mutations/GUIDE3-{4,5,6}.mutation`。
+
+- 反映: いつでも受け付け、水準を書くだけでイベントは出さない（世代・ログ・チェックポイントは不変）。契約の型・`CONTRACT_VERSION` は変えない
+- 停止は処理中に選んだ水準を保つ（受講者の選択は処理の効果ではない）。復帰は写しの水準へ戻す（MOD-9。観察として固定）
+- 開始前の選択と `Begin` の関係は 1/2 の規則のまま（宣言なしの新しい状態は `pack.guidance`、宣言ありは宣言、開始済みは続く）
+- 性質テスト: 基準・先頭で A/B/C に切り替えた列・途中の乱数の位置で切り替えた列を 1,000 通りずつ流し、操作ごとにイベント列と（水準の欄を A に揃えた）状態が一致する。`do_levels`・`levels` つきヒントを足した教材でも同じ。`Judged` を含むケースと受付・拒否の件数が 0 なら失敗にする
+- 主張に含めないもの: `OpenHint`（ヒントの数は水準で変わる設計）・`hints_opened`・表示の充填（`step_do`）・`Begin`
+
+| ID | 変異 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| GUIDE3-4 | 選んだ水準を反映しない | `set_guidance_sets_the_level` | DETECTED |
+| GUIDE3-5 | 水準が C のとき入力を捨てる | `judgments_do_not_depend_on_guidance_level` | DETECTED |
+| GUIDE3-6 | 停止で水準が写しへ戻る | `stop_keeps_the_selected_level` | DETECTED |
+
+- 限界: `SetGuidance` が何もしなかった旧いエンジンで保存した履歴は、写しの水準と適用し直した水準が食い違いうる（製品の画面に操作が無いため配っていない見込み）。試験と実装の作成者が同じ AI である
+- 範囲外: 切り替えのイベント化（GUIDE-16、TASK-307・TASK-308）、画面の切り替えの部品（SHELL-37）、`Session::entered_at` での反映、再充填の水準（PACK-50）、`module-reuse-rounds` の受け入れ試験、ブラウザでの B・C の表示

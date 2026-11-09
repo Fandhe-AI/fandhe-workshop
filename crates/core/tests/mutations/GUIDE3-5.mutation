@@ -1,0 +1,8 @@
+id: GUIDE3-5
+package: fandhe-workshop-core
+test: guidance_judge_invariance
+target: crates/core/src/session.rs
+find:         Op::Input(input) => accept::on_input(ir, state, input),
+replace:         Op::Input(_) if state.run.guidance_level == fandhe_workshop_contract::guidance::GuidanceLevel::C => Vec::new(), Op::Input(input) => accept::on_input(ir, state, input),
+expect-fail: judgments_do_not_depend_on_guidance_level
+note: 水準が C のとき入力を捨てる（判定が水準に依存する）

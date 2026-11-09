@@ -58,7 +58,7 @@
 //!
 //! - 復習・変化の印の導出そのもの（`projection`。`apply()` を通した試験は `tests/restore_review.rs`、TASK-214 2/3）
 //! - 復帰前の進行の無視の判定そのもの（`judge`・`tick`。復帰の側からの試験は `tests/restore_resume.rs`、TASK-214 3/3）
-//! - 案内レベルの切り替え（`Control::SetGuidance`。TASK-294 2/2）。復帰は写しの水準へ戻す（MOD-9）
+//! - 案内レベルの切り替え（`Control::SetGuidance`。`set_guidance`、TASK-294 2/2）。復帰は写しの水準へ戻す（MOD-9）
 //! - 開始前の保存・復帰（TASK-217）
 //! - 周回単位の復帰・周回単位のチェックポイント・周回の「完了」の記録（MOD-16。#781 の決定で実体単位だけにした。
 //!   同じ周回の別の実体を戻さないことの試験は `crates/pack/tests/round_instance_restore.rs`）

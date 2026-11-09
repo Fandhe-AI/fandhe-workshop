@@ -108,6 +108,7 @@ mod reload;
 pub mod secret_scan;
 pub mod select_judge;
 pub mod session;
+mod set_guidance;
 pub mod start_gate;
 pub mod step_status;
 mod stop;

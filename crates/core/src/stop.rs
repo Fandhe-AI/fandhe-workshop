@@ -19,7 +19,7 @@
 //!    世界状態は、写しのログ位置（`log_len`）以降の `Changed` のうち宛先の持ち主が停止の持ち主と一致するものの経路だけを
 //!    写しの値へ戻す（写しに無ければ取り除く）。他の根の切り身・他の経路・`global_flags` は停止の直前のまま残す
 //!    （F-3 の変異 X2「写しを丸ごと戻すと他の実体まで巻き戻る」を防ぐ。復帰の規則 6 と同じ形で、補助関数は
-//!    [`crate::entry_derive::revert_owner`] を共有する）。案内レベルは写しの値に戻す（処理中には変わらないので同値）。
+//!    [`crate::entry_derive::revert_owner`] を共有する）。案内レベルは戻さず停止の直前の値を保つ（受講者の選択 `SetGuidance` は処理の効果ではない）。
 //!    世代を操作前の +1、`busy` を `None` にし、`Stopped`（`at` は操作前の世代と現在の Step）を 1 件返す。
 //!    根が 1 つの教材では、受付の後の `Changed` はすべて持ち主のものなので、結果は全体を戻すのと一致する
 //!
@@ -87,6 +87,8 @@ pub(crate) fn on_stop(ir: &Ir, state: &mut SessionState) -> Vec<Event> {
     let owner = crate::instance::owner_of(ir, &current);
     let touched = crate::entry_derive::owner_touched_paths(since, &ir.instances, &owner);
     let mut run = crate::entry_derive::revert_owner(&state.run, &entry.run, &owner, &touched);
+    // `revert_owner` は写しの水準へ戻すが、処理中の `SetGuidance` は取り消さない（復帰だけが写しへ戻す。MOD-9）。
+    run.guidance_level = state.run.guidance_level;
     run.generation = next;
     run.busy = None;
     state.run = run;

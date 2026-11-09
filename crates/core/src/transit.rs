@@ -192,9 +192,11 @@ pub(crate) fn return_after_limit(
                     let owner = crate::instance::owner_of(ir, cur);
                     let touched =
                         crate::entry_derive::owner_touched_paths(since, &ir.instances, &owner);
-                    Some(crate::entry_derive::revert_owner(
-                        run_before, &entry.run, &owner, &touched,
-                    ))
+                    let mut rewound =
+                        crate::entry_derive::revert_owner(run_before, &entry.run, &owner, &touched);
+                    // 写しの水準へは戻さない。処理中に選んだ水準は取り消さない（通常の停止と同じ。MOD-9）。
+                    rewound.guidance_level = run_before.guidance_level;
+                    Some(rewound)
                 }) {
                     Some(run) => {
                         outcome = LimitReturn::RewoundToEntry;

@@ -810,3 +810,38 @@ fn entry_is_not_derived_across_a_step_entry() {
     assert_eq!(state.run.busy, None);
     assert_eq!(state.run.world, broken.run.world);
 }
+
+/// 復帰の後に処理中で選んだ案内レベルは、遷移上限による停止でも取り消されない（通常の停止と同じ。MOD-9）。
+/// 受付の時点の写しは保存の時点の水準を持つので、戻し方が水準まで写しへ揃えると選択を失う。
+#[test]
+fn busy_limit_keeps_the_selected_guidance_level() {
+    use fandhe_workshop_contract::guidance::GuidanceLevel;
+    let ir = processing_ir(
+        serde_json::json!([]),
+        vec![
+            serde_json::json!({ "name": "p1", "effects": [] }),
+            serde_json::json!({ "name": "p2", "effects": [] }),
+        ],
+    );
+    let (state, _) = apply(&ir, state_at("main/f1"), text());
+    let (state, saved) = apply(&ir, state, Op::Control(Control::Save));
+    let id = match saved.as_slice() {
+        [Event::CheckpointSaved { id, .. }] => *id,
+        other => panic!("save must succeed: {other:?}"),
+    };
+    let (state, _) = apply(&ir, state, Op::Control(Control::Restore(id)));
+    assert!(state.run.busy.is_some());
+    let saved_level = state.run.guidance_level;
+    let chosen = GuidanceLevel::ALL
+        .into_iter()
+        .find(|l| *l != saved_level)
+        .expect("another level");
+    let (state, _) = apply(&ir, state, Op::Control(Control::SetGuidance(chosen)));
+    let (state, _) = apply(&ir, state.clone(), next_tick(&state));
+    assert!(state.run.busy.is_some());
+    let (state, events) = apply(&ir, state.clone(), next_tick(&state));
+    assert_limit_then_changes(&events);
+    assert_eq!(state.run.busy, None);
+    assert_eq!(f1_status(&state), StepStatus::Entered);
+    assert_eq!(state.run.guidance_level, chosen);
+}
