@@ -1,0 +1,10 @@
+id: SAVE18-6
+package: fandhe-workshop-core
+test: export_unsent_draft
+target: crates/core/src/history_export.rs
+find:             continue;
+replace:             string_ops.clear(); continue;
+expect-fail: trailing_reload_does_not_hide_the_last_draft
+expect-fail: erased_draft_left_in_ops_by_a_reload_is_true
+expect-fail: property_ops_rule_matches_the_spec_reading
+note: バイト列の版で再読み込み（オブジェクトでない操作）を飛ばさず、それより前の下書きを捨てる（型の版と規則がずれる）

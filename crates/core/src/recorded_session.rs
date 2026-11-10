@@ -124,7 +124,8 @@ impl RecordedSession {
         drive(self, limit)
     }
 
-    /// 書き出しに未送信の下書きが入るか（SAVE-18。TASK-329）。包みを組み立てず、参照のまま規則に当てる。
+    /// 書き出しに未送信の下書きが入るか（SAVE-18・D-111。TASK-329）。包みを組み立てず、参照のまま規則に当てる。
+    /// 入力欄が空でも、`ops` に送信していない空でない下書きが残っていれば真（打った後に消した下書きを含む）。
     ///
     /// 呼び出し元は web の `EngineHost::export_includes_unsent_draft`（画面の案内。SHELL-22）。規則の置き場は
     /// [`crate::history_export::includes_unsent_draft`]。記録が 0 件なら偽（書き出しが `Empty` になる場面と揃う）。
