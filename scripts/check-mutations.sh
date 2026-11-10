@@ -19,7 +19,7 @@
 # 終了コード: 0 = 全件が検出された / 1 = 検出されない変異がある（SURVIVED）/
 #   2 = 誤用、定義の不正、元の状態の失敗、既定の種類でコンパイルできない変異、
 #   compile-fail で期待する文字列を含まないコンパイルの失敗（どれも合格にしない。fail-closed）。
-# 回帰テストは scripts/test-check-mutations.sh。CI には含めない（遅い。組み込みは TASK-33・TASK-83）。
+# 回帰テストは scripts/test-check-mutations.sh。PR の CI には含めない（遅い）。週 1 回と手動は .github/workflows/mutations.yml が crate ごとの定義を渡して流す（D-114）。
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh

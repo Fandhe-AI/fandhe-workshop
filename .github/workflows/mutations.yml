@@ -1,0 +1,92 @@
+# 変異注入の検査（make check-mutations。TASK-83・D-114）を週 1 回と手動で流すワークフロー。
+# 実装に誤りを 1 つ入れると対応する試験が失敗することを、crate ごとに確かめる。
+# 定義は crates/<crate>/tests/mutations/*.mutation（件数は 2026-11-10 時点で core 279・contract 36・pack 175・web 331）。
+#
+# ci.yml に置かず別ワークフローにする理由（clean-room.yml と同じ。#2040）:
+# - 1 件ごとに試験のターゲットを 2 回以上コンパイルして流すため遅く、PR の必須チェックに向かない
+# - schedule・workflow_dispatch だけなら PR の HEAD にチェックは報告されず、ruleset の必須チェックと
+#   ci-complete の needs は変わらない
+#
+# 発火の起点は schedule と workflow_dispatch だけにする。pull_request・pull_request_target・push を足さない
+# （fork や PR の内容が runner で動く経路になる）。workflow_dispatch に inputs を置かない。
+# 処理の実体は scripts/check-mutations.sh。ここでは crate ごとの定義を渡して呼ぶだけにする。
+# 1 件の定義の誤り・元の状態の失敗はスクリプトが終了コード 2 で全体を止める（fail-closed。止まらずに続ける指定は置かない）。
+#
+# 注意: schedule と workflow_dispatch は、このファイルが既定ブランチにあるときだけ動く。
+# public repo では 60 日間活動が無いと schedule が自動で無効になるため、止まっていないかを時々確かめる。
+#
+# ジョブ追加・変更時は .claude/rules/github-actions.md に従う。
+name: Mutations
+
+on:
+  schedule:
+    # 土曜 17:37 UTC（日曜 02:37 JST）。clean-room.yml（日曜 18:23 UTC）と重ねず、毎時 0 分の混雑も避ける
+    - cron: '37 17 * * 6'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  # PR では動かないため run_id で各実行を分ける（clean-room.yml と同じ）
+  group: mutations-${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  mutations:
+    # fork では動かさない。値はリポジトリ名の固定の比較にする（clean-room.yml と同じ）
+    if: github.repository == 'Fandhe-AI/fandhe-workshop'
+    # ruleset の必須チェックには登録しない（PR に報告されないため）
+    name: "mutations (${{ matrix.crate }})"
+    runs-on: ubuntu-latest
+    # 2026-11-10 の手元の実測（TMPDIR はディスク側。依存の冷えたビルド込み）: web 4 件で 42 秒（約 10 秒/件）、core 2 件で 15 秒。
+    # 件数（web 331・core 279）に掛けると手元で web 約 55 分。runner は 2〜3 倍遅い前提で約 3 時間、その 1.5 倍強を置く。
+    # 標本は軽い試験の 6 件だけで外れ値を見ていない。初回の実行の所要時間（docs/testing.md 5.501）で見直す
+    timeout-minutes: 300
+    permissions:
+      contents: read
+    strategy:
+      # crate ごとの結果を独立に残す。1 つの crate の失敗で他を止めない
+      fail-fast: false
+      matrix:
+        crate: [core, contract, pack, web]
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      MUTATION_CRATE: ${{ matrix.crate }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        # rust-toolchain.toml の版・component・target を rustup が導入する（ci.yml の rust-test と同じ。
+        # キャッシュは使わない。足す場合は github-actions.md の「キャッシュ方針」に従い、効果を測ってから別の変更で行う）
+        run: rustup toolchain install
+
+      - name: Verify installed toolchain
+        run: bash scripts/ci-rust-toolchain.sh
+
+      # 記録の表（Markdown）は標準出力、進行のログは標準エラー出力に出る。表は step summary と artifact に残す。
+      # web の試験は native の cargo test で流れ、wasm32 のビルドもブラウザも使わない
+      - name: scripts/check-mutations.sh (crates/${{ matrix.crate }})
+        run: |
+          set -euo pipefail
+          out="${RUNNER_TEMP}/mutations-${MUTATION_CRATE}.md"
+          rc=0
+          TMPDIR="${RUNNER_TEMP}" scripts/check-mutations.sh "crates/${MUTATION_CRATE}"/tests/mutations/*.mutation >"${out}" || rc=$?
+          {
+            echo "### mutations (${MUTATION_CRATE})"
+            echo
+            cat "${out}"
+          } >>"${GITHUB_STEP_SUMMARY}"
+          exit "${rc}"
+
+      # 表は変異の定義の説明と試験名だけで、secret を含まない。public repo の artifact はログインした利用者が取得できる
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: mutations-${{ matrix.crate }}
+          path: ${{ runner.temp }}/mutations-${{ matrix.crate }}.md
+          if-no-files-found: warn
+          retention-days: 30

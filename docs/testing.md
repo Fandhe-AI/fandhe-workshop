@@ -11,7 +11,7 @@
 - 具体の試験は後続タスクで育てる。変異の入れ方と記録の様式は本文書に従う（TASK-83・TASK-220・TASK-244）
 - 性質テストのヘルパは `crates/core/tests/common/property.rs`、使い方の見本は `crates/core/tests/property_sample.rs`
   にある。見本の `Model` は試験の中で閉じており、エンジンの実装ではない
-- CI にはまだ cargo のジョブが無い（TASK-33）。本文書の手順はローカルで流し、CI での実行は未整備である
+- 性質テストは `ci.yml` の `rust-test`（`make test`）が流す。変異注入の検査は PR の CI には含めず、別のワークフロー `.github/workflows/mutations.yml` が週 1 回と手動で流す（D-114。5.501）。手元でも本文書の手順で流せる
 
 ### 1.1 層 1 の試験の構成（BUILD-7。TASK-83）
 
@@ -256,7 +256,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 - 所要時間: サンプル 2 件で約 6 秒（2026-10-12、依存を含む冷えた状態のビルド込み）。変異が増えるほど、変異ごとの再ビルドと試験の時間が足される
 - 依存のビルドの出力先（`CARGO_TARGET_DIR`）は一時ディレクトリに置き、同じ実行の全変異で共有する
 - 動的な実行（`make check-mutations`）は git hooks と `make check` には入れない。重く、`make check` の契約に合わない。静的な検査（`make check-mutation-defs`）は `make check` に入る（3.2 節）
-- CI への組み込みは TASK-33 が扱う。TASK-83 3/3 は手元の手順と記録だけで、CI の関門にはしない（人の承認点が無い範囲）。スクリプト自体の回帰テストは `make test-check-mutations`
+- CI では、PR の関門にはせず、`mutations.yml` が週 1 回（土曜 17:37 UTC）と手動（`workflow_dispatch`）で crate ごと（core・contract・pack・web）に流す（D-114。5.501）。PR に報告されないため、ruleset の必須チェックには入れない。スクリプト自体の回帰テストは `make test-check-mutations`
 
 ## 4. 記録の様式
 
@@ -13538,3 +13538,16 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 
 - 文書: `docs/known-gaps.md` の SAVE-18 の節を解消の状態に直し、新しく残る限界（案内が多めに出て、`Engine` を挟んで残った下書きは欄を空にしても消せない）を書いた。FEND-11 の節は、spec が D-112 で本体の仕組みに合ったことを書き、「spec が未了」の記述を除いた（`rerender` の先頭の改行の限界は残した）。`docs/engine-api.md` の照合の記録に日付つきで追記した
 - 限界: Chromium だけ。実 IME ではない。ブラウザで挟む操作は保存の 1 種だけ（進行・ポインタの操作は core・web）。案内の文面・表示は TASK-537。`ops` を持ち替えた後に偽へ戻ることは試験していない。`scripts/expected-test-counts.txt` は版上げ PR でだけ照合されるため更新していない（core +7・web +1・ブラウザ +2）
+
+### 5.501 変異注入の検査を週 1 回の別のワークフローで流す（D-114。TASK-83・TASK-33 の続き）
+
+目的: spec の D-114（2026-11-10）に合わせて、変異注入の検査（`make check-mutations`）を、PR の関門にせず、別のワークフロー `.github/workflows/mutations.yml` が定期に流すようにする。変異が検出されなくなる退行（試験の弱体化）を、PR とは別の周期で見つける。実行日 2026-11-10、元にしたコミット 15b856d8。
+
+- 発火: `schedule`（土曜 17:37 UTC。`clean-room.yml` の日曜 18:23 UTC と重ねない）と `workflow_dispatch` だけ。`inputs` は置かず、`pull_request`・`pull_request_target`・`push` は足さない。PR の HEAD に報告されないため、ruleset の必須チェックと `ci-complete` の `needs` は変えていない
+- 権限: トップレベルの `permissions` は `{}`、ジョブは `contents: read` だけ。`actions/checkout` は `persist-credentials: false`。`github.repository` が本 repo のときだけ動く（fork では skip）。action は `ci.yml`・`clean-room.yml` と同じ 40 桁 SHA 固定
+- 分け方: `crate`（core・contract・pack・web）の matrix（`fail-fast: false`）。各ジョブは `scripts/check-mutations.sh crates/<crate>/tests/mutations/*.mutation` を流す。スクリプトは変えていない（定義のファイルを引数に取れる）。定義の件数は core 279・contract 36・pack 175・web 331（依頼の文書の core 275 は古く、`make check-mutation-defs` の合計 821 件と一致する）。web の試験は native の `cargo test` で流れ、wasm32 のビルドもブラウザも要らない（`features: test-hooks` の定義は `cargo test --features` で渡る）
+- 失敗: 1 件の定義の誤り・元の状態の失敗はスクリプトが終了コード 2 で止め、その crate のジョブが失敗する（そのままにした。止まらずに続ける指定は足していない）。検出されない変異は終了コード 1 でジョブが失敗する
+- 記録: 記録の表を step summary と workflow artifact（`mutations-<crate>`、保持 30 日）に残す
+- 時間: 手元の実測（2026-11-10。`TMPDIR` はディスク側。依存の冷えたビルド込み）は、web の先頭 4 件（`features: test-hooks` の 1 件を含む）が 42 秒、core の先頭 2 件が 15 秒で、web は native だけで通った（全件 DETECTED）。件数に掛けた見積もりは、手元で web 約 55 分・core 約 35 分。runner は 2〜3 倍遅いとみて web 約 3 時間で、`timeout-minutes` は 300（上限 360 分の内側）にした。標本は軽い試験の 6 件で、重い試験を見ていないため外れる恐れがある。runner での所要時間は未実測で、初回の実行の結果でこの節に追記し、`timeout-minutes` を見直す（超える見込みなら、`scripts/check-mutations.sh` に分割の引数を足して matrix を crate × 分割にする）
+- Rust: `rustup toolchain install` と `scripts/ci-rust-toolchain.sh` による版の照合（`ci.yml` の `rust-test` と同じ）。キャッシュは使わない
+- 検証: `actionlint` と `make check` を通した。`mutations.yml` は `check-fork-ci`・`check-workflow-secrets` の検査対象に入っていない（fork での skip と secret 参照 0 件は、書き方で守っているだけで、機械の検査は無い）
