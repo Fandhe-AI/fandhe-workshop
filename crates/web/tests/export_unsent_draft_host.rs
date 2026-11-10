@@ -1,7 +1,8 @@
 //! 書き出しに未送信の下書きが入るかの口（`EngineHost::export_includes_unsent_draft`。SAVE-18・TASK-329）の試験。
 //!
 //! 確かめるのは、(1) 下書きで真・送信後と空文字列で偽、(2) 真のときの書き出しのバイト列が同じ判定で真、
-//! (3) 表示だけで開いた履歴では読み込んだバイト列の判定と一致し、表示だけを抜けると控えが残らないこと。
+//! (3) 表示だけで開いた履歴では読み込んだバイト列の判定と一致し、表示だけを抜けると控えが残らないこと、
+//! (4) チェックポイントの保存を挟んで消した下書きは、入力欄が空でも真で、挟んでも送った下書きは偽（D-111）。
 //! 下書きは受講者のデータのため、失敗の文には値を出さない。試験では `unwrap` を使ってよい。
 
 use std::path::PathBuf;
@@ -85,6 +86,39 @@ fn 空文字列の下書きは偽() {
     h.update(act("draft", "memo draft text"));
     h.update(act("draft", ""));
     assert!(!h.export_includes_unsent_draft());
+}
+
+#[test]
+fn 保存を挟んで消した下書きは真_挟んでも送った下書きは偽() {
+    let mut h = host("1.0.0");
+    h.boot(None);
+    h.update(act("draft", "memo draft text"));
+    h.update(act("save-checkpoint", ""));
+    h.update(act("draft", ""));
+    assert!(
+        h.export_includes_unsent_draft(),
+        "消した下書きが ops に残る"
+    );
+    let ExportGate::Ready(bytes) = h.export_live() else {
+        panic!("書き出しが Ready でない");
+    };
+    assert!(bytes_include_unsent_draft(&bytes));
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(
+        v["snapshot"]["drafts"]
+            .as_object()
+            .unwrap()
+            .values()
+            .all(|d| d.as_str() == Some("")),
+        "対照: 写しに空でない下書きが無い"
+    );
+
+    let mut h = host("1.0.0");
+    h.boot(None);
+    h.update(act("draft", "/make-note first-note"));
+    h.update(act("save-checkpoint", ""));
+    h.update(act("submit", ""));
+    assert!(!h.export_includes_unsent_draft(), "送った下書きは数えない");
 }
 
 #[test]

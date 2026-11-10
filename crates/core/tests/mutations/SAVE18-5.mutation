@@ -1,0 +1,10 @@
+id: SAVE18-5
+package: fandhe-workshop-core
+test: export_unsent_draft
+target: crates/core/src/history_export.rs
+find:     pending.is_some()
+replace:     false
+expect-fail: draft_before_any_step_counts_through_ops_only
+expect-fail: trailing_reload_does_not_hide_the_last_draft
+expect-fail: property_ops_rule_matches_the_spec_reading
+note: 末尾に残った空でない下書きを数えない（現在の Step が無い間の下書きを案内に数えない）

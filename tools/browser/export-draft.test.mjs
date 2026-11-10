@@ -1,4 +1,4 @@
-// 書き出しに未送信の下書きが入ることの層 3 ブラウザ試験（TASK-329。SAVE-18・D-52）。
+// 書き出しに未送信の下書きが入ることの層 3 ブラウザ試験（TASK-329。SAVE-18・D-52・D-111）。
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1 の試験の設定）。未設定・不在は skip にせず失敗にする。CSP あり・なしで流す。
 // 方針: 画面の操作だけで書き出す（入力欄へ入力 → 「履歴を書き出す」→ リンクの Download）。観察は engine の口
@@ -8,9 +8,12 @@
 //       `snapshot.drafts` にも同じ値があり、ファイルから求めた真偽と口が一致する。
 //   D-2 下書きを変えると出ていたリンクが外れ、もう一度書き出すと新しい値が入る。
 //   D-3（負の対照）送信した後は口が偽で、ファイルの `snapshot.drafts` に空でない値が無い。
-//   D-4（負の対照）欄を空にした後は口が偽。
+//   D-4（負の対照）欄を空にした後は口が偽（連続する下書きは畳まれ、消した値は `ops` に残らない）。
+//   D-5 打った後にチェックポイントの保存（エンジンの操作）を挟んで欄を空にすると、欄も `snapshot.drafts` も空のまま、
+//       `ops` に値が残り口が真で、ファイルから求めた真偽と口が一致する（D-111）。対照: 保存を挟んでも送った下書きは偽。
 //   各場面で外部への要求・CSP 違反・ページのエラーが 0 件。URL に状態が載らない。
-// 限界: Chromium だけ。実 IME ではない。案内の画面は TASK-537（SHELL-22）が持つ。消した下書きの残り（`docs/known-gaps.md`）は確かめない。
+// 限界: Chromium だけ。実 IME ではない。案内の画面は TASK-537（SHELL-22）が持つ。挟む操作は保存の 1 種だけ（進行・ポインタの
+//   操作は core・web の試験）。
 // 下書きの値は平文の試験値（秘密情報の形に当たらない）。失敗の文・診断には値を出さず、長さと真偽だけを出す。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,6 +26,7 @@ const BASE = '/fandhe-export-draft/';
 const INPUT = '[data-testid="draft-input"]';
 const SUBMIT = '[data-testid="submit-input"]';
 const EXPORT_BTN = '[data-testid="shell-export"]';
+const SAVE_BTN = '[data-testid="checkpoint-save"]';
 const LINK = '[data-testid="export-download"]';
 const DRAFT = 'memo draft text';
 const DRAFT2 = 'second memo text';
@@ -80,6 +84,8 @@ async function exportByUi(page) {
 }
 
 // 書き出したファイルの判定（試験の側で JSON から求める。実装の関数は使わない）。
+// 規則は spec の SAVE-18（D-111）の読み: 写しに空でない下書きがある、または、空でない `draft` のうち、直後の文字列の操作
+// （`draft`・`submit`。ほかは飛ばす）が同じ値の `submit` でないものがある（末尾の `draft` を含む）。
 function lastStringOp(ops) {
   for (let i = ops.length - 1; i >= 0; i -= 1) {
     const op = ops[i];
@@ -88,11 +94,23 @@ function lastStringOp(ops) {
   }
   return null;
 }
+function stringOps(ops) {
+  const out = [];
+  for (const op of ops) {
+    if (op && typeof op === 'object' && 'draft' in op) out.push({ kind: 'draft', value: op.draft });
+    else if (op && typeof op === 'object' && 'submit' in op) out.push({ kind: 'submit', value: op.submit });
+  }
+  return out;
+}
 function fileVerdict(file) {
   const drafts = Object.values(file.snapshot.drafts);
   if (drafts.some((v) => v.length > 0)) return true;
-  const last = lastStringOp(file.ops);
-  return last !== null && last.kind === 'draft' && last.value.length > 0;
+  const seq = stringOps(file.ops);
+  return seq.some((op, i) => {
+    if (op.kind !== 'draft' || op.value.length === 0) return false;
+    const next = seq[i + 1];
+    return !(next && next.kind === 'submit' && next.value === op.value);
+  });
 }
 
 function assertQuiet(rec, label) {
@@ -169,6 +187,42 @@ for (const csp of [true, false]) {
       await waitFlag(page, false, 'D-4 after');
       assertQuiet(rec, 'D-4');
       await context.close();
+    });
+  });
+
+  test(`D-5 保存を挟んで消した下書きは ops に残り口が真、送った下書きは偽（CSP ${cspLabel}）`, async () => {
+    await run(async (srv) => {
+      const { page, context, rec } = await open(srv);
+      await page.fill(INPUT, DRAFT);
+      await waitFlag(page, true, 'D-5 typed');
+      const opsBefore = (await exportByUi(page)).ops.length;
+      await page.click(SAVE_BTN);
+      await page.fill(INPUT, '');
+      await page.locator(LINK).waitFor({ state: 'detached', timeout: 10000 });
+      await waitFlag(page, true, 'D-5 erased');
+      assert.equal(await page.inputValue(INPUT), '', 'control: the field is empty');
+      const file = await exportByUi(page);
+      assert.ok(file.ops.length >= opsBefore + 2, 'control: the save and the empty draft were appended');
+      assert.equal(Object.values(file.snapshot.drafts).filter((v) => v.length > 0).length, 0, 'control: no non-empty draft in the snapshot');
+      assert.equal(file.ops.filter((op) => op && typeof op === 'object' && op.draft === DRAFT).length, 1, 'the erased value stays in ops once');
+      const last = lastStringOp(file.ops);
+      assert.equal(last !== null && last.kind === 'draft' && last.value === '', true, 'control: the last string op is the empty draft');
+      assert.equal(fileVerdict(file), true, 'file verdict is true');
+      assert.equal(fileVerdict(file), (await engine(page)).exportIncludesUnsentDraft, 'file verdict equals the port');
+      assertQuiet(rec, 'D-5 erased');
+      await context.close();
+
+      const sent = await open(srv);
+      await sent.page.fill(INPUT, ACCEPTED);
+      await waitFlag(sent.page, true, 'D-5 control typed');
+      await sent.page.click(SAVE_BTN);
+      await sent.page.click(SUBMIT);
+      await sent.page.waitForFunction((sel) => document.querySelector(sel).value === '', INPUT, { timeout: T });
+      await waitFlag(sent.page, false, 'D-5 control sent');
+      const sentFile = await exportByUi(sent.page);
+      assert.equal(fileVerdict(sentFile), false, 'control: file verdict is false');
+      assertQuiet(sent.rec, 'D-5 sent');
+      await sent.context.close();
     });
   });
 }

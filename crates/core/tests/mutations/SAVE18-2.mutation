@@ -2,7 +2,8 @@ id: SAVE18-2
 package: fandhe-workshop-core
 test: export_unsent_draft
 target: crates/core/src/history_export.rs
-find:             HistoryOp::Reload | HistoryOp::Engine(_) => None,
-replace:             HistoryOp::Reload | HistoryOp::Engine(_) => Some(false),
-expect-fail: trailing_reload_does_not_hide_the_last_draft
-note: ops の末尾の規則で Engine・Reload を飛ばさない（現在の Step が無い間の下書きを数えない）
+find:         HistoryOp::Reload | HistoryOp::Engine(_) => None,
+replace:         HistoryOp::Reload | HistoryOp::Engine(_) => Some(StringOp::Submit(None)),
+expect-fail: submitted_draft_with_an_engine_op_between_is_false
+expect-fail: property_ops_rule_matches_the_spec_reading
+note: ops の規則で Engine・Reload を飛ばさない（間に挟まった操作を、送っていない印として下書きを決着させる）

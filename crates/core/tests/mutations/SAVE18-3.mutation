@@ -1,0 +1,9 @@
+id: SAVE18-3
+package: fandhe-workshop-core
+test: export_unsent_draft
+target: crates/core/src/history_export.rs
+find:                 if pending.is_some_and(|p| sent != Some(p)) {
+replace:                 if pending.is_some_and(|_| false) {
+expect-fail: submit_of_another_value_leaves_the_draft_unsent
+expect-fail: property_ops_rule_matches_the_spec_reading
+note: 直後の送信の本文と下書きの値を比べない（違う本文の送信の前の下書きを送ったものとみなす。D-111 の値の比較）

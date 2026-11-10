@@ -1,0 +1,11 @@
+id: SAVE18-4
+package: fandhe-workshop-core
+test: export_unsent_draft
+target: crates/core/src/history_export.rs
+find:                 if pending.is_some() {
+replace:                 if pending.is_some() && false {
+expect-fail: erased_draft_left_in_ops_by_an_engine_op_is_true
+expect-fail: erased_draft_left_in_ops_by_a_reload_is_true
+expect-fail: rewritten_draft_before_the_sent_one_is_true
+expect-fail: property_ops_rule_matches_the_spec_reading
+note: 後ろに別の下書きが来た下書きを数えない（末尾の下書きだけを見る以前の規則へ戻す。D-111 の消した下書き）

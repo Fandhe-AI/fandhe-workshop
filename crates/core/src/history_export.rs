@@ -17,8 +17,9 @@
 //! 読み込みの上限（[`MAX_HISTORY_BYTES`]・[`MAX_HISTORY_OPS`]）を超えても止めず、[`ExportReport`] の印で知らせる。
 //! 案内は画面の責務（TASK-531）である。
 //!
-//! 未送信の下書きが書き出しに入るか（SAVE-18・D-52。TASK-329）の判定もここに置く。画面（SHELL-22。TASK-537）が
-//! 書き出す前の案内を出すかどうかを決めるための真偽だけを返す。値は返さない。
+//! 未送信の下書きが書き出しに入るか（SAVE-18・D-52・D-111。TASK-329）の判定もここに置く。画面（SHELL-22。TASK-537）が
+//! 書き出す前の案内を出すかどうかを決めるための真偽だけを返す。値は返さない。案内の対象は写しの下書きと、`ops` に残る
+//! 送信していない下書きである（入力欄の今の値だけではない。D-111）。
 //!
 //! 含まないもの: ファイル名・ダウンロード（web）、読み込み（[`crate::history_load`]、TASK-330 2/2）、
 //! 案内の文面と表示（SHELL-22。TASK-537）。履歴は下書きを含む受講者のデータであり、値を記録・出力しない。
@@ -94,30 +95,65 @@ pub fn export_report(bytes: &[u8], env: &SessionEnvelope) -> ExportReport {
     }
 }
 
-/// 書き出しに未送信の下書きが入るか（SAVE-18・D-52。TASK-329）。規則の本体で、書き出す包みの中身で判定する。
+/// 書き出しに未送信の下書きが入るか（SAVE-18・D-52・D-111。TASK-329）。規則の入口で、書き出す包みの中身で判定する。
 ///
 /// 呼び出し元は [`crate::recorded_session::RecordedSession::has_unsent_draft`]（web の
 /// `EngineHost::export_includes_unsent_draft` が画面の案内（SHELL-22）のために読む）と、下の包み・バイト列の版である。
 /// 次のどちらかを満たせば真。
 /// 1. 写し `drafts` に、空でない値がある（空白だけの値も、ファイルに入るため真）
-/// 2. `ops` の最後の文字列の操作（`Draft`・`Submit`。`Engine`・`Reload` は飛ばす）が、空でない `Draft` である
-///    （現在の Step が無い間の下書きは `ops` にだけ入るため）
+/// 2. `ops` に、送信していない空でない `Draft` が残っている（規則の本体は非公開の `unsent_draft_in`）。
+///    入力欄が空でも、打った後に消した・書き換えた下書きが `Engine` を挟んで残っていれば真になる（D-111）
 ///
-/// 限界: 打った後に消した下書きは、間に `Engine` の操作が挟まると `ops` に値が残るが、ここでは偽になる
-/// （「未送信の下書き」を入力欄の今の値に揃えるため。`docs/known-gaps.md`）。値は返さず真偽だけを返す。
+/// 記録の時点で消した値を `ops` から畳むことはしない（追記だけで増える列。D-53・EXT-5）。そのため、
+/// 入力欄の今の値だけで数えるより真が多めに出る（安全側の誤り。D-111）。値は返さず真偽だけを返す。
 #[must_use]
 pub fn includes_unsent_draft(ops: &[SessionOp], drafts: &BTreeMap<Root, String>) -> bool {
     if drafts.values().any(|v| !v.is_empty()) {
         return true;
     }
-    ops.iter()
-        .rev()
-        .find_map(|op| match op {
-            HistoryOp::Draft(t) => Some(!t.is_empty()),
-            HistoryOp::Submit(_) => Some(false),
-            HistoryOp::Reload | HistoryOp::Engine(_) => None,
-        })
-        .unwrap_or(false)
+    unsent_draft_in(ops.iter().filter_map(|op| match op {
+        HistoryOp::Draft(t) => Some(StringOp::Draft(t.as_str())),
+        HistoryOp::Submit(t) => Some(StringOp::Submit(Some(t.as_str()))),
+        HistoryOp::Reload | HistoryOp::Engine(_) => None,
+    }))
+}
+
+/// `ops` の文字列の操作（`Draft`・`Submit`）だけを抜いた 1 件。`Engine`・`Reload` は列に入れない（飛ばす）。
+///
+/// 型の版とバイト列の版が同じ規則（[`unsent_draft_in`]）を共有するための形である。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StringOp<'a> {
+    /// 下書きの置き換え。
+    Draft(&'a str),
+    /// 送信。本文が文字列として読めないとき（バイト列の版）は `None` で、どの下書きとも同じ値とみなさない。
+    Submit(Option<&'a str>),
+}
+
+/// 文字列の操作の列に、送信していない空でない `Draft` があるか（SAVE-18 の規則 (2)。D-111）。
+///
+/// 送信していない `Draft` は、空でない値を持つ `Draft` のうち、直後の文字列の操作が同じ値の `Submit` であるものを
+/// 除いたもの（末尾の `Draft` を含む）である（spec の SAVE-18 の【推論】）。値で比べるのは、記録の口が送信の本文を
+/// 下書きと別に受け取るため、直前の `Draft` と違う本文の送信で、送っていない値を数え漏らさないためである。
+/// 前から 1 回だけ走査し、保留中の空でない下書きを直後の操作で決着させる。
+fn unsent_draft_in<'a>(ops: impl IntoIterator<Item = StringOp<'a>>) -> bool {
+    let mut pending: Option<&str> = None;
+    for op in ops {
+        match op {
+            StringOp::Draft(t) => {
+                if pending.is_some() {
+                    return true;
+                }
+                pending = (!t.is_empty()).then_some(t);
+            }
+            StringOp::Submit(sent) => {
+                if pending.is_some_and(|p| sent != Some(p)) {
+                    return true;
+                }
+                pending = None;
+            }
+        }
+    }
+    pending.is_some()
 }
 
 /// 包みに [`includes_unsent_draft`] を当てる。
@@ -128,8 +164,10 @@ pub fn envelope_includes_unsent_draft(env: &SessionEnvelope) -> bool {
 
 /// 書き出しのバイト列（表示だけで開いた履歴の控え）に [`includes_unsent_draft`] と同じ規則を当てる。
 ///
-/// 版が違うと包みの型に読めないことがあるため、`serde_json::Value` で `snapshot.drafts` と `ops` の末尾を見る。
-/// JSON として読めない・形が合わないときは真（fail-closed。案内を出す側に倒す）。
+/// 版が違うと包みの型に読めないことがあるため、`serde_json::Value` で `snapshot.drafts` と `ops` を見る（D-111 の
+/// 「書き出す `ops`」に表示だけの控えも含むと読む。spec の SAVE-18 の【推論】）。
+/// JSON として読めない・形が合わないときは真（fail-closed。案内を出す側に倒す）。`draft` の値が文字列でなければ真、
+/// `submit` の値が文字列でなければどの下書きとも同じ値とみなさない。
 #[must_use]
 pub fn bytes_include_unsent_draft(bytes: &[u8]) -> bool {
     let Ok(value) = serde_json::from_slice::<serde_json::Value>(bytes) else {
@@ -155,14 +193,19 @@ pub fn bytes_include_unsent_draft(bytes: &[u8]) -> bool {
     let Some(ops) = value.get("ops").and_then(serde_json::Value::as_array) else {
         return true;
     };
-    ops.iter()
-        .rev()
-        .find_map(|op| {
-            let obj = op.as_object()?;
-            if let Some(d) = obj.get("draft") {
-                return Some(d.as_str().is_none_or(|t| !t.is_empty()));
-            }
-            obj.contains_key("submit").then_some(false)
-        })
-        .unwrap_or(false)
+    let mut string_ops = Vec::new();
+    for op in ops {
+        let Some(obj) = op.as_object() else {
+            continue;
+        };
+        if let Some(d) = obj.get("draft") {
+            let Some(t) = d.as_str() else {
+                return true;
+            };
+            string_ops.push(StringOp::Draft(t));
+        } else if let Some(sent) = obj.get("submit") {
+            string_ops.push(StringOp::Submit(sent.as_str()));
+        }
+    }
+    unsent_draft_in(string_ops)
 }
