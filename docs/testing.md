@@ -13551,3 +13551,22 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 - 時間: 手元の実測（2026-11-10。`TMPDIR` はディスク側。依存の冷えたビルド込み）は、web の先頭 4 件（`features: test-hooks` の 1 件を含む）が 42 秒、core の先頭 2 件が 15 秒で、web は native だけで通った（全件 DETECTED）。件数に掛けた見積もりは、手元で web 約 55 分・core 約 35 分。runner は 2〜3 倍遅いとみて web 約 3 時間で、`timeout-minutes` は 300（上限 360 分の内側）にした。標本は軽い試験の 6 件で、重い試験を見ていないため外れる恐れがある。runner での所要時間は未実測で、初回の実行の結果でこの節に追記し、`timeout-minutes` を見直す（超える見込みなら、`scripts/check-mutations.sh` に分割の引数を足して matrix を crate × 分割にする）
 - Rust: `rustup toolchain install` と `scripts/ci-rust-toolchain.sh` による版の照合（`ci.yml` の `rust-test` と同じ）。キャッシュは使わない
 - 検証: `actionlint` と `make check` を通した。`mutations.yml` は `check-fork-ci`・`check-workflow-secrets` の検査対象に入っていない（fork での skip と secret 参照 0 件は、書き方で守っているだけで、機械の検査は無い）
+
+#### 初回の実行の結果と FEND13-3 の向け直し（2026-11-10）
+
+初回の実行: 2026-11-10 に `workflow_dispatch` で手動で流した（run 42776002217。main 45438919。runner は ubuntu-latest）。contract・core・pack は全件 DETECTED だった。web は 331 件中 330 件が DETECTED で、`FEND13-3` だけが SURVIVED になり、web のジョブが失敗した。
+
+| crate | 定義の件数 | 結果 | 所要（runner の実測） |
+|---|---|---|---|
+| contract | 36 | 全件 DETECTED | 2 分 |
+| pack | 175 | 全件 DETECTED | 51 分 |
+| web | 331 | FEND13-3 が SURVIVED、ほかは DETECTED | 74 分 |
+| core | 279 | 全件 DETECTED | 85 分 |
+
+- `timeout-minutes: 300` は据え置く。最長の core（85 分）に対して 3 倍以上の余裕があり、5.501 の見積もり（web 約 3 時間）より実測は短かった。分割の引数も足さない
+- FEND13-3 の再現: 手元（2026-11-10、`36d7abd4`、`TMPDIR` はディスク側）で `scripts/check-mutations.sh crates/web/tests/mutations/FEND13-3.mutation` を流し、SURVIVED（終了コード 1）が再現した。CI との環境の違いではない
+- 原因: 変異の置き場 `crates/web/src/product_rows.rs` の `path_rows`（`target.as_ref()` は 120 行）は、#2062（`53eb99b0`）の時点では 7 種の差し替え口がすべて委ねる本線だった。その後 #2066（`035b92b3`）でファイルツリーが自前の `product_items` に結線され、`path_rows` は行の検査に通らないとき（空の経路など）の退避先だけになった。試験 `keyboard_confirm_host` のビュー `v-files` はファイルツリーで、行は `crates/web/src/file_tree_view.rs` の `product_items`（`target.as_ref()` は 278 行）が描く。変異は試験の通らない経路に当たっていた
+- 直し方: 定義の `target` を `crates/web/src/file_tree_view.rs` に、`find` を 278 行の `target.as_ref(),`（12 空白。ファイル内で 1 件）に向け直し、`note` を実態に合わせた。試験は変えていない。試験は本線の指せる属性を守っており、欠けていたのは定義の追従だった
+- 試験を強める案を採らなかった理由: `path_rows` の指せる属性を守る試験は、native の試験には無い。120 行を `None` にして `cargo test -p fandhe-workshop-web --locked --no-fail-fast` を既定の feature と `--features test-hooks` の両方で流すと、どちらも全件が通った（ブラウザ試験は未確認）。ただし、ファイルツリーでは退避の経路を host の経路から作れなかった。`path_rows` は `pub(crate)` で、変異の検査が流せるのは結合試験（`--test`）だけである。世界状態は状態の `world` ではなくログから導かれ、初期の状態に置いた要素は行に出ない。受付の効果に空の経路の `put` を足すと、世界状態が空のままで `notes/draft` の行も出なかった。無くなった行（`Remove`）は `shown(Phase::After)` で描けるため、退避にならない。ほかの 5 種の行の部品が `None` を返す条件は読んでおらず、未確認である。そのため範囲外として残す
+- 結果: 向け直した後、同じコマンドで DETECTED（終了コード 0）になった。落ちた試験は「確認待ちの行は_4_属性を組で持ち_宣言_id_の宛先になる」（`data-action` の assert）と「行の_payload_を_ui_として送ると確認が成立して次の_step_へ進む」。`make check-mutation-defs` は 821 件で一致した
+- 限界: ほかの 6 種（`card_view.rs:329`・`check_view.rs:373`・`diff_view.rs:287`・`app_demo_view.rs:429`・`task_tree.rs:377`・`document_view.rs:326`）の `product_items` の `target.as_ref()` には、変異の定義が無い。`path_rows`（`product_rows.rs:120`）の指せる属性を守る試験も無い。どちらも本節の範囲外である
