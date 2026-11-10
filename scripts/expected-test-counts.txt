@@ -1,4 +1,4 @@
-# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-11-07・元にしたコミット: 0f51c102
+# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-11-10・元にしたコミット: 6c32e88c
 # 更新は `make update-test-counts`（遅い。ブラウザ試験も流す）。版上げ PR の中では変えない（CI が失敗する）。版を上げる前に別の PR で更新する。
 # 書式: rust|<試験の束>|passed=<n>|ignored=<n>。同じ束の記述が crate をまたいで重複する場合は合算する（限界）。
 rust|doc-tests fandhe_workshop_contract|passed=0|ignored=0
@@ -33,6 +33,7 @@ rust|tests/artifact_view_contract.rs [artifact_view_contract]|passed=17|ignored=
 rust|tests/artifact_view_generic_names.rs [artifact_view_generic_names]|passed=4|ignored=0
 rust|tests/artifact_view_sample.rs [artifact_view_sample]|passed=7|ignored=0
 rust|tests/begin.rs [begin]|passed=4|ignored=0
+rust|tests/begin_guidance.rs [begin_guidance]|passed=9|ignored=0
 rust|tests/begin_skip.rs [begin_skip]|passed=8|ignored=0
 rust|tests/begin_skip_keep.rs [begin_skip_keep]|passed=6|ignored=0
 rust|tests/begin_unmet.rs [begin_unmet]|passed=2|ignored=0
@@ -84,6 +85,7 @@ rust|tests/compare.rs [compare]|passed=7|ignored=0
 rust|tests/compile.rs [compile]|passed=27|ignored=0
 rust|tests/compile_chapters.rs [compile_chapters]|passed=13|ignored=0
 rust|tests/compile_output.rs [compile_output]|passed=8|ignored=0
+rust|tests/composing_marker_host.rs [composing_marker_host]|passed=6|ignored=0
 rust|tests/condition_contract.rs [condition_contract]|passed=9|ignored=0
 rust|tests/condition_eval.rs [condition_eval]|passed=13|ignored=0
 rust|tests/condition_vocab_pack.rs [condition_vocab_pack]|passed=6|ignored=0
@@ -128,8 +130,11 @@ rust|tests/env_action_save.rs [env_action_save]|passed=12|ignored=0
 rust|tests/error_input_expect.rs [error_input_expect]|passed=10|ignored=0
 rust|tests/examples_pack.rs [examples_pack]|passed=8|ignored=0
 rust|tests/export_notice.rs [export_notice]|passed=7|ignored=0
+rust|tests/export_unsent_draft.rs [export_unsent_draft]|passed=10|ignored=0
+rust|tests/export_unsent_draft_host.rs [export_unsent_draft_host]|passed=3|ignored=0
 rust|tests/ext9_ir_identity.rs [ext9_ir_identity]|passed=6|ignored=0
 rust|tests/extension_point_procedure_doc.rs [extension_point_procedure_doc]|passed=5|ignored=0
+rust|tests/fast_forward.rs [fast_forward]|passed=17|ignored=0
 rust|tests/fictional_mark_validate.rs [fictional_mark_validate]|passed=10|ignored=0
 rust|tests/file_tree_product.rs [file_tree_product]|passed=3|ignored=0
 rust|tests/file_tree_view_a_contract.rs [file_tree_view_a_contract]|passed=10|ignored=0
@@ -143,6 +148,7 @@ rust|tests/glue_scale.rs [glue_scale]|passed=4|ignored=0
 rust|tests/go_to_closed_round.rs [go_to_closed_round]|passed=8|ignored=0
 rust|tests/guidance_api.rs [guidance_api]|passed=8|ignored=0
 rust|tests/guidance_contract.rs [guidance_contract]|passed=10|ignored=0
+rust|tests/guidance_judge_invariance.rs [guidance_judge_invariance]|passed=3|ignored=0
 rust|tests/guidance_leak_scope.rs [guidance_leak_scope]|passed=11|ignored=0
 rust|tests/guidance_levels.rs [guidance_levels]|passed=19|ignored=0
 rust|tests/guide4_defects.rs [guide4_defects]|passed=8|ignored=0
@@ -340,10 +346,11 @@ rust|tests/secret_scan.rs [secret_scan]|passed=17|ignored=0
 rust|tests/secret_shape_validate.rs [secret_shape_validate]|passed=13|ignored=0
 rust|tests/select_judge.rs [select_judge]|passed=23|ignored=0
 rust|tests/session_contract.rs [session_contract]|passed=14|ignored=0
+rust|tests/set_guidance.rs [set_guidance]|passed=6|ignored=0
 rust|tests/shape_mismatch.rs [shape_mismatch]|passed=3|ignored=0
 rust|tests/shell_contract.rs [shell_contract]|passed=26|ignored=0
 rust|tests/shell_contract_v2.rs [shell_contract_v2]|passed=23|ignored=0
-rust|tests/shell_frame_host.rs [shell_frame_host]|passed=19|ignored=0
+rust|tests/shell_frame_host.rs [shell_frame_host]|passed=20|ignored=0
 rust|tests/shell_notice_sample.rs [shell_notice_sample]|passed=18|ignored=0
 rust|tests/slot_contract.rs [slot_contract]|passed=7|ignored=0
 rust|tests/soft_break_join.rs [soft_break_join]|passed=7|ignored=0
@@ -355,7 +362,7 @@ rust|tests/start_link_host.rs [start_link_host]|passed=3|ignored=0
 rust|tests/start_requires.rs [start_requires]|passed=7|ignored=0
 rust|tests/start_skip.rs [start_skip]|passed=4|ignored=0
 rust|tests/start_unmet.rs [start_unmet]|passed=6|ignored=0
-rust|tests/state_paths.rs [state_paths]|passed=30|ignored=0
+rust|tests/state_paths.rs [state_paths]|passed=32|ignored=0
 rust|tests/static_limits.rs [static_limits]|passed=4|ignored=0
 rust|tests/step_body_host.rs [step_body_host]|passed=8|ignored=0
 rust|tests/step_status_contract.rs [step_status_contract]|passed=10|ignored=0
@@ -383,7 +390,7 @@ rust|tests/theme_shared.rs [theme_shared]|passed=1|ignored=0
 rust|tests/tick_interval.rs [tick_interval]|passed=6|ignored=0
 rust|tests/tick_progress.rs [tick_progress]|passed=9|ignored=0
 rust|tests/top_position_host.rs [top_position_host]|passed=6|ignored=0
-rust|tests/transition_limit.rs [transition_limit]|passed=19|ignored=0
+rust|tests/transition_limit.rs [transition_limit]|passed=20|ignored=0
 rust|tests/tree_attrs_contract.rs [tree_attrs_contract]|passed=12|ignored=0
 rust|tests/upstream_bump_procedure_doc.rs [upstream_bump_procedure_doc]|passed=5|ignored=0
 rust|tests/upstream_map_gap.rs [upstream_map_gap]|passed=6|ignored=0
@@ -412,10 +419,10 @@ rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=416|passed=4150|ignored=4
+rust|total|binaries=423|passed=4209|ignored=4
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=55|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=127|ignored=0
-rust|unittests src/lib.rs [fandhe_workshop_web]|passed=199|ignored=0
+rust|unittests src/lib.rs [fandhe_workshop_web]|passed=200|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
-browser|total|tests=1897|pass=1897|skipped=0|todo=0|cancelled=0
+browser|total|tests=2077|pass=2077|skipped=0|todo=0|cancelled=0
