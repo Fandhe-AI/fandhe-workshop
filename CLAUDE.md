@@ -63,6 +63,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── .github/workflows/
 │   ├── ci.yml                # changes / check / rust-lint / rust-test / browser-test / test-hooks / test-hooks-macos / pr-title / ci-complete
 │   ├── clean-room.yml        # まっさらなコンテナの試験（make clean-room）を週 1 回と手動で流す（schedule・workflow_dispatch のみ・permissions {}・fork では skip・PR の必須チェックに入れない。#2040）
+│   ├── mutations.yml         # 変異注入の検査（make check-mutations）を crate ごと（core・contract・pack・web）に週 1 回と手動で流す（schedule・workflow_dispatch のみ・permissions {}・fork では skip・PR の必須チェックに入れない。D-114）
 │   ├── release.yml           # 作成者向けの実行ファイル（fandhe-pack）のビルド（workflow_dispatch のみ・macos-latest・Apple シリコン・artifact に残す・fork では skip・Release は作らず人が承認の後に手で作る。TASK-415 1/2・2/2）
 │   ├── deploy.yml            # 配信の骨格（workflow_dispatch のみ・permissions {}・fork では skip・未実装で失敗。TASK-121 で実装）
 │   ├── ai-review.yml         # codex による PR 自動レビュー
@@ -164,7 +165,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-build-web` | `build-web` の受入基準（配信物に試験用の口が無い・compile した IR が配信する設定の `ir/main.json` に入る等）を実ビルドで検査する。CI の `browser-test` が流す |
 | `make check-delivery` | 配信物（`dist/web`。先に `make build-web`）に試験用の口が無いことの検査（`tools/check-delivery.sh`。`--control <試験の設定の dist>` で対照つき。CI では browser-test の `make test-build-web` が流す。TASK-82） |
 | `make test-check-delivery` | 配信検査自体の回帰テスト（実ビルドを行うため遅い） |
-| `make check-mutations` | 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅く、CI・フックには入れない） |
+| `make check-mutations` | 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅く、PR の CI・フックには入れない。週 1 回と手動は `mutations.yml` が crate ごとに流す） |
 | `make test-check-mutations` | 変異注入の検査自体の回帰テスト |
 | `make measure-wasm-size` | WASM の `gzip -9` の大きさを基点つきで測り JSON を出す（様式は `docs/measurement.md`） |
 | `make measure-history-size` | 2 周分の履歴（書き出しの包み）の大きさと `Changed` の割合を基点つきで測り JSON を出す（様式は `docs/measurement.md` §4a。`make measure` の束には入れない。TASK-216） |
