@@ -29,7 +29,7 @@ source "${DIR}/lib-ime-control.sh"
 
 reject_args "$(basename "$0")" "$@"
 
-for cmd in node cargo wasm-bindgen mktemp awk grep cp rm mv; do
+for cmd in node cargo wasm-bindgen mktemp mkdir awk grep cp rm mv; do
   require_cmd "${cmd}" || exit 2
 done
 if [[ ! -d "${ROOT_DIR}/node_modules/playwright" ]]; then
@@ -85,11 +85,12 @@ run_variant() {
   local name="$1"
   log "building ${name} (web and test-hooks configurations; the first build is cold and slow)"
   (
-    cd "${COPY}"
+    # || die の左辺のサブシェルでは set -e が効かないため、各コマンドに明示の失敗処理を付ける。
+    cd "${COPY}" || exit 1
     CARGO_TARGET_DIR="${TMP}/target" TEST_HOOKS="" SKIP_WASM_OPT=1 OUT_DIR="${COPY}/dist/web" \
-      "${COPY}/tools/build-web.sh" >/dev/null
+      "${COPY}/tools/build-web.sh" >/dev/null || exit 1
     CARGO_TARGET_DIR="${TMP}/target" TEST_HOOKS=1 SKIP_WASM_OPT=1 OUT_DIR="${COPY}/dist/web-test" \
-      "${COPY}/tools/build-web.sh" >/dev/null
+      "${COPY}/tools/build-web.sh" >/dev/null || exit 1
   ) || die "the build of ${name} failed"
   RUN_RC=0
   FANDHE_WEB_DIR="${COPY}/dist/web" FANDHE_WEB_TEST_DIR="${COPY}/dist/web-test" node --test \

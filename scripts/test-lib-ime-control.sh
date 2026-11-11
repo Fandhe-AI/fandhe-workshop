@@ -13,6 +13,8 @@ source "${DIR}/lib-mutations.sh"
 source "${DIR}/lib-ime-control.sh"
 require_cmd mktemp
 require_cmd grep
+require_cmd rm
+reject_args "$(basename "$0")" "$@"
 fail=0
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/fandhe-test-lib-ime-control.XXXXXX")"
@@ -53,7 +55,11 @@ expect_eq other "$(judge_m1 1 "${plain}" 2>/dev/null)" "M1: failure without the 
 expect_eq other "$(judge_m1 1 "${title}" 2>/dev/null)" "M1: zero-count mark is another reason"
 expect_eq established "$(judge_m1 1 "${mark}" 2>/dev/null)" "M1: marked failure with a count is established"
 expect_eq survived "$(judge_m3 0 "${plain}" 2>/dev/null)" "M3: rc 0 is survived"
-expect_eq detected "$(judge_m3 1 "${plain}" 2>/dev/null)" "M3: failure without mount error is detected"
+esc="${TMP}/esc.txt"
+printf '✖ S-B 取り消しの 3 文 待機中の変換中の Esc はログも世代も変えない\nAssertionError [ERR_ASSERTION]: 変換中の Esc 1\n' >"${esc}"
+expect_eq other "$(judge_m3 1 "${plain}" 2>/dev/null)" "M3: failure without an Esc assertion is another reason"
+expect_eq other "$(judge_m3 3 "${plain}" 2>/dev/null)" "M3: launch failure (rc 3) is another reason"
+expect_eq detected "$(judge_m3 1 "${esc}" 2>/dev/null)" "M3: Esc assertion failure is detected"
 expect_eq other "$(judge_m3 1 "${mount}" 2>/dev/null)" "M3: mount failure is another reason"
 
 expect_eq 0 "$(combine_rc established survived)" "combine: established + survived"

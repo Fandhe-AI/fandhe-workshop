@@ -11,6 +11,10 @@
 # shellcheck disable=SC2034 # 呼び出し側（test-ime-composing-control.sh）も出力の抜き出しに使う
 IME_MIS_SEND_RE='IME-MIS-SEND 誤送信 [1-9][0-9]* 件'
 
+# M3 の検出の証拠: 変換中の Esc の試験の失敗行。
+# shellcheck disable=SC2034 # judge_m3 が使う
+IME_ESC_FAIL_RE='^[[:space:]]*(✖|not ok).*変換中の Esc'
+
 # load_variant <def-file>: 定義を読み、M_TARGET・M_FIND・M_REPLACE を使える状態にする。
 load_variant() {
   parse_def "$1"
@@ -51,7 +55,14 @@ judge_m3() {
     echo other
     return 0
   fi
-  echo detected
+  # 検出と数えるのは、Esc の表明（AssertionError）で失敗した証拠がある場合だけにする。
+  # Chromium の起動失敗・モジュールの読み込み失敗・タイムアウトは other（fail-closed）。
+  if grep -Eq "${IME_ESC_FAIL_RE}" "${out}" && grep -Fq 'AssertionError' "${out}"; then
+    echo detected
+    return 0
+  fi
+  echo "M3: the test failed without an Esc assertion failure (launch, module load or timeout?)" >&2
+  echo other
 }
 
 # combine_rc <m1> <m3>: 終了コードを標準出力へ。0 = 成立かつ記録どおり / 1 = M1 不成立 / 2 = 別の理由 / 3 = M3 が検出された。
