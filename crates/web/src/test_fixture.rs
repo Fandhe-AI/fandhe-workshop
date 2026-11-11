@@ -34,6 +34,8 @@
 //! 今の Step で宣言し、世界状態の経路を件数ぶん積む（`artifact_redraw_ir_bytes`。件数は固定の 5 値だけ）。
 //! 行の形つきの変種（`?fixture=artifact-redraw-shaped-<種類>-<件数>`。種類と件数の組は 7 つだけ。#2074）は、同じ測定を
 //! 差分の hunk・ファイルツリーの dir と file・入れ子のタスク・文書の本文などの描画部品の実際の形の行で行う（`shaped_seed`）。
+//! 文書だけは全 200 行に同じ 80 ブロックの本文を付けた参考の変種（`?fixture=artifact-redraw-shaped-document-200-body_all`。#2127）を
+//! 足す。本文の練習データは 1 件を全行が共有するので、IR の大きさは変わらない。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
@@ -146,6 +148,8 @@ pub(crate) enum Shaped {
     FileTree200,
     /// 文書 200 行（先頭の 1 行に 80 ブロックの本文）。
     Document200,
+    /// 文書 200 行（全行に同じ 80 ブロックの本文。参考の変種。#2127）。
+    Document200BodyAll,
     /// 差分 500 行（20 行ごとに hunk）。
     Diff500,
     /// タスク 50 件（深さ 0〜2 の入れ子）。
@@ -573,6 +577,9 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
         "?fixture=artifact-redraw-shaped-document-200" => {
             MountFixture::ArtifactRedrawShaped(Shaped::Document200)
         }
+        "?fixture=artifact-redraw-shaped-document-200-body_all" => {
+            MountFixture::ArtifactRedrawShaped(Shaped::Document200BodyAll)
+        }
         "?fixture=artifact-redraw-shaped-diff-500" => {
             MountFixture::ArtifactRedrawShaped(Shaped::Diff500)
         }
@@ -747,7 +754,7 @@ fn artifact_redraw_shaped_ir_bytes(shape: Shaped) -> Option<Vec<u8>> {
         .get_mut("pack")?
         .as_object_mut()?
         .insert("id".to_owned(), ARTIFACT_REDRAW_SHAPED_PACK_ID.into());
-    if shape == Shaped::Document200 {
+    if matches!(shape, Shaped::Document200 | Shaped::Document200BodyAll) {
         value
             .get_mut("views")?
             .get_mut("v-document")?
@@ -912,10 +919,11 @@ fn shaped_seed(shape: Shaped) -> Vec<serde_json::Value> {
                 )
             })
             .collect(),
-        Shaped::Document200 => (0..200)
+        Shaped::Document200 | Shaped::Document200BodyAll => (0..200)
             .map(|i| {
                 let state = ["open", "done"][i % 2];
-                let fixture = (i == 0).then_some(SHAPED_DOC_FIXTURE);
+                let fixture =
+                    (i == 0 || shape == Shaped::Document200BodyAll).then_some(SHAPED_DOC_FIXTURE);
                 shaped_changed(
                     &format!("p/{i:04}"),
                     "",
@@ -2702,7 +2710,7 @@ mod tests {
         assert_eq!(body.matches("data-path=\"p/").count(), 40);
     }
 
-    const SHAPED: [(&str, Shaped, crate::artifact_view::ViewKind, usize); 7] = [
+    const SHAPED: [(&str, Shaped, crate::artifact_view::ViewKind, usize); 8] = [
         (
             "?fixture=artifact-redraw-shaped-file_tree-200",
             Shaped::FileTree200,
@@ -2712,6 +2720,12 @@ mod tests {
         (
             "?fixture=artifact-redraw-shaped-document-200",
             Shaped::Document200,
+            crate::artifact_view::ViewKind::Document,
+            200,
+        ),
+        (
+            "?fixture=artifact-redraw-shaped-document-200-body_all",
+            Shaped::Document200BodyAll,
             crate::artifact_view::ViewKind::Document,
             200,
         ),
@@ -2764,6 +2778,11 @@ mod tests {
             "?fixture=artifact-redraw-shaped-diff-20",
             "?fixture=artifact-redraw-shaped-Diff-500",
             "?fixture=artifact-redraw-shaped-",
+            "?fixture=artifact-redraw-shaped-document-200-body_all&x=1",
+            "?fixture=artifact-redraw-shaped-document-200-body_ALL",
+            "?fixture=artifact-redraw-shaped-document-200-body",
+            "?fixture=artifact-redraw-shaped-document-500-body_all",
+            "?fixture=artifact-redraw-shaped-card_list-20-body_all",
         ] {
             assert_eq!(
                 mount_fixture_from_search(other),
@@ -2795,6 +2814,33 @@ mod tests {
         }
     }
 
+    /// 行の種類（`data-kind`）が `n` 件で、状態のバッジの文字が期待の件数どおりに出ること（語彙の外の語・不明は出ない）。
+    fn assert_state_texts(scope: &str, kind: &str, n: usize, expected: &[(&str, usize)]) {
+        assert_eq!(
+            scope.matches(&format!("data-kind=\"{kind}\"")).count(),
+            n,
+            "{kind} の行"
+        );
+        assert_eq!(
+            scope
+                .matches("data-scope=\"marker\" data-part=\"root\"")
+                .count(),
+            n,
+            "{kind} のバッジ"
+        );
+        for (text, count) in expected {
+            assert_eq!(
+                scope.matches(&format!(">{text}<")).count(),
+                *count,
+                "{kind}: {text}"
+            );
+        }
+        assert!(
+            !scope.contains("不明") && !scope.contains(">created<"),
+            "{kind}: 語彙の外"
+        );
+    }
+
     #[test]
     fn 形つきの再描画の教材は全行が指せる行で種類ごとの形が出る() {
         use crate::host::HostAction;
@@ -2823,13 +2869,43 @@ mod tests {
                 Shaped::TaskTree50 => assert!(
                     scope.contains("aria-level=\"2\"") || scope.contains("aria-level=\"3\"")
                 ),
-                Shaped::Document200 => {
+                Shaped::Document200 | Shaped::Document200BodyAll => {
+                    let expected = if shape == Shaped::Document200BodyAll {
+                        n
+                    } else {
+                        1
+                    };
                     assert_eq!(
                         html.matches("data-testid=\"artifact-doc-body\"").count(),
-                        1,
+                        expected,
                         "本文の区画"
                     );
                 }
+                // カードとチェックは行の種類（`data-kind`）と状態のバッジの語彙の文字を件数まで確かめる。
+                // 共通の経路の行（`path_rows`）に退くと `data-kind` が card・check にならず、語彙の外の語も出る。
+                Shaped::CardList20 => assert_state_texts(
+                    scope,
+                    "card",
+                    n,
+                    &[
+                        ("下書き", 5),
+                        ("オープン", 5),
+                        ("マージ済み", 5),
+                        ("クローズ", 5),
+                    ],
+                ),
+                Shaped::CheckList20 => assert_state_texts(
+                    scope,
+                    "check",
+                    n,
+                    &[
+                        ("✓ 成功", 4),
+                        ("✗ 失敗", 4),
+                        ("… 実行中", 4),
+                        ("… 待機中", 4),
+                        ("– 省略", 4),
+                    ],
+                ),
                 Shaped::AppDemo9 => {
                     for k in ["heading", "tab", "field", "button", "item", "text"] {
                         assert!(scope.contains(&format!("data-kind=\"{k}\"")), "{k}");

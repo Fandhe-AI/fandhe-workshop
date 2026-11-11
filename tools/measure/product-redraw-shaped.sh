@@ -6,7 +6,8 @@
 # 固定データ（artifact-redraw-shaped-<種類>-<件数>。差分の hunk・ファイルツリーの dir と file・入れ子のタスク・文書の本文・アプリのデモの 6 種の kind などの
 # 属性つきの行を積み、7 種のビューを宣言した教材）で、選択のボタンの click 1 回の同期処理を測る。操作・件数・閾値（16ms）・判定は product-redraw.sh と同じで、
 # 行の形だけが違う。そのため値は product-redraw の値と同じ条件ではなく、直接は比べない（docs/measurement.md。記録は docs/testing.md 5.472）。
-# 形の検査（hunk・dir と file・入れ子・本文の区画・kind の混在）が外れたら失敗にする。16ms を超えても失敗にせず値を出す。
+# 形の検査（hunk・dir と file・入れ子・本文の区画・kind の混在・カードとチェックの行の種類と状態のバッジの文字）が外れたら失敗にする。
+# 7 組に加えて、文書の全行に本文を付けた参考の変種（-body_all。#2127）を測り、conditions.reference_variants に残す（判定に入れない）。16ms を超えても失敗にせず値を出す。
 # 基点は commit・教材（min-3step.json。pack.id だけを変えて使う）・端末の 3 つ。
 # `make measure` の束には入れない。結果の JSON は標準出力に 1 つだけ、進行状況とログは標準エラーへ出す。出力は lib.sh の measure_emit だけが行う。
 # 前提: npm ci && npx playwright install chromium（Playwright は package-lock.json で固定済み）。

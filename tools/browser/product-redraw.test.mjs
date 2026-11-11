@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import {
   launchBrowser, channelFromEnv, withServer, openPage, waitMounted, collectSafety, nonZero,
 } from './harness.mjs';
-import { cases, productRedrawInPage, shapedFixtureQuery } from '../measure/product-redraw.mjs';
+import { cases, productRedrawInPage, shapedFixtureQuery, shapedReferenceCases, SHAPED_STATE_TEXTS } from '../measure/product-redraw.mjs';
 
 const BASE = '/fandhe-product-redraw/';
 const SIZES = [9, 20, 50, 200, 500];
@@ -95,7 +95,7 @@ test('PR3: 未知の件数は既定の教材に倒れ、測定の関数は行数
 
 // ---- 形つきの固定データ（#2074。?fixture=artifact-redraw-shaped-<種類>-<件数>） ----
 
-for (const c of cases()) {
+for (const c of [...cases(), ...shapedReferenceCases()]) {
   test(`PS1: ${shapedFixtureQuery(c)} は選んだ種類の list が ${c.rows} 行で全行が指せる行`, async () => {
     await withFixture(`?fixture=${shapedFixtureQuery(c)}`, async (page) => {
       // 既定の選択はファイルツリー。種類を切り替えて行数と指せる行の数を数える。
@@ -108,11 +108,11 @@ for (const c of cases()) {
   });
 }
 
-test('PS2: ページ内の測定の関数が形の検査つきで 7 組すべてで正の値を返す', async () => {
-  for (const c of cases()) {
+test('PS2: ページ内の測定の関数が形の検査つきで 7 組と参考の変種で正の値を返す', async () => {
+  for (const c of [...cases(), ...shapedReferenceCases()]) {
     await withFixture(`?fixture=${shapedFixtureQuery(c)}`, async (page) => {
       const v = await page.evaluate(productRedrawInPage, {
-        kind: c.kind, from: c.from, rows: c.rows, samples: 2, gapMs: 5, shape: true,
+        kind: c.kind, from: c.from, rows: c.rows, samples: 2, gapMs: 5, shape: true, variant: c.variant ?? '', stateTexts: SHAPED_STATE_TEXTS,
       });
       assert.equal(v.length, 2);
       for (const x of v) assert.ok(Number.isFinite(x) && x >= 0, `${c.kind}: ${x}`);
@@ -126,6 +126,29 @@ test('PS3: 形のない固定データでは形の検査が失敗する（負の
     await assert.rejects(
       page.evaluate(productRedrawInPage, {
         kind: 'diff', from: 'document', rows: 500, samples: 1, gapMs: 5, shape: true,
+      }),
+    );
+  });
+});
+
+test('PS4: 属性の無い固定データではカード・チェックの形の検査が失敗する（負の対照）', async () => {
+  // 属性の無い経路の行は状態の文字が語彙の外（created）で、分布が一致しないため例外になる。
+  for (const [kind, from] of [['card_list', 'diff'], ['check_list', 'card_list']]) {
+    await withFixture('?fixture=artifact-redraw-20', async (page) => {
+      await assert.rejects(
+        page.evaluate(productRedrawInPage, {
+          kind, from, rows: 20, samples: 1, gapMs: 5, shape: true, stateTexts: SHAPED_STATE_TEXTS,
+        }),
+      );
+    });
+  }
+});
+
+test('PS5: 先頭の 1 行だけに本文のある固定データでは全行の本文の検査が失敗する（負の対照）', async () => {
+  await withFixture('?fixture=artifact-redraw-shaped-document-200', async (page) => {
+    await assert.rejects(
+      page.evaluate(productRedrawInPage, {
+        kind: 'document', from: 'file_tree', rows: 200, samples: 1, gapMs: 5, shape: true, variant: 'body_all',
       }),
     );
   });

@@ -525,7 +525,7 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 
 回避: 差分のビューに出す行数を教材側で絞る。値を引用するときは、端末とブラウザ（開発機の Chromium か、基準端末 A の Chrome の原本か）を併記する。
 
-根拠の試験: `tools/measure/product-redraw.sh`・`tools/measure/product-redraw-shaped.sh`（`tools/browser/product-redraw.test.mjs` が固定データとページ内の関数を確かめる）。記録は `docs/testing.md` の 5.471・5.472・5.481・5.483。
+根拠の試験: `tools/measure/product-redraw.sh`・`tools/measure/product-redraw-shaped.sh`（`tools/browser/product-redraw.test.mjs` が固定データとページ内の関数を確かめる）。記録は `docs/testing.md` の 5.471・5.472・5.481・5.483・5.506（カード・チェックの形の検査、文書の全行に本文を付けた参考の変種、形つきの CPU 4 倍の記録〔`tools/measure/product-redraw-shaped-cpu4x.sh`。記録だけで判定に使わない〕。開発機の値で、ART-26 の判断は変えない）。
 
 ## SAVE-27: 全章の履歴の大きさは本物の教材で未測定
 

@@ -35,7 +35,7 @@ make measure | jq .
 | 入力から描画まで（ログ 120〜158 項目。TASK-223 2/2） | `tools/measure/input-paint.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 左のビューの部品単位の再描画（固定データの画面。TASK-485 1/3。ART-4） | `tools/measure/view-redraw.sh` | 試験の設定（代役の部品 `view_fixture` が要る）。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 本体の画面の左のビューの再描画（TASK-485 2/3。ART-26） | `tools/measure/product-redraw.sh` | 試験の設定（`?fixture=artifact-redraw-<n>` が要る）。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
-| 本体の画面の左のビューの再描画を描画部品の実際の形の行で測り直す（#2074。ART-26） | `tools/measure/product-redraw-shaped.sh` | 試験の設定（`?fixture=artifact-redraw-shaped-<種類>-<件数>` が要る）。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
+| 本体の画面の左のビューの再描画を描画部品の実際の形の行で測り直す（#2074。ART-26） | `tools/measure/product-redraw-shaped.sh` | 試験の設定（`?fixture=artifact-redraw-shaped-<種類>-<件数>` が要る）。`make measure` の束には入れない。形の検査はカード・チェックの行の種類と状態のバッジの文字を含む。文書の全行に本文を付けた参考の変種（`-document-200-body_all`。#2127）も測り、`conditions.reference_variants` に残す（判定に入れない）。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 
 - release の設定で `tools/build-web.sh` を一時ディレクトリにビルドする（`dist/` は上書きしない）。結果の JSON を標準出力に 1 つだけ出し、
   進行状況とビルドログは標準エラーへ出す
@@ -272,19 +272,19 @@ make measure-ir-memory | jq .               # 直接: tools/measure/ir-memory.sh
   - 統計と丸めは再描画と同じ。判定の規則は「ビューごとに、`toggle` と `switch` の両方で 95 パーセンタイルが 16ms 以内の変種が 1 つ以上あれば閾値内」（`conditions.judgement`。判定の対象 3 種と参考 4 種を分けて持つ）。超えても失敗にせず、標準エラーに within / over を出す。合否は `docs/testing.md` の記録に書く
   - 値は代役の部品の画面のもので、本体の `view()` の値ではない（ART-26 は別のイシュー）。CPU 4 倍（ART-15）は記録だけの別の種別（下の「CPU 4 倍の記録」）
 - CPU 4 倍の記録（ART-15。TASK-485 3/3）。記録だけで、判定に使わない
-  - 種別は `view-redraw-cpu4x`（代役の部品の画面。文書 200 行・差分 500 行・タスク 50 件の `toggle` と `switch`。8 系列）と `product-redraw-cpu4x`（本体の画面。`switch` だけ。3 件）。入口は `tools/measure/view-redraw-cpu4x.sh`・`product-redraw-cpu4x.sh`。測る量・10 試行 × 20 操作・統計は減速なしの種別と同じ
+  - 種別は `view-redraw-cpu4x`（代役の部品の画面。文書 200 行・差分 500 行・タスク 50 件の `toggle` と `switch`。8 系列）と `product-redraw-cpu4x`（本体の画面。`switch` だけ。3 件）と `product-redraw-shaped-cpu4x`（本体の画面を形つきの固定データで。`switch` だけ。3 件。形の検査つき。#2127）。入口は `tools/measure/view-redraw-cpu4x.sh`・`product-redraw-cpu4x.sh`・`product-redraw-shaped-cpu4x.sh`。測る量・10 試行 × 20 操作・統計は減速なしの種別と同じ
   - 減速は CDP の `Emulation.setCPUThrottlingRate`（率は 4 の完全一致だけ）で、ページの読み込みと画面の mount が済んだ後、測る操作の前に掛ける。固定の仕事量の整数演算の時間を減速の前後で測り、比が 2 未満なら失敗にする（減速が効かないまま速い値を 4 倍の値として残さないため）。試行ごとの比の最小・最大は `conditions.cpu_calibration` に残す
   - 結果は判定の欄（`conditions.judgement`・`judged`・`within`）を持たない。`conditions.record_only: true` と、`conditions.record_only_cpu4x`（種類ごとの p95 と、参考の 16ms 超過の印 `over_threshold`）に記録する。16ms は参考で、合否に使わない。`conditions.sample_diff_rows` に教材の sample の差分の大きさを添える
-  - 測定名は `view_redraw_cpu4x_…`・`product_redraw_cpu4x_…`。`make measure` の束には入れない
+  - 測定名は `view_redraw_cpu4x_…`・`product_redraw_cpu4x_…`・`product_redraw_shaped_cpu4x_…`。`make measure` の束には入れない
 
 - 配信する設定（`delivery`）の値と試験の設定（`test`）の値を比べない。再描画の値は試験の設定の値であり、配信する設定の値と比べない
 - 回線条件・ブラウザの版・圧縮の実装が違う値を比べない。大きさ（GNU `gzip -9`）と初回表示・再描画（Node の zlib のレベル 9）は
   圧縮の実装が違うため、圧縮の設定が違う値どうしは比べない
 - 教材（`baseline.pack`）・端末（`baseline.device`）が違う値どうしを比べない。`log-redraw`・`log-slope`・`log-rounds`・`input-paint` の値は最小教材の値で、教材全体を代表しない
 - `view-redraw` の値は固定データ（`baseline.data`）の代役の部品の画面の値で、教材の値・本体の画面の値と比べない
-- `conditions.cpu_throttle` が違う値どうしを比べない。CPU 4 倍の値（`view-redraw-cpu4x`・`product-redraw-cpu4x`）は記録だけで、判定に使わず、減速なしの値とも比べない
+- `conditions.cpu_throttle` が違う値どうしを比べない。CPU 4 倍の値（`view-redraw-cpu4x`・`product-redraw-cpu4x`・`product-redraw-shaped-cpu4x`）は記録だけで、判定に使わず、減速なしの値とも比べない
 - `product-redraw` の値は本体の画面の `switch`（選択のボタンの click の同期区間。委譲を含む）の値で、`view-redraw` の値（委譲を含まない）・教材の値と比べない。2026-11-05 の結線より前の値（`docs/testing.md` 5.318。`dirty: true` で §6 により基点として比べられない）は世界状態の経路の行の値、結線の後の値（5.471）は種類ごとの描画部品が属性の無い経路の行を描いた値である。測り方は同じだが描画の経路が違うため、両者の増減を論じない。固定データの行は各部品の実際の形（hunk・dir/file など）を通らない
-- `product-redraw-shaped` の値は描画部品の実際の形の行（hunk・dir/file・入れ子のタスク・文書の本文・アプリのデモの kind）の `switch` の値で、操作・行数・閾値は `product-redraw` と同じだが行の形が違う。`product-redraw` の値と同じ条件ではないため、増減は条件の違いを併記したうえで読む。文書の本文は先頭の 1 行にだけ 80 ブロックを付けており、仕様の前提（1 文書 80 ブロック）に近いが、全行に付けた量ではない
+- `product-redraw-shaped` の値は描画部品の実際の形の行（hunk・dir/file・入れ子のタスク・文書の本文・アプリのデモの kind）の `switch` の値で、操作・行数・閾値は `product-redraw` と同じだが行の形が違う。`product-redraw` の値と同じ条件ではないため、増減は条件の違いを併記したうえで読む。文書の本文は、判定の 7 組では先頭の 1 行にだけ 80 ブロックを付けており、仕様の前提（1 文書 80 ブロック）に近いが、全行に付けた量ではない。全行に付けた量は参考の変種（`conditions.reference_variants.document_body_all`。判定に入れず、閾値の超過は印だけ）で別に測る。この変種を足したため巡回の組は 7 から 8 になり、以前の記録とは巡回の順が違う。`product-redraw-shaped-cpu4x` の値は、属性の無い経路の行の `product-redraw-cpu4x` の値とも、減速なしの `product-redraw-shaped` の値とも比べない
 - 基準端末 A の Chrome の原本での `product-redraw`・`product-redraw-shaped` の記録（2026-11-07）は `docs/testing.md` 5.481 にある
 - 基準端末 A の Chrome の原本での `log-rounds`・`log-slope` の記録と、`product-redraw`・`product-redraw-shaped` の測り直しの記録（2026-11-08）は `docs/testing.md` 5.483 にある
 - `history_*` の値（native の様式）は、PoC-6 の CSV の値と直接比べない（履歴の形が違い、誤入力が無く、`GoTo` で飛ばしているため）。WASM・ブラウザの側の値とも比べない。`baseline.ops_sequence.ops_sha256` が違う値どうしを比べない
