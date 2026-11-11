@@ -384,7 +384,7 @@ measure_ir_memory_check() {
 # v1 の結果の組み立て → measure_emit、までを行う。first-paint.sh と redraw.sh の共通の流れ。
 # 第 5 引数 [ir-file] は ir-memory だけが使う（measure_build の IR_FILE へ渡す。ir-memory で空なら失敗）。ir-memory の browser.mjs は crash を
 # 観察すると終了コード 3 で JSON を出す。このときだけ measure_ir_memory_check を通れば検証・出力まで進み、3 を返す（他の種別の 3 は失敗）。
-# <kind> は first-paint / first-paint-direct / redraw / log-redraw / log-slope / log-rounds / input-paint / view-redraw / product-redraw / product-redraw-shaped / ir-memory / view-redraw-cpu4x / product-redraw-cpu4x（後ろ 2 つは記録だけの CPU 4 倍。TASK-485 3/3）。log-redraw・log-slope・log-rounds・input-paint・product-redraw・product-redraw-cpu4x は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
+# <kind> は first-paint / first-paint-direct / redraw / log-redraw / log-slope / log-rounds / input-paint / view-redraw / product-redraw / product-redraw-shaped / ir-memory / view-redraw-cpu4x / product-redraw-cpu4x / product-redraw-shaped-cpu4x（後ろ 3 つは記録だけの CPU 4 倍。TASK-485 3/3）。log-redraw・log-slope・log-rounds・input-paint・product-redraw・product-redraw-cpu4x・product-redraw-shaped-cpu4x は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
 # 結果の baseline へ足す。ir-memory も pack と device を要る。この 4 つでこれが欠ける・pack か device が無いときは失敗にする。view-redraw と view-redraw-cpu4x は pack の代わりに data（measure_data_json）と device を要る。<tmpdir> は呼び出し元が mktemp -d で作った空のディレクトリ（終了時の削除も呼び出し元が行う）。
 # first-paint-direct は第 5 引数に IR を要り、extra は pack と device の区分（measure_device_class_json）。
 # browser.mjs の出力は jq で型を確かめてから使い、JSON は --arg / --slurpfile だけで組み立てる（文字列連結で作らない）。
@@ -393,7 +393,7 @@ measure_browser_result() {
   local kind="$1" commit_json="$2" tmp="$3" extra="${4:-}" ir_file="${5:-}" rc=0 brc=0 features need_extra
   if [ -z "${extra}" ]; then extra='{}'; fi
   case "${kind}" in
-    log-redraw | log-slope | log-rounds | input-paint | product-redraw | product-redraw-shaped | product-redraw-cpu4x | ir-memory) need_extra=1 ;;
+    log-redraw | log-slope | log-rounds | input-paint | product-redraw | product-redraw-shaped | product-redraw-cpu4x | product-redraw-shaped-cpu4x | ir-memory) need_extra=1 ;;
     view-redraw | view-redraw-cpu4x) need_extra=2 ;;
     first-paint-direct) need_extra=3 ;;
     *) need_extra=0 ;;

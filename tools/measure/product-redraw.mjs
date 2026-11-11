@@ -9,6 +9,7 @@
 // 限界: 種類ごとの描画部品（diff_view など）は製品の view() に結線済み（2026-11-05。#2062〜#2068）だが、この測定（product-redraw）の行は属性の無い
 // 世界状態の経路の行で、文書のブロックでも差分の hunk でもない。各部品の実際の形は通らない（docs/views.md の 1 節。測り直しは docs/testing.md 5.471）。
 // 実際の形の行（hunk・dir と file・入れ子・文書の本文など）の測り直しは measureProductRedrawShaped（--kind product-redraw-shaped。#2074。docs/testing.md 5.472）。CPU 4 倍の記録（ART-15。TASK-485 3/3）は measureProductRedrawCpu4x で、判定に使わない。
+// 形つきの固定データでの CPU 4 倍の記録は measureProductRedrawCpu4x の { shaped: true }（--kind product-redraw-shaped-cpu4x。#2127。記録だけ）。
 //
 // 安全: ページへ渡すのは固定の関数で、データは引数で渡す。ボタンは getAttribute の完全一致で選び、文字列から選択子を組み立てない。
 // 配信は tools/serve.mjs の 127.0.0.1 だけ。外部へは通信しない。
@@ -48,6 +49,23 @@ export function cases() {
   }));
 }
 
+// 形つきの参考の変種（判定に入れない。#2127）。文書の全 200 行に本文を付けた固定データ。cases() には足さない
+// （3 つの種別と回帰テストが cases() を共有するため）。
+export function shapedReferenceCases() {
+  return [{ kind: 'document', rows: 200, judged: false, variant: 'body_all', from: 'file_tree' }];
+}
+
+// 集計の鍵。参考の変種は同じ kind・rows の組と衝突しないよう変種名を含める。
+export function caseKey(c) {
+  return c.variant ? `${c.kind}_${c.variant}:${c.rows}` : `${c.kind}:${c.rows}`;
+}
+
+// カード・チェックの形つきの固定データの状態のバッジの文字の分布（native の test_fixture の単体試験と同じ値）。
+export const SHAPED_STATE_TEXTS = {
+  card_list: { 下書き: 5, オープン: 5, マージ済み: 5, クローズ: 5 },
+  check_list: { '✓ 成功': 4, '✗ 失敗': 4, '… 実行中': 4, '… 待機中': 4, '– 省略': 4 },
+};
+
 export function measurementName(c, stat) {
   return `product_redraw_${c.kind}_${c.rows}_switch_${stat}`;
 }
@@ -75,7 +93,7 @@ export function sampleDiffRows() {
 // ページ内の 1 試行。固定の関数で、データは引数で受け取る。時間を測るのは対象のボタンの click 1 回の同期処理だけ。
 // 各操作の後に、選んだ list の行数・ほかの list が空で hidden・全行が指せる行の属性を持つこと・状態が変わらないこと・root が
 // 置き換わっていないことを検査する。外れたら例外にする（何もしない更新を速いと誤読しない）。
-export async function productRedrawInPage({ kind, from, rows, samples, gapMs, shape = false }) {
+export async function productRedrawInPage({ kind, from, rows, samples, gapMs, shape = false, variant = '', stateTexts = {} }) {
   const api = window.__fandheTest;
   const part = () => document.querySelector('#app [data-testid="part-artifact-view"]');
   const part0 = part();
@@ -94,7 +112,8 @@ export async function productRedrawInPage({ kind, from, rows, samples, gapMs, sh
   };
   const state0 = snap();
   // 形つきの固定データだけ: 描画部品の実際の形（hunk・dir と file・入れ子・本文の区画・kind の混在）が出ていること。
-  // 外れたら例外にする（別の経路に退いた描画を速いと誤読しない）。カードとチェックは語彙が属性の値で、形の検査を持たない。
+  // 外れたら例外にする（別の経路に退いた描画を速いと誤読しない）。カードとチェックは、全行の data-kind と状態のバッジの
+  // 文字の分布（stateTexts。語彙の固定の文字）を完全一致で比べる。textContent の比較だけで、文字列から選択子は作らない。
   const checkShape = (l, items) => {
     const kinds = new Set(items.map((li) => li.getAttribute('data-kind')));
     if (kind === 'diff' && !kinds.has('hunk')) throw new Error('diff: no hunk row');
@@ -103,7 +122,28 @@ export async function productRedrawInPage({ kind, from, rows, samples, gapMs, sh
     if (kind === 'task_tree' && ![...l.querySelectorAll('[aria-level]')].some((e) => Number(e.getAttribute('aria-level')) >= 2)) {
       throw new Error('task_tree: no nested row');
     }
-    if (kind === 'document' && l.querySelectorAll('[data-testid="artifact-doc-body"]').length < 1) throw new Error('document: no body block');
+    if (kind === 'document') {
+      const bodies = l.querySelectorAll('[data-testid="artifact-doc-body"]').length;
+      const want = variant === 'body_all' ? rows : 1;
+      if (bodies !== want) throw new Error(`document: expected ${want} body blocks, got ${bodies}`);
+    }
+    if (kind === 'card_list' || kind === 'check_list') {
+      const rowKind = kind === 'card_list' ? 'card' : 'check';
+      if (items.some((li) => li.getAttribute('data-kind') !== rowKind)) throw new Error(`${kind}: a row is not data-kind=${rowKind}`);
+      const counts = {};
+      for (const li of items) {
+        const badges = li.querySelectorAll('[data-scope="marker"][data-part="root"]');
+        if (badges.length !== 1) throw new Error(`${kind}: ${badges.length} state badges in a row`);
+        const t = badges[0].textContent.trim();
+        counts[t] = (counts[t] ?? 0) + 1;
+      }
+      const want = stateTexts[kind];
+      if (!want) throw new Error(`${kind}: expected state texts are missing`);
+      const keys = new Set([...Object.keys(counts), ...Object.keys(want)]);
+      for (const k of keys) {
+        if ((counts[k] ?? 0) !== (want[k] ?? 0)) throw new Error(`${kind}: state text "${k}" count ${counts[k] ?? 0}, expected ${want[k] ?? 0}`);
+      }
+    }
   };
   const check = () => {
     let found = false;
@@ -232,29 +272,30 @@ export async function measureProductRedraw(browser, dir, deps) {
 // ---- 形つきの固定データでの測り直し（#2074）----
 
 export function shapedMeasurementName(c, stat) {
-  return `product_redraw_shaped_${c.kind}_${c.rows}_switch_${stat}`;
+  return `product_redraw_shaped_${c.kind}${c.variant ? `_${c.variant}` : ''}_${c.rows}_switch_${stat}`;
 }
 
-// 形つきの固定データのクエリ。cases() の 7 組だけを受ける（native 側の完全一致の表と同じ）。
+// 形つきの固定データのクエリ。cases() の 7 組と shapedReferenceCases() の参考の変種だけを受ける（native 側の完全一致の表と同じ）。
 export function shapedFixtureQuery(c) {
-  return `artifact-redraw-shaped-${c.kind}-${c.rows}`;
+  return `artifact-redraw-shaped-${c.kind}-${c.rows}${c.variant ? `-${c.variant}` : ''}`;
 }
 
 // 種類ごとの行の形の要約（結果の conditions に残す。値は native の shaped_seed と対応する）。
 export const SHAPED_ROW_SHAPES = {
   file_tree: 'nested paths: dir and file rows mixed (20 dirs x sub dir, files, readme)',
   document: 'title, state and detail on every row; first row carries an 80-block body (fixture_docs, body: shown)',
+  document_body_all: 'reference variant (not judged): same rows as document, but every row carries the same 80-block body (one shared fixture_docs entry)',
   diff: 'hunk row every 20 rows; others cycle ctx/add/del with a one-line detail',
   task_tree: 'depth 0-2 nested paths; state cycles open/progress/done',
-  card_list: 'state cycles draft/open/merged/closed with title and detail',
-  check_list: 'state cycles success/failure/running/pending/skipped with title and detail',
+  card_list: 'state cycles draft/open/merged/closed with title and detail; shape checked: every row data-kind=card with one state badge, badge texts match the vocabulary distribution',
+  check_list: 'state cycles success/failure/running/pending/skipped with title and detail; shape checked: every row data-kind=check with one state badge, badge texts match the vocabulary distribution',
   app_demo: 'kind cycles heading/tab/field/button/item/text; state empty/active/disabled',
 };
 
 // 流れは measureProductRedraw と同じで、固定データのクエリと形の検査（shape: true）だけが違う。判定は同じ judge（閾値は緩めない）。
 export async function measureProductRedrawShaped(browser, dir, deps) {
   const { newPage, installMountObserver, median, p95, toMicros, progress } = deps;
-  const list = cases();
+  const list = [...cases(), ...shapedReferenceCases()];
   const diffRows = sampleDiffRows();
   const srv = await startServer({ dir, base: BASE, port: 0, gzip: true, gzipLevel: GZIP_LEVEL });
   try {
@@ -274,10 +315,10 @@ export async function measureProductRedrawShaped(browser, dir, deps) {
           if (state.mounted !== 'true') throw new Error(`data-mounted is "${state.mounted}" (mount failed)`);
           if (!state.hooks) throw new Error('window.__fandheTest.stateJson is missing (not a test-hooks build?)');
           const v = await page.evaluate(productRedrawInPage, {
-            kind: c.kind, from: c.from, rows: c.rows, samples: PR_SAMPLES, gapMs: PR_GAP_MS, shape: true,
+            kind: c.kind, from: c.from, rows: c.rows, samples: PR_SAMPLES, gapMs: PR_GAP_MS, shape: true, variant: c.variant ?? '', stateTexts: SHAPED_STATE_TEXTS,
           });
           if (!Array.isArray(v) || v.length !== PR_SAMPLES) throw new Error(`unexpected sample count: ${c.kind}`);
-          (all[`${c.kind}:${c.rows}`] ??= []).push(...v);
+          (all[caseKey(c)] ??= []).push(...v);
         } finally {
           await context.close();
         }
@@ -287,7 +328,7 @@ export async function measureProductRedrawShaped(browser, dir, deps) {
     const measurements = [];
     const p95Us = {};
     for (const c of list) {
-      const key = `${c.kind}:${c.rows}`;
+      const key = caseKey(c);
       const v = all[key];
       if (!v || v.length !== PR_TRIALS * PR_SAMPLES) throw new Error(`unexpected value count: ${key}`);
       const p = toMicros(p95(v), `${key} p95`);
@@ -297,7 +338,14 @@ export async function measureProductRedrawShaped(browser, dir, deps) {
       measurements.push({ name: shapedMeasurementName(c, 'max'), unit: 'us', value: toMicros(Math.max(...v), `${key} max`) });
       progress(`product-redraw-shaped ${key}: p95 ${p} us`);
     }
+    // 判定は cases() の 7 組だけ。参考の変種は入れない（閾値・判定の対象を変えない）。
     const judgement = judge(p95Us);
+    const reference = {};
+    for (const c of shapedReferenceCases()) {
+      const p = p95Us[caseKey(c)];
+      reference[`${c.kind}_${c.variant}`] = { kind: c.kind, rows: c.rows, fixture: shapedFixtureQuery(c), switch_p95_us: p, over_threshold: p > PR_THRESHOLD_US };
+      progress(`product-redraw-shaped ${caseKey(c)} (reference variant): p95 ${p} us`);
+    }
     for (const [kind, j] of Object.entries(judgement)) {
       progress(`product-redraw-shaped ${kind}${j.judged ? '' : ' (reference)'}: ${j.within ? 'within' : 'over'} ${PR_THRESHOLD_US} us`);
     }
@@ -316,16 +364,17 @@ export async function measureProductRedrawShaped(browser, dir, deps) {
         threshold_p95_us: PR_THRESHOLD_US,
         op_trigger: 'click on the view-select-button (includes click delegation, attribute reads, update, view() build, keyed list diff and DOM apply; synchronous)',
         ops: { switch: 'measured', toggle: 'not_applicable (no before/after toggle in the product view())' },
-        switch_from: Object.fromEntries(list.map((c) => [c.kind, c.from])),
-        sizes: Object.fromEntries(list.map((c) => [c.kind, { fixture: shapedFixtureQuery(c), rows: c.rows }])),
-        judged: list.filter((c) => c.judged).map((c) => c.kind),
+        switch_from: Object.fromEntries(cases().map((c) => [c.kind, c.from])),
+        sizes: Object.fromEntries(cases().map((c) => [c.kind, { fixture: shapedFixtureQuery(c), rows: c.rows }])),
+        reference_variants: reference,
+        judged: cases().filter((c) => c.judged).map((c) => c.kind),
         judgement,
         point_attrs: 'all rows (7 kinds declared on main/st-1)',
         seed: { pack_id: 'artifact-redraw-shaped', row_shapes: SHAPED_ROW_SHAPES, step: 'main/st-1' },
         sample_diff_rows: diffRows,
         trial_rotation: 'case order rotated by the trial index; a new context per case',
         base: BASE,
-        scope_note: 'product view() with per-kind shaped rows (hunk, dir/file, nested tasks, document body, app demo kinds); same op, sizes and threshold as product-redraw but not the same rows, so not directly comparable with it',
+        scope_note: 'product view() with per-kind shaped rows (hunk, dir/file, nested tasks, document body, app demo kinds); same op, sizes and threshold as product-redraw but not the same rows, so not directly comparable with it; reference variants (document body on every row) are recorded in reference_variants and are not judged',
       },
     };
   } finally {
@@ -340,8 +389,8 @@ export function cpu4xCases() {
   return cases().filter((c) => c.judged);
 }
 
-export function cpu4xMeasurementName(c, stat) {
-  return `product_redraw_cpu4x_${c.kind}_${c.rows}_switch_${stat}`;
+export function cpu4xMeasurementName(c, stat, shaped = false) {
+  return `product_redraw_${shaped ? 'shaped_' : ''}cpu4x_${c.kind}_${c.rows}_switch_${stat}`;
 }
 
 // 記録（純関数）。p95Us: `${kind}:${rows}` -> p95（us）。判定の欄（within・judged・partial）は持たず、参考の超過の印だけを返す。
@@ -356,7 +405,7 @@ export function cpu4xRecord(p95Us, thresholdUs = PR_THRESHOLD_US) {
 }
 
 // 記録だけの測定。流れは measureProductRedraw と同じで、mount の確認の後に CPU を 4 倍遅くし、較正で効いていることを確かめてから測る。
-export async function measureProductRedrawCpu4x(browser, dir, deps) {
+export async function measureProductRedrawCpu4x(browser, dir, deps, { shaped = false } = {}) {
   const { newPage, installMountObserver, median, p95, toMicros, progress, calibrateAndThrottle, calibrationInfo } = deps;
   const list = cpu4xCases();
   const diffRows = sampleDiffRows();
@@ -370,7 +419,7 @@ export async function measureProductRedrawCpu4x(browser, dir, deps) {
         const { context, page } = await newPage(browser, false);
         try {
           await page.addInitScript(installMountObserver);
-          await page.goto(`${srv.url}?fixture=artifact-redraw-${c.rows}`, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
+          await page.goto(`${srv.url}?fixture=${shaped ? shapedFixtureQuery(c) : `artifact-redraw-${c.rows}`}`, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
           await page.waitForFunction(() => window.__mountedValue !== undefined, null, { timeout: NAV_TIMEOUT_MS });
           const state = await page.evaluate(() => ({
             mounted: window.__mountedValue,
@@ -383,6 +432,7 @@ export async function measureProductRedrawCpu4x(browser, dir, deps) {
           calibrations.push(throttled.calibration);
           const v = await page.evaluate(productRedrawInPage, {
             kind: c.kind, from: c.from, rows: c.rows, samples: PR_SAMPLES, gapMs: PR_GAP_MS,
+            ...(shaped ? { shape: true, stateTexts: SHAPED_STATE_TEXTS } : {}),
           });
           if (!Array.isArray(v) || v.length !== PR_SAMPLES) throw new Error(`unexpected sample count: ${c.kind}`);
           (all[`${c.kind}:${c.rows}`] ??= []).push(...v);
@@ -390,7 +440,7 @@ export async function measureProductRedrawCpu4x(browser, dir, deps) {
           await context.close();
         }
       }
-      progress(`product-redraw-cpu4x trial ${t + 1}/${PR_TRIALS} done`);
+      progress(`product-redraw${shaped ? '-shaped' : ''}-cpu4x trial ${t + 1}/${PR_TRIALS} done`);
     }
     const measurements = [];
     const p95Us = {};
@@ -400,10 +450,10 @@ export async function measureProductRedrawCpu4x(browser, dir, deps) {
       if (!v || v.length !== PR_TRIALS * PR_SAMPLES) throw new Error(`unexpected value count: ${key}`);
       const p = toMicros(p95(v), `${key} p95`);
       p95Us[key] = p;
-      measurements.push({ name: cpu4xMeasurementName(c, 'median'), unit: 'us', value: toMicros(median(v), `${key} median`) });
-      measurements.push({ name: cpu4xMeasurementName(c, 'p95'), unit: 'us', value: p });
-      measurements.push({ name: cpu4xMeasurementName(c, 'max'), unit: 'us', value: toMicros(Math.max(...v), `${key} max`) });
-      progress(`product-redraw-cpu4x ${key}: p95 ${p} us (record only)`);
+      measurements.push({ name: cpu4xMeasurementName(c, 'median', shaped), unit: 'us', value: toMicros(median(v), `${key} median`) });
+      measurements.push({ name: cpu4xMeasurementName(c, 'p95', shaped), unit: 'us', value: p });
+      measurements.push({ name: cpu4xMeasurementName(c, 'max', shaped), unit: 'us', value: toMicros(Math.max(...v), `${key} max`) });
+      progress(`product-redraw${shaped ? '-shaped' : ''}-cpu4x ${key}: p95 ${p} us (record only)`);
     }
     return {
       measurements,
@@ -424,13 +474,17 @@ export async function measureProductRedrawCpu4x(browser, dir, deps) {
         op_trigger: 'click on the view-select-button (includes click delegation, attribute reads, update, view() build, keyed list diff and DOM apply; synchronous)',
         ops: { switch: 'measured', toggle: 'not_applicable (no before/after toggle in the product view())' },
         switch_from: Object.fromEntries(list.map((c) => [c.kind, c.from])),
-        sizes: Object.fromEntries(list.map((c) => [c.kind, { fixture: `artifact-redraw-${c.rows}`, rows: c.rows }])),
+        sizes: Object.fromEntries(list.map((c) => [c.kind, { fixture: shaped ? shapedFixtureQuery(c) : `artifact-redraw-${c.rows}`, rows: c.rows }])),
         record_only_cpu4x: cpu4xRecord(p95Us),
-        seed: { pack_id: 'artifact-redraw', path_shape: 'p/{i:04}', step: 'main/st-1' },
+        seed: shaped
+          ? { pack_id: 'artifact-redraw-shaped', row_shapes: SHAPED_ROW_SHAPES, step: 'main/st-1' }
+          : { pack_id: 'artifact-redraw', path_shape: 'p/{i:04}', step: 'main/st-1' },
         sample_diff_rows: diffRows,
         trial_rotation: 'case order rotated by the trial index; a new context per case',
         base: BASE,
-        scope_note: 'product view() with the CPU slowed 4x via CDP; record only, not used for the judgement (ART-15); not comparable with product-redraw',
+        scope_note: shaped
+          ? 'product view() with per-kind shaped rows and the CPU slowed 4x via CDP; record only, not used for the judgement (ART-15); the document variant with a body on every row is not included; not comparable with product-redraw-cpu4x (attribute-less rows) or product-redraw-shaped (no throttle)'
+          : 'product view() with the CPU slowed 4x via CDP; record only, not used for the judgement (ART-15); not comparable with product-redraw',
       },
     };
   } finally {

@@ -262,9 +262,10 @@ check_fails "product-redraw-shaped: missing pack/device baseline is refused" mea
 PRS="${TMP}/product-redraw-shaped.json"
 if SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/measure/product-redraw-shaped.sh" >"${PRS}" 2>"${PRS}.err"; then
   check "product-redraw-shaped: passes the v1 validation" measure_validate "${PRS}"
-  check "product-redraw-shaped: 21 measurements with the shaped prefix" jq -e '(.measurements | length == 21) and (.measurements | all(.name | test("^product_redraw_shaped_[a-z_]+_[0-9]+_switch_(median|p95|max)$")))' "${PRS}"
+  check "product-redraw-shaped: 24 measurements with the shaped prefix" jq -e '(.measurements | length == 24) and (.measurements | all(.name | test("^product_redraw_shaped_[a-z_]+_[0-9]+_switch_(median|p95|max)$")))' "${PRS}"
   check "product-redraw-shaped: seed pack id and the scope note" jq -e '.conditions.seed.pack_id == "artifact-redraw-shaped" and (.conditions.scope_note | startswith("product view()")) and (.conditions.scope_note | contains("per-kind shaped rows"))' "${PRS}"
   check "product-redraw-shaped: same threshold and judged kinds as product-redraw" jq -e '.conditions.threshold_p95_us == 16000 and .conditions.judged == ["task_tree", "document", "diff"] and .conditions.judgement.diff.partial == true' "${PRS}"
+  check "product-redraw-shaped: the reference variant (body on every row) is recorded and not judged" jq -e '(.conditions.reference_variants.document_body_all | (.rows == 200 and (.fixture | endswith("-body_all")) and has("switch_p95_us") and has("over_threshold") and (has("within") | not) and (has("judged") | not))) and ([.measurements[] | select(.name | startswith("product_redraw_shaped_document_body_all_200_switch_"))] | length == 3) and (.conditions.judgement | keys | length == 7)' "${PRS}"
 else
   fail "product-redraw-shaped: product-redraw-shaped.sh failed (see ${PRS}.err)"
   cat "${PRS}.err" >&2
@@ -304,6 +305,22 @@ if SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/measure/product-redraw-cpu4x.sh" >"${PRC}"
 else
   fail "product-redraw-cpu4x: product-redraw-cpu4x.sh failed (see ${PRC}.err)"
   cat "${PRC}.err" >&2
+fi
+
+# --- (k2) product-redraw-shaped-cpu4x（形つきの固定データでの CPU 4 倍の記録。#2127。記録だけで判定に使わない。束には入れない単体の測定） ---
+check "product-redraw-shaped-cpu4x.sh: unknown argument exits 2" status_is 2 "${ROOT_DIR}/tools/measure/product-redraw-shaped-cpu4x.sh" --unknown
+check_fails "product-redraw-shaped-cpu4x: missing pack/device baseline is refused" measure_browser_result product-redraw-shaped-cpu4x "$(measure_commit_json)" "${TMP}" '{}'
+PSC="${TMP}/product-redraw-shaped-cpu4x.json"
+if SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/measure/product-redraw-shaped-cpu4x.sh" >"${PSC}" 2>"${PSC}.err"; then
+  check "product-redraw-shaped-cpu4x: passes the v1 validation" measure_validate "${PSC}"
+  check "product-redraw-shaped-cpu4x: 9 measurements named with the shaped cpu4x prefix" jq -e '(.measurements | length == 9) and (.measurements | all(.name | test("^product_redraw_shaped_cpu4x_(task_tree_50|document_200|diff_500)_switch_(median|p95|max)$")))' "${PSC}"
+  check "product-redraw-shaped-cpu4x: record only, 4x throttle, and no judgement field" jq -e '.conditions.cpu_throttle == 4 and .conditions.record_only == true and (.conditions | has("judgement") | not) and (.conditions | has("judged") | not)' "${PSC}"
+  check "product-redraw-shaped-cpu4x: the record has the 3 kinds and no verdict" jq -e '(.conditions.record_only_cpu4x | keys == ["diff", "document", "task_tree"]) and (.conditions.record_only_cpu4x | [.. | objects | select(has("within") or has("judged") or has("partial"))] | length == 0)' "${PSC}"
+  check "product-redraw-shaped-cpu4x: shaped fixtures and the calibration ratio" jq -e '.conditions.seed.pack_id == "artifact-redraw-shaped" and (.conditions.sizes.document.fixture == "artifact-redraw-shaped-document-200") and .conditions.cpu_calibration.ratio_min >= 2 and .conditions.cpu_calibration.checks == 30' "${PSC}"
+  check "product-redraw-shaped-cpu4x: uses the test-hooks feature" jq -e '.baseline.features.cargo_features == ["test-hooks"]' "${PSC}"
+else
+  fail "product-redraw-shaped-cpu4x: product-redraw-shaped-cpu4x.sh failed (see ${PSC}.err)"
+  cat "${PSC}.err" >&2
 fi
 
 # --- (l) first-paint-direct（IR つきの直接リンクで操作できるまで。TASK-108。束には入れない単体の測定。終了コードは 0 か 3） ---

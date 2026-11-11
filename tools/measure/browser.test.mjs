@@ -265,7 +265,31 @@ test('product-redraw sampleDiffRows: counts hunk and line rows of the sample', (
 test('product-redraw-shaped: names, fixture queries and row shapes cover the 7 cases', () => {
   assert.equal(pr.shapedMeasurementName({ kind: 'diff', rows: 500 }, 'p95'), 'product_redraw_shaped_diff_500_switch_p95');
   assert.equal(pr.shapedFixtureQuery({ kind: 'file_tree', rows: 200 }), 'artifact-redraw-shaped-file_tree-200');
-  assert.deepEqual(Object.keys(pr.SHAPED_ROW_SHAPES).sort(), pr.cases().map((c) => c.kind).sort());
+  assert.deepEqual(Object.keys(pr.SHAPED_ROW_SHAPES).sort(), [...pr.cases().map((c) => c.kind), 'document_body_all'].sort());
+});
+
+test('product-redraw-shaped: the reference variant has its own key, name and query and is not in cases()', () => {
+  const [v] = pr.shapedReferenceCases();
+  assert.equal(pr.shapedReferenceCases().length, 1);
+  assert.deepEqual([v.kind, v.rows, v.variant, v.judged], ['document', 200, 'body_all', false]);
+  assert.equal(pr.caseKey(v), 'document_body_all:200');
+  assert.equal(pr.caseKey({ kind: 'document', rows: 200 }), 'document:200');
+  assert.equal(pr.shapedFixtureQuery(v), 'artifact-redraw-shaped-document-200-body_all');
+  assert.equal(pr.shapedMeasurementName(v, 'p95'), 'product_redraw_shaped_document_body_all_200_switch_p95');
+  assert.match(pr.shapedMeasurementName(v, 'p95'), /^product_redraw_shaped_[a-z_]+_[0-9]+_switch_(median|p95|max)$/);
+  assert.equal(pr.cases().filter((c) => c.variant).length, 0);
+  assert.equal(pr.judge(Object.fromEntries(pr.cases().map((c) => [`${c.kind}:${c.rows}`, 1]))).document.rows, 200);
+});
+
+test('product-redraw-shaped: state texts cover 20 cards and 20 checks', () => {
+  const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+  assert.equal(sum(pr.SHAPED_STATE_TEXTS.card_list), 20);
+  assert.equal(sum(pr.SHAPED_STATE_TEXTS.check_list), 20);
+});
+
+test('product-redraw-shaped-cpu4x: measurement names carry the shaped cpu4x prefix; the plain names are unchanged', () => {
+  assert.equal(pr.cpu4xMeasurementName({ kind: 'diff', rows: 500 }, 'p95', true), 'product_redraw_shaped_cpu4x_diff_500_switch_p95');
+  assert.equal(pr.cpu4xMeasurementName({ kind: 'diff', rows: 500 }, 'p95'), 'product_redraw_cpu4x_diff_500_switch_p95');
 });
 
 test('cli: product-redraw-shaped without --dir exits 2 with empty stdout', () => {
@@ -375,7 +399,7 @@ test('product-redraw-cpu4x measurementName and record', () => {
 });
 
 test('cli: the cpu4x kinds without --dir exit 2 with empty stdout', () => {
-  for (const kind of ['view-redraw-cpu4x', 'product-redraw-cpu4x']) {
+  for (const kind of ['view-redraw-cpu4x', 'product-redraw-cpu4x', 'product-redraw-shaped-cpu4x']) {
     const r = run(['--kind', kind]);
     assert.equal(r.status, 2, kind);
     assert.equal(r.stdout, '');
