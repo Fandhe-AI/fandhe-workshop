@@ -251,7 +251,7 @@ jobs:
       - name: test-hooks with macOS system bash 3.2
         run: /bin/bash scripts/hooks/test-hooks.sh
 
-  # Rust の lint 関門の骨格。中身は scripts/lint.sh（fmt check・clippy・web の wasm32 clippy）と
+  # Rust の lint 関門の骨格。中身は scripts/lint.sh（fmt check・clippy・web の wasm32 clippy・cargo doc）と
   # scripts/check-crate-deps.sh で、ここにロジックを重ねて書かない。
   # feature の網羅は scripts/lint.sh が web crate の宣言済み feature と照合して守る（ネイティブ 1 + wasm32 2。
   # hello は docs/architecture.md 第 7 節により持ち込まない）。拡張は scripts/lint.sh 側で行い、本ジョブの構造は変えない。

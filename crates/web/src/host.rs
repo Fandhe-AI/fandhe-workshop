@@ -2,7 +2,7 @@
 //!
 //! `Runtime::mount` は Component を 1 つだけ受け取るため、表示部品（TASK-343 の [`DisplayPart`]）は個別に
 //! mount されず、ホストが [`PartRegistry`] を持って `view`・`dirty_fields`・`bound_value` を振り分ける。
-//! 既存の入力欄（[`HelloView`]）は、ホストの入力欄の部分として内包する。
+//! 既存の入力欄（`HelloView`）は、ホストの入力欄の部分として内包する。
 //!
 //! 表示層は進行管理を持たない。状態を変える経路は、[`EngineHost`] の `update` から core の `Session::apply`
 //! を呼ぶ 1 本だけである（`tests/no_progress.rs` が静的に固定し、`tests/host_contract.rs` が core の純関数との
@@ -26,7 +26,7 @@
 //! 指せる行のクリック（`ui`。TASK-480 2/2）も配信する設定に入り、`PointTarget::decode` を通して `Op::Input(Input::Ui)` に変える。
 //!
 //! 入力欄なしの教材（`pack.profile.input_field: hidden`。PACK-20。TASK-450 2/3）では、入力欄・候補の一覧・送信を
-//! [`HelloView`] が描かない。ホストは教材を読んだとき（`with_session`・`load-fixture:`）に 1 度だけ設定を渡し、mount の後には
+//! `HelloView` が描かない。ホストは教材を読んだとき（`with_session`・`load-fixture:`）に 1 度だけ設定を渡し、mount の後には
 //! 変えない（入力欄の有無は構造の違いで、束縛点の差分更新に乗らないため）。口が無いので、下書き・送信・補完の action は
 //! 状態を変えず、保存済みの下書きも入力欄へ戻さない。停止（Esc・停止ボタン）と選択肢・承認・画面操作の経路は変えない。
 //!

@@ -1,6 +1,6 @@
 //! 拒否・問い返しの文面の差し込みの枠と「次の行動」の検査（TASK-46 2/2、PACK-12、PACK-16、R-21）。
 //!
-//! 静的な検査 [`check_texts`] は `validate`・`compile` から呼ばれ、`workshop.*` の `rejections`・`clarifications` の
+//! 静的な検査 `check_texts` は `validate`・`compile` から呼ばれ、`workshop.*` の `rejections`・`clarifications` の
 //! 各文面を読む。枠の構文・名前・分類の制限・代替の文は contract の [`fandhe_workshop_contract::slot`] が持つ表と
 //! 読み取りで判定し（実行時に差し込む core の `text_fill`〔TASK-274〕と同じ規則を共有する）、ここでは診断への写しと、IR を
 //! 総なめにする数え上げだけを持つ。IR の形は変えない（文面は枠を含んだまま残し、差し込みは実行時に行う）。

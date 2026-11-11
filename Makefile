@@ -36,7 +36,7 @@ check: ## editorconfig-checker + shellcheck + testdata の参照検査 + 変異�
 test-hooks: ## scripts/hooks/ のフックスクリプト自体の回帰テスト（bash + git のみ）。直接: scripts/hooks/test-hooks.sh
 	@scripts/hooks/test-hooks.sh
 
-lint: ## Rust の fmt check + clippy + web の wasm32 clippy（ソースは変更しない）。直接: scripts/lint.sh
+lint: ## Rust の fmt check + clippy + web の wasm32 clippy + cargo doc（警告をエラー扱い。ソースは変更しない）。直接: scripts/lint.sh
 	@scripts/lint.sh
 
 fmt: ## Rust のソースを rustfmt で整形する（ソースを変更する）。直接: cargo fmt --all

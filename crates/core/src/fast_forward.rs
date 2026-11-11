@@ -3,7 +3,7 @@
 //! 処理中の演出の Step は、宛先つきの `Op::Tick` を 1 件ずつ [`Session::apply`] に渡して進む。通常の速さでは
 //! web のホストのタイマーが一定の間隔で届ける。早送りは、その進行の列を間隔を待たずに続けて適用する。
 //! 呼び出し元は web のホスト（切り替えの結線は SHELL-24 のタスク）と試験である。
-//! web の `tick_schedule::next_tick` と [`next_tick`] は同じ規則の重複で、解消は結線のタスクで行う。
+//! web の `tick_schedule::next_tick` と `next_tick` は同じ規則の重複で、解消は結線のタスクで行う。
 //!
 //! 規則（上から評価する）。
 //! 1. 処理中でなければ何も適用せず [`FastForwardEnd::NotBusy`] で返る

@@ -23,7 +23,7 @@
 //! 変えるときは本モジュールも同じ変更で追従する。
 //!
 //! 入った Step の実体（TASK-405 2/2、AUTHOR-6）は、全件で入った `uid` の集合を [`Report::entered`] に集める。
-//! `Session::entered_at` は `Event::Entered` を出さず状態を作るだけなので、開始の節点は [`open`] が手で足す
+//! `Session::entered_at` は `Event::Entered` を出さず状態を作るだけなので、開始の節点は `open` が手で足す
 //! （足さないと全件の最初の Step が「入らなかった」に数えられる）。以後の入場は `apply` が返す `Event::Entered` から、
 //! 2 つ目以降の `Control::Begin` の入場も同じ読み方で足す。`use` の節点は分母（[`Report::steps`]）に入れない。
 //!

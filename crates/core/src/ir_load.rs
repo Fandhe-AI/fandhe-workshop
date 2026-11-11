@@ -158,7 +158,7 @@ fn probe_version(value: &serde_json::Value) -> Option<IrLoadError> {
 /// 判定は契約の順（大きさ、入れ子の深さ、JSON の解釈、型・内容）に行う。最初の 3 段は共有の関門に任せ、
 /// 解釈と `Ir` への変換を分ける（`from_slice::<Ir>` の 1 回だと、構文の誤りより先に型の誤りが返りうる）。
 /// 型・内容の段の中では、版の先読み、値の上限（要素数・文字列長。型が合うときだけ。合わなければ `malformed`）、型付きの変換、版の整合、参照の整合の順に確かめる（先読みの理由は
-/// [`probe_version`]）。拒否する側に倒す。確かめるのは、JSON の形（未知の欄を含む）・`format_version`・`pack.ir_format`（1 と 2 を読む。
+/// `probe_version`）。拒否する側に倒す。確かめるのは、JSON の形（未知の欄を含む）・`format_version`・`pack.ir_format`（1 と 2 を読む。
 /// 2 つは同じ値で、版 2 の欄を使うなら 2）・`uid` の重複・開始と遷移の宛先の解決である。
 pub fn load_ir(bytes: &[u8]) -> Result<Ir, IrLoadError> {
     let value = parse_json_value(LoadEntry::Ir, bytes).map_err(from_gate)?;

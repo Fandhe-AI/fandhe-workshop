@@ -1,9 +1,9 @@
 //! 章の範囲の指定（`compile --chapters`）と、章をまたぐ `next` の拒否（TASK-67・PACK-43・SHELL-12・D-67）。
 //!
 //! 試行で配る IR は、範囲外の章の開始点を含めない（D-67 の「IR を絞る」案）。このモジュールは 2 つの役割を持つ。
-//! - [`check_chapter_local_next`]: 章の `next` が他の章の Step を指すことを `E-REF-STEP` にする。絞った IR で
+//! - `check_chapter_local_next`: 章の `next` が他の章の Step を指すことを `E-REF-STEP` にする。絞った IR で
 //!   範囲外の Step への辺が残らないことの前提で、`validate` と `compile` の両方が呼ぶ。
-//! - [`narrow_chapters`]: 全章を展開した IR から、選んだ章とそこから呼ばれる実体だけを残す。教材パック全体の
+//! - `narrow_chapters`: 全章を展開した IR から、選んだ章とそこから呼ばれる実体だけを残す。教材パック全体の
 //!   検査を通った IR にだけ働くので、絞っても診断の集合は変わらない（fail-closed）。
 //!
 //! 呼び出し元は `compile`（検査）・`compile::compile_dir_with`（刈り込み）・`validate`（検査）である。
