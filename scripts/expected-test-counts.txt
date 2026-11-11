@@ -85,7 +85,7 @@ rust|tests/compare.rs [compare]|passed=7|ignored=0
 rust|tests/compile.rs [compile]|passed=27|ignored=0
 rust|tests/compile_chapters.rs [compile_chapters]|passed=13|ignored=0
 rust|tests/compile_output.rs [compile_output]|passed=8|ignored=0
-rust|tests/composing_marker_host.rs [composing_marker_host]|passed=6|ignored=0
+rust|tests/composing_marker_host.rs [composing_marker_host]|passed=8|ignored=0
 rust|tests/condition_contract.rs [condition_contract]|passed=9|ignored=0
 rust|tests/condition_eval.rs [condition_eval]|passed=13|ignored=0
 rust|tests/condition_vocab_pack.rs [condition_vocab_pack]|passed=6|ignored=0
@@ -130,8 +130,8 @@ rust|tests/env_action_save.rs [env_action_save]|passed=12|ignored=0
 rust|tests/error_input_expect.rs [error_input_expect]|passed=10|ignored=0
 rust|tests/examples_pack.rs [examples_pack]|passed=8|ignored=0
 rust|tests/export_notice.rs [export_notice]|passed=7|ignored=0
-rust|tests/export_unsent_draft.rs [export_unsent_draft]|passed=10|ignored=0
-rust|tests/export_unsent_draft_host.rs [export_unsent_draft_host]|passed=3|ignored=0
+rust|tests/export_unsent_draft.rs [export_unsent_draft]|passed=17|ignored=0
+rust|tests/export_unsent_draft_host.rs [export_unsent_draft_host]|passed=4|ignored=0
 rust|tests/ext9_ir_identity.rs [ext9_ir_identity]|passed=6|ignored=0
 rust|tests/extension_point_procedure_doc.rs [extension_point_procedure_doc]|passed=5|ignored=0
 rust|tests/fast_forward.rs [fast_forward]|passed=17|ignored=0
@@ -286,7 +286,7 @@ rust|tests/point_rows_contract.rs [point_rows_contract]|passed=7|ignored=0
 rust|tests/preview_command.rs [preview_command]|passed=9|ignored=0
 rust|tests/preview_embedded.rs [preview_embedded]|passed=0|ignored=0
 rust|tests/preview_serve.rs [preview_serve]|passed=5|ignored=0
-rust|tests/product_rows.rs [product_rows]|passed=3|ignored=0
+rust|tests/product_rows.rs [product_rows]|passed=4|ignored=0
 rust|tests/profile.rs [profile]|passed=5|ignored=0
 rust|tests/profile_contract.rs [profile_contract]|passed=4|ignored=0
 rust|tests/profile_input.rs [profile_input]|passed=12|ignored=0
@@ -419,7 +419,7 @@ rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=423|passed=4209|ignored=4
+rust|total|binaries=423|passed=4220|ignored=4
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=55|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=127|ignored=0
