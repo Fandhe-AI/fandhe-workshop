@@ -523,15 +523,31 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
     // `compositionend` が来ないまま欄が焦点を失うと印が残り、Enter が送信されず書き戻しも止まる（#2121）。
     // 泡立つ `focusout` で root が受けて下ろす。変換は欄に焦点があるときだけ起きるので、進行中の変換は壊さない。
     let target = root.clone();
+    // `focusout` は描画の最中（フォーカス中の欄を含む部分の差し替え）にも同期で届き、そこでアプリを借りると
+    // 二重借用で panic する。印は自前の thread_local だけなので即座に下ろし、書き戻しはタイマーに回す。
     let on_focusout = Closure::<dyn FnMut(web_sys::Event)>::new(move |_ev: web_sys::Event| {
-        end_composition_marker(&target);
+        mark_composing(false);
+        if !draft_sync_pending() {
+            return;
+        }
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let target = target.clone();
+        let callback = Closure::once_into_js(move || {
+            if draft_sync_pending() {
+                sync_draft(&target, false);
+            }
+        });
+        let _ = window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(callback.unchecked_ref(), 0);
     });
     root.add_event_listener_with_callback("focusout", on_focusout.as_ref().unchecked_ref())?;
     on_focusout.forget();
     Ok(())
 }
 
-/// 変換中の印を下ろし、保留した書き戻しがあれば反映する（`compositionend` の捕捉の段と `focusout` が共有する）。
+/// 変換中の印を下ろし、保留した書き戻しがあれば反映する（`compositionend` の捕捉の段が使う。`focusout` は同期で借用に触れないよう別に書く）。
 fn end_composition_marker(root: &web_sys::Element) {
     mark_composing(false);
     if draft_sync_pending() {
