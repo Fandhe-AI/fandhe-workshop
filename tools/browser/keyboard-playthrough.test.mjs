@@ -63,6 +63,9 @@ test('U1: 結果の分類', () => {
   const w = snap({ word: '受付済み（確認待ち）' });
   assert.equal(classify(w, snap({ word: '達成' })), 'achieved');
   assert.equal(classify(w, snap({ title: 'U' })), 'achieved');
+  // 同じ題の Step への遷移も達成（位置の変化、または確認待ちを抜けた事実で判定する）。
+  assert.equal(classify(snap({ word: '受付済み（確認待ち）', pos: '1' }), snap({ pos: '2', kinds: ['x'] })), 'achieved');
+  assert.equal(classify(snap({ word: '受付済み（確認待ち）' }), snap({ word: 'entered', kinds: ['x'] })), 'achieved');
   // 確認待ちのまま取り消しが受理され行が追記された場合は受付（none にしない）。
   assert.equal(classify(w, snap({ kinds: ['received'], cats: [null], word: '受付済み（確認待ち）' })), 'accepted');
   assert.equal(classify(snap(), snap()), 'none');
@@ -98,6 +101,10 @@ test('U3: 追記位置の追跡と章つきの位置', () => {
   const ir2 = { ...ir, nodes: [...ir.nodes, n('m@x/t', 'm@x', 'm', 'V')] };
   assert.equal(buildIndex(ir2).sameTitle('m@x/s'), 2);
   assert.equal(buildIndex(ir2).sameTitle('main/a'), 1);
+  // 位置なしの節点（導けない）と同題の節点は衝突として数える。
+  const ir3 = { ...ir, nodes: [...ir.nodes, n('orphan/x', 'zz', 'u', 'T')] };
+  assert.equal(buildIndex(ir3).sameTitle('main/a'), 2);
+  assert.equal(buildIndex(ir3).sameTitle('orphan/x'), 3);
 });
 
 test('U2: 期待の語・ID の形・asserts の未判定', async () => {

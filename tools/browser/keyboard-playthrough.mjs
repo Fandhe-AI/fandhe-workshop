@@ -70,9 +70,9 @@ export function buildIndex(ir) {
     const uids = mainOf.get(cur.unit);
     posOf.set(n.uid, { chapter: cur.unit, m: String(uids.indexOf(cur.uid) + 1), k: String(uids.length) });
   }
-  // 題と（章・M・K の）位置の組が同じ節点の数。モジュールの節点は呼び出し元の位置に読み替わるため、同じモジュール内の同題の Step は 2 以上になり、画面では区別できない。
+  // 題が同じで、位置が同じか、どちらかが位置なしの節点の数（位置なしは区別できないので衝突として数える）。モジュールの節点は呼び出し元の位置に読み替わるため、同じモジュール内の同題の Step は 2 以上になり、画面では区別できない。
   const posKey = (uid) => { const p = posOf.get(uid); return p === undefined ? '' : `${p.chapter}|${p.m}|${p.k}`; };
-  const sameTitle = (uid) => ir.nodes.filter((n) => n.step.title === titleOf.get(uid) && posKey(n.uid) === posKey(uid)).length;
+  const sameTitle = (uid) => ir.nodes.filter((n) => n.step.title === titleOf.get(uid) && (posKey(n.uid) === posKey(uid) || posKey(n.uid) === '' || posKey(uid) === '')).length;
   return { titleOf, kindOf, startNode, posOf, sameTitle };
 }
 
@@ -122,7 +122,9 @@ export function classify(before, after) {
   if (rej >= 0) return `rejected:${after.cats[from + rej] ?? ''}`;
   if (added.includes('clarified')) return 'clarified';
   const waiting = before.word === WAITING;
-  const moved = after.word === DONE || after.title !== before.title;
+  // 同じ題の Step へ移ることもあるので、題だけでなく章・位置、確認待ちを抜けた事実（語が確認待ちでなくなる）も使う。
+  const posMoved = after.chapter !== before.chapter || after.pos !== before.pos || after.posK !== before.posK;
+  const moved = after.word === DONE || after.title !== before.title || posMoved || (waiting && after.word !== WAITING);
   if (waiting && moved) return 'achieved';
   // 確認待ちのまま題も変わらずに行が追記された場合（取り消しの受理など）も受付として扱う。達成は上で先に判定済み。
   if (waiting) return added.length > 0 ? 'accepted' : 'none';
