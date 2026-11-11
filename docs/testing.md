@@ -5124,7 +5124,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 |---|---|
 | L1 | 構造を変える操作（`set_inner_html`・`append_child`・`create_element` など）は、層のどのモジュールにも 0 件 |
 | L2 | glue 以外のモジュールは、モジュールごとの許可表（`MODULE_RULES`）と、層で共有する DOM ではない呼び出し名（`LAYER_NON_DOM_CALLS`・`NON_DOM_CALLS`）に無い呼び出し名を持たない。glue は従来の 7 種の厳密な表のまま（緩めない） |
-| L3 | リスナー登録の第 1 引数は文字列リテラルで、モジュールの許可イベントにある。glue は 5 種（TASK-283 で `beforeinput` を足した。5.189）、`leave_flush` は `pagehide` だけ、他は 0 種（リスナー登録の呼び出し自体も許さない） |
+| L3 | リスナー登録の第 1 引数は文字列リテラルで、モジュールの許可イベントにある。glue は 6 種（TASK-283 で `beforeinput` を、#2121 で `focusout` を足した。5.189・5.502）、`leave_flush` は `pagehide` だけ、他は 0 種（リスナー登録の呼び出し自体も許さない） |
 | L4 | glue 固有の DOM 操作（`query_selector`・`set_attribute`・`click`・`set_value`・`prevent_default` など）は、他のモジュールの許可表に書けない。例外は別の意味で使う `window`・`root`・`contains`・`key` だけ。glue の外の `.query_selector(` は 0 件、`.root(` は `test_hooks` の 1 件だけ |
 | L5 | 層の列挙が空、glue が無い、許可表に無いモジュールがある（新しい wasm32 専用モジュールが増えた）、層に無いモジュールの行が表にある、のどれも失敗にする（fail-closed） |
 
@@ -5143,7 +5143,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 581`（2026-11-09 に TASK-356 2/2 の `mount_host` の直後の書き戻し（初回マウントが捨てる先頭の改行を欄へ戻す。FEND-11）で 577 から上げた。その前は 2026-11-08 に TASK-355 1/2 の試験用の口 `draft_set_count`（下書きの配送の回数の読み取り。`test-hooks` のときだけ）で 574 から上げた。その前は 2026-10-30 に TASK-546 の `mount_app` の引数 `ir_not_found`（取得の 404 の旗。SHELL-32）で 573 から上げた。その前は 2026-10-29 に TASK-191 2/2 の試験用の口 `receptor_activation_probe`（受け口の有効・無効の読み取り。`test-hooks` のときだけ）で 567 から上げた。その前は 2026-10-29 に TASK-156 の試験用の口 `boot_kind`（起動の種類だけの読み取り。`test-hooks` のときだけ）で 563 から上げた。その前は 2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 590`（2026-11-11 に #2121 の `focusout` のリスナーと共有の `end_composition_marker` で 581 から上げた。5.502。その前は 2026-11-09 に TASK-356 2/2 の `mount_host` の直後の書き戻し（初回マウントが捨てる先頭の改行を欄へ戻す。FEND-11）で 577 から上げた。その前は 2026-11-08 に TASK-355 1/2 の試験用の口 `draft_set_count`（下書きの配送の回数の読み取り。`test-hooks` のときだけ）で 574 から上げた。その前は 2026-10-30 に TASK-546 の `mount_app` の引数 `ir_not_found`（取得の 404 の旗。SHELL-32）で 573 から上げた。その前は 2026-10-29 に TASK-191 2/2 の試験用の口 `receptor_activation_probe`（受け口の有効・無効の読み取り。`test-hooks` のときだけ）で 567 から上げた。その前は 2026-10-29 に TASK-156 の試験用の口 `boot_kind`（起動の種類だけの読み取り。`test-hooks` のときだけ）で 563 から上げた。その前は 2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -13149,7 +13149,7 @@ product-redraw-shaped（描画部品の実際の形の行。`artifact-redraw-sha
 変換中かどうかの判定（`isComposing`・keyCode 229・`key=Process`・自前の印のどれか 1 つ）のうち、自前の印が Enter・Esc の経路に届いていなかったため、結線した（2026-11-08）。契約（`crates/contract` の `decide`）は変えていない。
 
 - 結線: glue の `is_composing`（compositionstart〜compositionend）→ ホストの読み取り口 `ComposingProbe`（`EngineHost::set_composing_probe`。`mount_host` が `Runtime::mount` の前に結ぶ）→ `EngineHost::key_field_state`（Enter の経路。glue が `decide` に渡す）と `HelloView::esc(busy, composing)`（Esc の経路。上流が Component の action として届けるため、glue は介在できない）
-- 倒れる向き: 印が立つと Enter は送信せず、Esc は停止・取り消し・候補の閉じるのどれもしない（誤送信 0 の側）。印が下りる経路は compositionend だけで、取り消し（空の `imeSetComposition`）でも出ることを I-12 で確かめた。blur で印を下ろす処理は足していない（glue のリスナーのイベントが増え、`glue_contract` の L3 と 5.166 の改訂が要るため）。印が残る症状が見つかったら別の Issue にする
+- 倒れる向き: 印が立つと Enter は送信せず、Esc は停止・取り消し・候補の閉じるのどれもしない（誤送信 0 の側）。印が下りる経路は compositionend だけで、取り消し（空の `imeSetComposition`）でも出ることを I-12 で確かめた。blur で印を下ろす処理は足していない（#2121 で `focusout` に足した。5.502。glue のリスナーのイベントが増え、`glue_contract` の L3 と 5.166 の改訂が要るため）。印が残る症状が見つかったら別の Issue にする
 - native 試験: `crates/web/tests/composing_marker_host.rs` の 6 件（関数名の接頭辞 `c1`〜`c5`・`c6_c7`。印が立つ処理中の Esc で世代・ログ・候補が不変／印が下りた対照で停止の行が 1 件／待機中の Esc で取り消しの拒否が増えない／`key_field_state` の値／印が立つ Enter は送信せず立たなければ送信する。複数行を含む）と、`hello.rs` の内側の試験 1 件。`glue_contract` の許可表と `state_paths` の R3 の表に `set_composing_probe` を足した
 - ブラウザ試験: `tools/browser/ime-input.test.mjs` の I-10（処理中の変換中の Esc で世代・停止・進行が不変、`defaultPrevented=false`、確定後の Enter で送信）・I-11（対照。変換しない Esc は停止し世代が 1 進む）・I-12（取り消しの後の Enter で 1 件）・I-13（待機中の変換中の Esc でログと下書きが不変）。確定の Enter と確定後の Enter は既存の I-1〜I-3 が確かめる。実行結果（2026-11-08）: ime-input・ime・enter-submit・esc-key・esc-once・esc-outcomes・stop-redo で 91 件合格・失敗 0 件（Chromium）
 - 証拠の種類: CDP の模擬はシミュレーターであり、実 IME でも人の評価でもない。実 IME の確認（TASK-93／BUILD-18）は未実施である
@@ -13219,7 +13219,7 @@ product-redraw-shaped（描画部品の実際の形の行。`artifact-redraw-sha
 
 - ブラウザの変異（B-M1・B-M3）を再現するスクリプトと Make のターゲット
 - 変異注入の CI への組み込み（TASK-33）
-- blur で印を下ろす処理（5.484 から引き継ぐ）
+- blur で印を下ろす処理（5.484 から引き継ぐ。#2121 で直した。5.502）
 - 試験の件数の期待値: `scripts/expected-test-counts.txt` は版上げ PR でだけ照合するため更新していない（試験は変えていない）
 
 ### 5.487 変換中の入力の延期と確定値が 1 回だけ届くことの試験（TASK-355 1/2。FEND-10。#960）
@@ -13570,3 +13570,16 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 - 試験を強める案を採らなかった理由: `path_rows` の指せる属性を守る試験は、native の試験には無い。120 行を `None` にして `cargo test -p fandhe-workshop-web --locked --no-fail-fast` を既定の feature と `--features test-hooks` の両方で流すと、どちらも全件が通った（ブラウザ試験は未確認）。ただし、ファイルツリーでは退避の経路を host の経路から作れなかった。`path_rows` は `pub(crate)` で、変異の検査が流せるのは結合試験（`--test`）だけである。世界状態は状態の `world` ではなくログから導かれ、初期の状態に置いた要素は行に出ない。受付の効果に空の経路の `put` を足すと、世界状態が空のままで `notes/draft` の行も出なかった。無くなった行（`Remove`）は `shown(Phase::After)` で描けるため、退避にならない。ほかの 5 種の行の部品が `None` を返す条件は読んでおらず、未確認である。そのため範囲外として残す
 - 結果: 向け直した後、同じコマンドで DETECTED（終了コード 0）になった。落ちた試験は「確認待ちの行は_4_属性を組で持ち_宣言_id_の宛先になる」（`data-action` の assert）と「行の_payload_を_ui_として送ると確認が成立して次の_step_へ進む」。`make check-mutation-defs` は 821 件で一致した
 - 限界: ほかの 6 種（`card_view.rs:329`・`check_view.rs:373`・`diff_view.rs:287`・`app_demo_view.rs:429`・`task_tree.rs:377`・`document_view.rs:326`）の `product_items` の `target.as_ref()` には、変異の定義が無い。`path_rows`（`product_rows.rs:120`）の指せる属性を守る試験も無い。どちらも本節の範囲外である
+
+### 5.502 変換中の印の focusout での解除と、変換中の補完で確定文字が消える問題の修正（#2121。FEND-10。5.484・5.488 の限界の解消）
+
+目的は、5.484・5.488 で範囲外にした 2 つの限界を直すことである。実行日 2026-11-11、元にしたコミット e14c5213、ブラウザは同梱の Chromium（Linux）。
+
+- 印が残る問題: `compositionend` が来ないまま欄が焦点を失うと、glue の変換中の印が立ったまま残り、続けて打った Enter が送信されず、書き戻しも止まった。root の泡立つ `focusout` で印を下ろし、保留した書き戻しがあれば反映する（`end_composition_marker`。`compositionend` の捕捉の段と共有）。`glue_contract.rs` の `ALLOWED_EVENTS` に `("focusout", GlueOp::CompositionMark)` を足した（L3 は 6 種。5.166）。`MAX_GLUE_CODE_LINES` は 581 から 590 に上げた（実測ちょうど）。
+- 変換中の補完: 変換中に `Complete` が届くと、下書きを補完後の値に変えて書き戻しを頼み、保留の印が `compositionend` で変換前の値を欄へ書いて確定した文字を消した。ホストの `HostAction::Complete` の腕で、変換中の印が立っていれば補完を適用せず書き戻しも頼まない（`complete_count` だけ増える）。補完を捨てても入力は失われない。
+- native: `composing_marker_host.rs` の c8（変換中は下書きが変わらず書き戻し 0 回）・c9（対照。印が下りていれば `/help` に置き換わり書き戻し 1 回）。変異 `FEND10-3`（判定を外す）は c8 で DETECTED。
+- ブラウザ（`tools/browser/ime-reload-flood.test.mjs`。CSP あり・なしの 26 件全件合格）: S-M2 を実測から断言に替えた（変換中の補完は適用されず、確定した文字が欄と状態の下書きに残り、配送はちょうど 1 回。印 `IME-COMPOSING-LOST`）。B-1（印が残った後に焦点を外して戻し、打った文字が反映・送信される）・B-1n（負の対照。焦点を動かさないと Enter が送信されない）・B-2（保留した書き戻しが focusout で解消され、後の変換の確定した文字が残る）・O-1（観察）を足した。focusout のリスナーを外した写しでは B-1・B-2 が落ち B-1n は通ることを確かめた（空振りでない）。
+- M2 の検出点の付け替え: 補完が変換中に書き戻しを頼まなくなったため、M2（`sync_draft` の変換中の除外を外す変異）の検出点を S-M2b（変換中に JS の click で送信し、#1510 の経路で書き戻しを頼む場面）に移した。`make test-ime-sync-control` は S-M2b が `IME-COMPOSING-LOST` つきで落ち、終了コード 0（対照が成立）になった。
+- 順序の観察（O-1）: CDP の模擬では、変換中に欄を blur すると `compositionend` が先、`focusout` が後に届いた（Chromium）。どちらの順でも結果は変わらない設計である。
+- 既存の IME 系（ime-defer・ime-sentences・ime-input・draft-sync・submit-wiring・enter-submit）は変えずに 140 件全件合格した。
+- 限界: 実 IME・Firefox・Safari では未確認（TASK-93）。ウィンドウの切り替えで変換が続く IME では戻った後に印が下りているが、その間の Enter はイベント自身の `isComposing`・keyCode 229 で除外される（試験していない）。補完の配送が `compositionstart` より前に適用され、書き戻しのタイマーが変換の開始より後に動く競合は #1510 と同じ扱いである。操作を受け付けない分岐（表示だけの履歴など）で `Complete` が書き戻しを頼む経路は変えていない。

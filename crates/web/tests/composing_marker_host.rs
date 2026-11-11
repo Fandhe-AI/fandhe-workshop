@@ -3,6 +3,7 @@
 //!
 //! glue は wasm32 専用で native では試せないため、glue が呼ぶ `EngineHost::key_field_state` と、Esc の経路
 //! （`HostAction::Input(HelloAction::Esc)`）をここで確かめる。印を外す・口を結ばない変異の検出先になる（TASK-276 3/3）。
+//! 変換中の補完は適用せず書き戻しも頼まない（#2121。c8・c9）。
 //! 試験では `unwrap` を使ってよい。
 
 use std::cell::Cell;
@@ -168,4 +169,34 @@ fn c6_c7_印が立つ_enter_は送信せず_立たなければ送信する() {
         let e = effect_for(decide(&plain_enter(), &host.key_field_state()));
         assert!(e.click_submit && e.prevent_default, "{text:?}");
     }
+}
+
+/// 書き戻しの通知の回数を数える口を付ける。
+fn with_sync(host: &mut EngineHost) -> Rc<Cell<u32>> {
+    let n = Rc::new(Cell::new(0));
+    let c = Rc::clone(&n);
+    host.set_draft_sync_request(Box::new(move || c.set(c.get() + 1)));
+    n
+}
+
+#[test]
+fn c8_印が立つと補完は下書きを変えず書き戻しも頼まない() {
+    let flag = Rc::new(Cell::new(true));
+    let mut host = host_with(Some(&flag));
+    let sync = with_sync(&mut host);
+    draft(&mut host, "/he");
+    host.update(EngineHost::decode_action("complete", "").expect("complete"));
+    assert_eq!(host.draft(), "/he");
+    assert_eq!(sync.get(), 0);
+}
+
+#[test]
+fn c9_対照_印が下りていれば補完は置き換え書き戻しを1回頼む() {
+    let flag = Rc::new(Cell::new(false));
+    let mut host = host_with(Some(&flag));
+    let sync = with_sync(&mut host);
+    draft(&mut host, "/he");
+    host.update(EngineHost::decode_action("complete", "").expect("complete"));
+    assert_eq!(host.draft(), "/help");
+    assert_eq!(sync.get(), 1);
 }

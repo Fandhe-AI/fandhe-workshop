@@ -3,11 +3,13 @@
 // 守る期待（FEND-10）:
 //   消失 0 件     ログを 100 件以上足している間に、変換中の文字と下書きが消えた件数が 0 件（PoC-2 の F-1・F-2・F-1b・F-2b に当たる）
 //   R-6           変換中に再読み込みすると、確定済みの文字列は戻り、変換中の文字列は戻らず、保存先にも入らない
-//   M2 の検出     反映の変換中の除外（crates/web/src/glue.rs の sync_draft の先頭）を外すと、この試験が失敗する
+//   M2 の検出     反映の変換中の除外（crates/web/src/glue.rs の sync_draft の先頭）を外すと、この試験（S-M2b）が失敗する
+//   補完（S-M2）  変換中に届いた補完は適用されず、確定した文字が欄に残る（#2121）
+//   B-1・B-2      compositionend が来ないまま欄が焦点を失っても、印と保留が focusout で解消される（#2121）
 //
 // PoC-2 と構成が違う点: PoC-2 は update のたびに欄へ反映したので、ログの追加そのものが M2 の引き金だった。この repo では
 // 書き戻し（sync_draft）はホストの書き戻しの要求・変換中でない input・compositionend の段でしか起きず、ログを足すだけでは
-// 起きない。そのため M2 の検出点は S-M2（変換中に補完を届けて書き戻しを要求させる場面）に置く。ログの追加の場面は、
+// 起きない。そのため M2 の検出点は S-M2b（変換中に送信の書き戻しを要求させる場面。変換中の補完は #2121 で適用しなくなった）に置く。ログの追加の場面は、
 // 再描画が欄の値・要素・フォーカスを壊さないことの確認である。
 // 証拠の種類はシミュレーター（CDP による IME の模擬）で、実 IME でも人の評価でもない（実 IME は TASK-93 / BUILD-18。未実施）。
 // 対照: scripts/test-ime-sync-control.sh が M2 を入れた写しでこの試験を流し、固定の印 IME-COMPOSING-LOST つきで失敗することを確かめる。
@@ -28,6 +30,7 @@ const BASE = '/fandhe-ime-reload-flood/';
 const INPUT = '[data-testid="draft-input"]';
 const RAW = '[data-testid="raw-trigger"]';
 const MARK = 'IME-COMPOSING-LOST';
+const ACCEPTED = '/make-note first-note';
 const EXISTING = '既にある下書き';
 const READING = 'へんかん';
 const FLOOD_ROUNDS = 50;
@@ -162,29 +165,147 @@ for (const csp of [true, false]) {
     });
   }
 
-  test(`S-M2 変換中に書き戻しの要求（補完）が届いても、欄を書かず変換中の文字が消えない（CSP ${cspLabel}）`, async (t) => {
+  test(`S-M2 変換中に補完が届いても適用されず、確定した文字が欄に残る（CSP ${cspLabel}）`, async (t) => {
     await run(async (srv) => {
       const { page, context, cdp, rec } = await openTest(srv);
       await page.fill(INPUT, '/he');
       await page.focus(INPUT);
       await settle(page);
       await clearValueWriteProbe(page);
+      const base = await countOf(page);
       const before = (await state(page)).completeCount;
       await imeCompose(cdp, READING);
       await call(page, 'requestComplete');
       await page.waitForFunction((n) => JSON.parse(window.__fandheTest.stateJson()).completeCount === n + 1, before, { timeout: T });
       await settle(page);
       await settle(page);
-      // 空振りでないこと: 補完が下書きを /help に変え、書き戻しを要求した。
-      assert.equal(await draftOf(page), '/help', `補完で状態の下書きが変わった（前提） ${SIM_LABEL}`);
-      assert.equal(await page.inputValue(INPUT), '/he' + READING, `${MARK}: 変換中に書き戻しの要求が届いても欄の値が保たれる ${SIM_LABEL}`);
+      // 変換中の補完は適用しない（#2121）。状態の下書きは変わらず、欄は変換中の値のまま、書き込みは 0 回。
+      assert.equal(await draftOf(page), '/he', `変換中の補完は適用されない ${SIM_LABEL}`);
+      assert.equal(await page.inputValue(INPUT), '/he' + READING, `${MARK}: 変換中に補完が届いても欄の値が保たれる ${SIM_LABEL}`);
       assert.equal((await readValueWriteProbe(page)).composing, 0, `${MARK}: 変換中に欄へ書かない ${SIM_LABEL}`);
-      // 確定後の値は、保留した書き戻しの優先（#1510）に依るため assert せず、実測を残す。
+      await imeCommit(cdp, '変換');
+      await page.waitForFunction((x) => window.__fandheTest.draft() === x, '/he変換', { timeout: T });
+      await settle(page);
+      await settle(page);
+      assert.equal(await page.inputValue(INPUT), '/he変換', `${MARK}: 確定した文字が欄に残る ${SIM_LABEL}`);
+      assert.equal(await draftOf(page), '/he変換', `確定後の状態の下書き ${SIM_LABEL}`);
+      assert.equal((await countOf(page)) - base, 1, `確定値の配送はちょうど 1 回 ${SIM_LABEL}`);
+      assertClean(rec);
+      await context.close();
+    });
+  });
+
+  test(`S-M2b 変換中に送信の書き戻しが頼まれても、欄を書かず変換中の文字が消えない（M2 の検出点。CSP ${cspLabel}）`, async (t) => {
+    await run(async (srv) => {
+      const { page, context, cdp, rec } = await openTest(srv);
+      await page.fill(INPUT, ACCEPTED);
+      await page.focus(INPUT);
+      await settle(page);
+      await clearValueWriteProbe(page);
+      const logLen0 = (await engine(page)).logLen;
+      await imeCompose(cdp, READING);
+      // JS の click で送る（フォーカスは動かない。#1510 の経路で、変換中に書き戻しが頼まれる）。
+      await page.evaluate((sel) => document.querySelector(sel).click(), '[data-testid="submit-input"]');
+      await settle(page);
+      await settle(page);
+      // 空振りでないこと: 送信で受付が増え、状態の下書きは空になった。
+      assert.ok((await engine(page)).logLen > logLen0, `送信で受付が増えた（前提） ${SIM_LABEL}`);
+      assert.equal(await draftOf(page), '', `送信で状態の下書きが空になった（前提） ${SIM_LABEL}`);
+      assert.equal(await page.inputValue(INPUT), ACCEPTED + READING, `${MARK}: 変換中に書き戻しが頼まれても欄の値が保たれる ${SIM_LABEL}`);
+      assert.equal((await readValueWriteProbe(page)).composing, 0, `${MARK}: 変換中に欄へ書かない ${SIM_LABEL}`);
+      // 変換の終わりの後の値は、保留した書き戻しの優先（#1510）に依るため assert せず、実測を残す。
       await imeCancel(cdp);
       await settle(page);
       await settle(page);
-      t.diagnostic(`S-M2 取り消しの後の欄の値: ${JSON.stringify(await page.inputValue(INPUT))}`);
+      t.diagnostic(`S-M2b 取り消しの後の欄の値: ${JSON.stringify(await page.inputValue(INPUT))}`);
       assertClean(rec);
+      await context.close();
+    });
+  });
+
+  // 変換中の印が compositionend の来ないまま残る場面（#2121）。合成の compositionstart で印だけを立てる。
+  const startMark = (page) => page.evaluate((sel) => {
+    document.querySelector(sel).dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+  }, INPUT);
+
+  test(`B-1n（負の対照）印が残ったまま焦点を動かさず打つと、Enter は送信されない（CSP ${cspLabel}）`, async () => {
+    await run(async (srv) => {
+      const { page, context, rec } = await openTest(srv);
+      await settle(page);
+      const logLen0 = (await engine(page)).logLen;
+      await startMark(page);
+      await page.keyboard.type(ACCEPTED);
+      await page.keyboard.press('Enter');
+      await settle(page);
+      assert.equal((await engine(page)).logLen, logLen0, `印が立っている間は送信されない（印の残る状態を作れている） ${SIM_LABEL}`);
+      await context.close();
+      void rec;
+    });
+  });
+
+  test(`B-1 compositionend が来ないまま欄が焦点を失っても、印が残らず続けて打った文字が送信される（CSP ${cspLabel}）`, async () => {
+    await run(async (srv) => {
+      const { page, context, rec } = await openTest(srv);
+      await settle(page);
+      const logLen0 = (await engine(page)).logLen;
+      await startMark(page);
+      await page.evaluate((sel) => document.querySelector(sel).blur(), INPUT);
+      await page.focus(INPUT);
+      await page.keyboard.type(ACCEPTED);
+      await settle(page);
+      assert.equal(await page.inputValue(INPUT), ACCEPTED, `欄の値 ${SIM_LABEL}`);
+      assert.equal(await draftOf(page), ACCEPTED, `${MARK}: 状態の下書きが欄と一致する ${SIM_LABEL}`);
+      await page.keyboard.press('Enter');
+      await settle(page);
+      await settle(page);
+      assert.ok((await engine(page)).logLen > logLen0, `${MARK}: Enter で受付が増える ${SIM_LABEL}`);
+      assert.equal(await draftOf(page), '', `送信の後に状態の下書きが空 ${SIM_LABEL}`);
+      assert.equal(await page.inputValue(INPUT), '', `送信の後に欄も空 ${SIM_LABEL}`);
+      assertClean(rec);
+      await context.close();
+    });
+  });
+
+  test(`B-2 保留した書き戻しは focusout で解消され、後の変換の確定した文字が消えない（CSP ${cspLabel}）`, async () => {
+    await run(async (srv) => {
+      const { page, context, cdp, rec } = await openTest(srv);
+      await page.fill(INPUT, ACCEPTED);
+      await page.focus(INPUT);
+      await settle(page);
+      // 同じタスクの中で送信と変換の開始を続け、書き戻しを保留にする（S-5(b) と同じ手順）。
+      await page.evaluate(([sub, sel]) => {
+        document.querySelector(sub).click();
+        document.querySelector(sel).dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      }, ['[data-testid="submit-input"]', INPUT]);
+      await page.evaluate((sel) => document.querySelector(sel).blur(), INPUT);
+      await settle(page);
+      await settle(page);
+      await page.focus(INPUT);
+      await imeCompose(cdp, READING);
+      await imeCommit(cdp, '確定');
+      await page.waitForFunction((x) => window.__fandheTest.draft() === x, '確定', { timeout: T });
+      await settle(page);
+      await settle(page);
+      assert.equal(await page.inputValue(INPUT), '確定', `確定した文字が欄に残る ${SIM_LABEL}`);
+      assert.equal(await draftOf(page), '確定', `確定した文字が状態の下書きに残る ${SIM_LABEL}`);
+      assertClean(rec);
+      await context.close();
+    });
+  });
+
+  test(`O-1（観察）変換中に欄の焦点を外したときの compositionend と focusout の順（CSP ${cspLabel}）`, async (t) => {
+    await run(async (srv) => {
+      const { page, context, cdp } = await openTest(srv);
+      await page.evaluate((sel) => {
+        window.__order = [];
+        const el = document.querySelector(sel);
+        el.addEventListener('compositionend', () => window.__order.push('compositionend'));
+        el.addEventListener('focusout', () => window.__order.push('focusout'));
+      }, INPUT);
+      await imeCompose(cdp, READING);
+      await page.evaluate((sel) => document.querySelector(sel).blur(), INPUT);
+      await settle(page);
+      t.diagnostic(`O-1 順: ${JSON.stringify(await page.evaluate(() => window.__order))}`);
       await context.close();
     });
   });
