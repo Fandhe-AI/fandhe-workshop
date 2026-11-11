@@ -1,0 +1,8 @@
+id: FEND13-8
+package: fandhe-workshop-web
+test: product_rows
+target: crates/web/src/task_tree.rs
+find:             target.as_ref(),
+replace:             None,
+expect-fail: seven_kinds_html_matches_expected
+note: タスクツリーの差し替え口（product_items）が行に指せる属性を付けず、製品の画面でタスクツリーの行がクリック・Enter・Space で確認にならない

@@ -1,0 +1,8 @@
+id: FEND13-7
+package: fandhe-workshop-web
+test: app_demo_product
+target: crates/web/src/app_demo_view.rs
+find:             target.as_ref(),
+replace:             None,
+expect-fail: 指せる行の中の欄とボタンは行の_click_を妨げない
+note: アプリのデモの差し替え口（product_items）が行に指せる属性を付けず、製品の画面でアプリのデモの行がクリック・Enter・Space で確認にならない

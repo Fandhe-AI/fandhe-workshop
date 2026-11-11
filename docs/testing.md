@@ -13550,7 +13550,7 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 - 記録: 記録の表を step summary と workflow artifact（`mutations-<crate>`、保持 30 日）に残す
 - 時間: 手元の実測（2026-11-10。`TMPDIR` はディスク側。依存の冷えたビルド込み）は、web の先頭 4 件（`features: test-hooks` の 1 件を含む）が 42 秒、core の先頭 2 件が 15 秒で、web は native だけで通った（全件 DETECTED）。件数に掛けた見積もりは、手元で web 約 55 分・core 約 35 分。runner は 2〜3 倍遅いとみて web 約 3 時間で、`timeout-minutes` は 300（上限 360 分の内側）にした。標本は軽い試験の 6 件で、重い試験を見ていないため外れる恐れがある。runner での所要時間は未実測で、初回の実行の結果でこの節に追記し、`timeout-minutes` を見直す（超える見込みなら、`scripts/check-mutations.sh` に分割の引数を足して matrix を crate × 分割にする）
 - Rust: `rustup toolchain install` と `scripts/ci-rust-toolchain.sh` による版の照合（`ci.yml` の `rust-test` と同じ）。キャッシュは使わない
-- 検証: `actionlint` と `make check` を通した。`mutations.yml` は `check-fork-ci`・`check-workflow-secrets` の検査対象に入っていない（fork での skip と secret 参照 0 件は、書き方で守っているだけで、機械の検査は無い）
+- 検証: `actionlint` と `make check` を通した。`mutations.yml` は `check-fork-ci`・`check-workflow-secrets` の検査対象に入っていない（fork での skip と secret 参照 0 件は、書き方で守っているだけで、機械の検査は無い。5.505 で解消）
 
 #### 初回の実行の結果と FEND13-3 の向け直し（2026-11-10）
 
@@ -13569,7 +13569,7 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 - 直し方: 定義の `target` を `crates/web/src/file_tree_view.rs` に、`find` を 278 行の `target.as_ref(),`（12 空白。ファイル内で 1 件）に向け直し、`note` を実態に合わせた。試験は変えていない。試験は本線の指せる属性を守っており、欠けていたのは定義の追従だった
 - 試験を強める案を採らなかった理由: `path_rows` の指せる属性を守る試験は、native の試験には無い。120 行を `None` にして `cargo test -p fandhe-workshop-web --locked --no-fail-fast` を既定の feature と `--features test-hooks` の両方で流すと、どちらも全件が通った（ブラウザ試験は未確認）。ただし、ファイルツリーでは退避の経路を host の経路から作れなかった。`path_rows` は `pub(crate)` で、変異の検査が流せるのは結合試験（`--test`）だけである。世界状態は状態の `world` ではなくログから導かれ、初期の状態に置いた要素は行に出ない。受付の効果に空の経路の `put` を足すと、世界状態が空のままで `notes/draft` の行も出なかった。無くなった行（`Remove`）は `shown(Phase::After)` で描けるため、退避にならない。ほかの 5 種の行の部品が `None` を返す条件は読んでおらず、未確認である。そのため範囲外として残す
 - 結果: 向け直した後、同じコマンドで DETECTED（終了コード 0）になった。落ちた試験は「確認待ちの行は_4_属性を組で持ち_宣言_id_の宛先になる」（`data-action` の assert）と「行の_payload_を_ui_として送ると確認が成立して次の_step_へ進む」。`make check-mutation-defs` は 821 件で一致した
-- 限界: ほかの 6 種（`card_view.rs:329`・`check_view.rs:373`・`diff_view.rs:287`・`app_demo_view.rs:429`・`task_tree.rs:377`・`document_view.rs:326`）の `product_items` の `target.as_ref()` には、変異の定義が無い。`path_rows`（`product_rows.rs:120`）の指せる属性を守る試験も無い。どちらも本節の範囲外である
+- 限界: ほかの 6 種（`card_view.rs:329`・`check_view.rs:373`・`diff_view.rs:287`・`app_demo_view.rs:429`・`task_tree.rs:377`・`document_view.rs:326`）の `product_items` の `target.as_ref()` には、変異の定義が無い。`path_rows`（`product_rows.rs:120`）の指せる属性を守る試験も無い。どちらも本節の範囲外である（5.505 で解消）
 
 ### 5.502 変換中の印の focusout での解除と、変換中の補完で確定文字が消える問題の修正（#2121。FEND-10。5.484・5.488 の限界の解消）
 
@@ -13621,3 +13621,14 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 - `scripts/expected-test-counts.txt` は変えていない（#2117・#2118 と同じ。版上げ PR か同ファイルの変更時だけ照合される）。
 - 範囲外: `assertClean` は harness の `summarize` を使う安全性の計数で、`tools/browser` の複数ファイルに同じ写しがあり、harness へまとめる別の課題とした。`reverseProblems` は `tab-trap` の件数を保つため移していない。
 - 限界: Chromium だけで確かめた。
+
+### 5.505 指せる属性の変異の定義と退避の経路の試験と `mutations.yml` の fork CI の検査（#2135。5.501 の限界の解消）
+
+実行日: 2026-11-11。元にしたコミット: `acb017e7`。
+
+- 退避の経路（`product_rows::path_rows`）は、各ビューの `product_items` が `item_rows` の `Err` で退避する先である。`item_rows` が `Err` になるのは `RowId::new("")` が失敗するときだけで、`*_item_b_with` は `None` を返さない。したがって世界状態に空の経路 `""` の行があれば入る。教材の効果では作れないため、ログに `changed`（経路 `""` と `notes/a`）を置いた状態を `Session::from_state` に渡して作る（`crates/web/tests/product_rows.rs` の `fallback_host`）。履歴の読み込み・教材の `put` の検査が空の経路を拒否するかは未確認で、本体の挙動は変えていない
+- 試験 `fallback_rows_carry_pointing_attributes` を追加した。文書以外の 6 種で、退避の形（`data-kind` 0 件・経路の `span` のみ）の行が、空の経路は表示だけ、`notes/a` は 4 属性を持つことを確かめる。文書は退避しない（`data-kind` つきの本線の行になる）ため対象外
+- 変異の定義 7 件を追加した。FEND13-4〜9 はカード・チェック・差分・アプリのデモ・タスクツリー・文書の `product_items` の `target.as_ref()`、FEND13-10 は `path_rows` の同じ箇所を `None` にする。定義の総数は 829 件（`make check-mutation-defs`）
+- コマンド: `scripts/check-mutations.sh crates/web/tests/mutations/FEND13-{3..10}.mutation`（`TMPDIR` はディスク側）。結果は 8 件とも DETECTED（FEND13-4・5・6・8・9 は `seven_kinds_html_matches_expected`、FEND13-7 は `app_demo_product` の `指せる行の中の欄とボタンは行の_click_を妨げない`、FEND13-10 は `fallback_rows_carry_pointing_attributes`、FEND13-3 は既存の 2 件）
+- `check-fork-ci.sh` に C6（`--mutations`。`mutations.yml`）を足した。規則は C5 と同じ（`schedule` と `workflow_dispatch` だけ・トップレベルの `permissions` が空・全ジョブが fork で skip・`uses` の SHA 固定・secret の参照 0 件）。`test-check-fork-ci.sh` に C5 と同じ形の回帰ケースと、守りの無い 2 つ目のジョブ・構文誤り・ファイル無しのケースを足した
+- 未検証: 手元に `ruby` が無く、`make check-fork-ci`・`make test-check-fork-ci`・`make check-workflow-secrets` は流していない（`shellcheck` は通った）。CI の `check` ジョブで確かめる。`scripts/expected-test-counts.txt` は版上げ PR でだけ照合されるため変えていない

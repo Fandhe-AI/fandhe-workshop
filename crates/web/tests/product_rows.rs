@@ -159,3 +159,66 @@ fn read_cell_rules() {
     assert_eq!(c.label, "a/b");
     assert!(c.detail.is_empty() && c.state.is_empty() && c.tags.is_empty());
 }
+
+/// 退避の経路（`path_rows`）に入る状態。世界状態に空の経路 `""` の行があると `item_rows` が `Err` になり、
+/// 各ビューの `product_items` が退避する。空の経路は教材の効果では作れないため、ログに `changed` を置いた
+/// 状態を `Session::from_state` に渡して作る（本体の挙動は変えない）。
+fn fallback_host(kind: ViewKind) -> EngineHost {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/product_view_pack");
+    let ir = ir_of(&dir);
+    let node = ir.starts[0].node.clone();
+    let mut state = serde_json::to_value(Session::entered_at(ir.clone(), &node).state()).unwrap();
+    let step = node.clone();
+    let log: Vec<serde_json::Value> = ["", "notes/a"]
+        .iter()
+        .map(|path| {
+            serde_json::json!({"changed": {
+                "at": {"generation": 1, "step": step},
+                "path": path,
+                "before": null,
+                "after": {"fixture": null, "attrs": {}},
+                "cause": "input",
+            }})
+        })
+        .collect();
+    state["log"] = serde_json::Value::Array(log);
+    let state = serde_json::from_value(state).unwrap();
+    let mut h =
+        EngineHost::with_session(Session::from_state(ir, state), standard_registry()).unwrap();
+    h.update(HostAction::SelectView(kind));
+    h
+}
+
+/// 退避の経路の行も、宣言 ID の宛先を持つ行には指せる属性 4 つが付く（`target.as_ref()` の欠落を検出する）。
+/// 退避の形は本線の部品と違い、`data-kind` が無く子が経路の `span` 1 つだけになる。文書は退避しないので対象外。
+/// 空の経路の行は `RowId` にできず宛先が無いので、表示だけで 4 属性を持たない。期待値は手で数えた件数。
+#[test]
+fn fallback_rows_carry_pointing_attributes() {
+    let kinds = [
+        ViewKind::FileTree,
+        ViewKind::CardList,
+        ViewKind::CheckList,
+        ViewKind::Diff,
+        ViewKind::TaskTree,
+        ViewKind::AppDemo,
+    ];
+    for kind in kinds {
+        let h = fallback_host(kind);
+        let html = artifact_section(&h);
+        let at = html
+            .find(&format!("data-view=\"{}\"", kind_name(kind)))
+            .unwrap();
+        let open = html[..at].rfind("<ul").unwrap();
+        let close = at + html[at..].find("</ul>").unwrap();
+        let body = &html[open..close];
+        let name = kind_name(kind);
+        assert_eq!(body.matches("data-path=").count(), 2, "{name}");
+        assert_eq!(body.matches("data-kind=").count(), 0, "{name}: 退避の形");
+        assert_eq!(body.matches("data-path=\"\"").count(), 1, "{name}");
+        assert_eq!(body.matches("data-row=\"notes/a\"").count(), 1, "{name}");
+        assert_eq!(body.matches("data-row=").count(), 1, "{name}");
+        assert_eq!(body.matches("data-action=\"ui\"").count(), 1, "{name}");
+        assert_eq!(body.matches("data-payload=").count(), 1, "{name}");
+        assert_eq!(body.matches("tabindex=\"0\"").count(), 1, "{name}");
+    }
+}
