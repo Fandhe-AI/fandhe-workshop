@@ -12942,6 +12942,13 @@ WASM の gzip -9: #2065 の本文に基点 519646 bytes（`5014cac3`、`SKIP_WAS
 - 結果（2026-11-07）: Chromium で left-row-layout の 9 件が通った（LR6 の docWrap は実教材の行が 1280px では入るため、長い題・状態の IR で違反を出す）。`scripts/check-mutation-defs.sh` と Rust の 2 試験は通った。それ以外のブラウザ試験・`check-mutations`・`make test` の通しは、この記録の時点で未実施なら PR の CI に委ねる
 - 限界: 基準端末 A では測っていない。作成者と実装が同じ AI で、人の目の確認の代わりにならない。`.artifact-doc-body` の `pre` の長い行のはみ出しと、タスクツリーなど他の種類の行の黒丸は範囲外（未確認）
 - 追記（2026-11-07。#2092）: `TASK2087-1`〜`4` を `scripts/check-mutations.sh` で 1 件ずつ流し直し、4 件とも DETECTED だった（main `4a9779a4` に #2092 の変更を載せた状態）。`pre` の長い行のはみ出しは 5.478 で実際の画面を測って直した
+- 追記（2026-11-11。#2128）: 左エリアの小さな試験の穴を 3 点埋めた。挙動（`crates/web/src/**`・`app.css`）は変えていない
+  - 変異 `TASK2087-1`〜`4` の流し直し: `app.css` を #2087 の後に変えた #2119（`e61993fc`）が入った main `1a0c34e5` の上で、`scripts/check-mutations.sh` を `test:` の同じ 2 件ずつ（1・2 と 3・4）流し、4 件とも DETECTED だった（失敗した試験は期待どおり）
+  - カード以外の行の黒丸（5.476 の限界への答え）: 一時ページに 7 種の `product_view_html` の断片を並べ、実物の `app.css` を Chromium 153.0.8010.12・幅 1280px で測った。黒丸が付く条件は `display: list-item` かつ `list-style-type` が `none` でないこと（flex の行は `list-style-type` が `disc` でも描かれないため、`list-style-type` だけでは判定しない）。結果は次のとおり
+    - 付く: タスクツリー（`task`）・ファイルツリー（`file`）・チェックの一覧（`check`）・アプリのデモ（`text` の行）。どれも `display: list-item`・`disc`・`outside`・左の余白 0
+    - 付かない: カード（`card` と入れ子の `card-tags`。`list-style: none`。#2087）・文書（`display: flex`）・差分（`display: flex`）
+    - 判断: カードに揃える変更は見え方の変更で、#2080 で人が承認した見え方にも係わるため、この PR では行わない。別 Issue の候補として扱う。左の余白が 0 の `outside` なので、黒丸が画面に見えるかは未確認（配信する設定の実画面は測っていない）。カードの退避の行（`data-kind` なし）の黒丸は `app.css` のコメントのとおり意図して残している
+  - Rust の試験: `product_rows` に合成の 2 件（無くなった行・空の経路と重複が `Err`）を足し、4 件から 6 件になった。`artifact_view_generic_names` の綴り検査の一覧に、文書の行の公開の定数 6 つ（`DOC_ROW_*_TESTID`・`DR_*_CLASS`）を足した（`#[test]` は 4 件のまま）。本文の区画の `DOC_BODY_TESTID` は `pub(crate)` で試験から参照できず、可視性を広げないため対象外。件数の期待値（`expected-test-counts.txt`）は更新していない（変えると全件の照合が走るため。5.477 と同じ扱い）
 
 ### 5.477 左エリアの修正の後に残った古い記述と試験の道具の不足を直す（#2086。5.474・5.475 の続き）
 
