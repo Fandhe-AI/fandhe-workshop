@@ -5,8 +5,11 @@
 //   誤送信          変換中の Enter（isComposing=true / keyCode 229）で送信の記録が増えた数
 //   確定後の送信漏れ 確定後の通常の Enter で、期待どおりの文字列がちょうど 1 件送信されなかった数
 //   変換中の Esc    変換中の Esc で世代が変わる・停止になる・取り消しの入力がログに残る数（取り消しの 3 文）
-// 変換中の判定を外す変異の検出（M1・M3）は #947 の担当。その変異で落ちるよう、下書きありの確定 Enter と
-// 複数行の 2 行目の確定 Enter を行列に含めている。
+// 変換中の判定を外す変異 M1（Enter を除外から外す）は、下書きありの確定 Enter と複数行の 2 行目の確定 Enter が落とす。
+// 誤送信の assert は keydown の表明より先に置き、失敗の文言に印 IME-MIS-SEND と誤送信の件数が出る。
+// 再現は scripts/test-ime-composing-control.sh（make test-ime-composing-control。#2123）。M3（Esc を外す）は、
+// 上流の action_from_keydown が変換中の keydown を先に除くため、ブラウザでは生き残る（docs/testing.md 5.503）。
+// S-A が途中で落ちた場合、集計は組の欠けで失敗する。誤送信の件数は S-A の各試験の文言で読む。
 // 証拠の種類はシミュレーター（CDP による IME の模擬）で、実 IME でも人の評価でもない（実 IME は TASK-93 / BUILD-18。未実施）。
 // 集計の数え方（misSendCount 等）は本番の行列と対照（C-1〜C-3）で同じ関数を使い、数え方が 0 より大きく数えられることを示す。
 // 最後の `集計` は、行列の全ての組が積まれていること（途中の失敗で欠けても落ちる）と、3 つの件数が 0 であることを確かめる。
@@ -28,6 +31,7 @@ import {
 } from './ime.mjs';
 
 const BASE = '/fandhe-ime-sentences/';
+const MIS_SEND_MARK = 'IME-MIS-SEND';
 const INPUT = '[data-testid="draft-input"]';
 const ITEMS = '[data-testid="log-list"] > li';
 const RAW = '[data-testid="raw-trigger"]';
@@ -120,6 +124,14 @@ async function composingEnterDelta(page, cdp) {
   return { kd, delta: (await itemTexts(page)).length - n0 };
 }
 
+// 誤送信の件数を文言そのものに入れ、固定の印 MIS_SEND_MARK を付ける。assertComposingKeydown より先に置くことで、
+// 変換中の判定を外す変異（M1）の失敗が defaultPrevented の表明でなく誤送信の件数として読める。
+// 呼び出し元の scripts/test-ime-composing-control.sh が印で「正しい理由の失敗」を判定する。
+function assertNoMisSend(delta, why) {
+  const n = misSendCount(delta);
+  assert.equal(n, 0, `${MIS_SEND_MARK} 誤送信 ${n} 件 ${why} ${SIM_LABEL}`);
+}
+
 function assertComposingKeydown(kd, why) {
   assert.equal(kd.length, 1, `${why} ${SIM_LABEL}`);
   assert.equal(kd[0].isComposing, true, `${why} ${SIM_LABEL}`);
@@ -139,6 +151,7 @@ async function runEnterSentence(page, cdp, s, draftKind, csp) {
       await imeCompose(cdp, reading);
       await imeCompose(cdp, text);
       const r = await composingEnterDelta(page, cdp);
+      assertNoMisSend(r.delta, `${why} 行 ${i + 1}`);
       assertComposingKeydown(r.kd, `${why} 行 ${i + 1}`);
       misSend += misSendCount(r.delta);
       await imeCommit(cdp, text);
@@ -148,6 +161,7 @@ async function runEnterSentence(page, cdp, s, draftKind, csp) {
   } else {
     await composeSentence(cdp, s);
     const r = await composingEnterDelta(page, cdp);
+    assertNoMisSend(r.delta, why);
     assertComposingKeydown(r.kd, why);
     misSend += misSendCount(r.delta);
     await imeCommit(cdp, s.text);
@@ -186,8 +200,10 @@ async function runCancelDelivery(page, cdp, s, draftKind, csp) {
   await clearKeyProbe(page);
   await imeEscKey(cdp);
   await settle(page);
+  const delta = (await itemTexts(page)).length - n0;
+  const misSend = misSendCount(delta);
+  assertNoMisSend(delta, why);
   assertComposingKeydown(await keydowns(page), why);
-  const misSend = misSendCount((await itemTexts(page)).length - n0);
   await imeCancel(cdp);
   await settle(page);
   assert.equal(await page.inputValue(INPUT), draft, `取り消しの後の欄 ${why} ${SIM_LABEL}`);
