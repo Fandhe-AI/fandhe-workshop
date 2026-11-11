@@ -112,6 +112,17 @@ clean_room_doc() {
     "${on}" "${perm}" "${guard}" "${uses}"
 }
 
+# mutations_doc <on|-> <perm|-> <guard|-> <uses|-> [<extra-job>]: mutations.yml の見本を標準出力へ出す（C6）
+mutations_doc() {
+  local on="$1" perm="$2" guard="$3" uses="$4" extra="${5:-}"
+  [ "${on}" != "-" ] || on=$'on:\n  schedule:\n    - cron: \'37 17 * * 6\'\n  workflow_dispatch:'
+  [ "${perm}" != "-" ] || perm='permissions: {}'
+  [ "${guard}" != "-" ] || guard="${G}"
+  [ "${uses}" != "-" ] || uses="actions/checkout@${SHA}"
+  printf 'name: Mutations\n%s\n%s\njobs:\n  mutations:\n    if: %s\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read\n    steps:\n      - uses: %s\n%s' \
+    "${on}" "${perm}" "${guard}" "${uses}" "${extra}"
+}
+
 # ycase <name> <rc> <tag|-> <ci|deploy> <content>: 内容を一時ファイルに書いて検査する
 ycase() {
   local f
@@ -341,6 +352,46 @@ printf 'name: Clean room\njobs:\n  a:\n    steps:\n      - run: echo %s\n' "\${{
 rc=0
 "${CHECK}" --clean-room "${TMP_DIR}/cr-secret.yml" >/dev/null 2>"${TMP_DIR}/err" || rc=$?
 verdict "a secrets reference in clean-room is rejected by the real checker (C5)" 1 C5 "${rc}" "${TMP_DIR}/err"
+
+# ---- C6: mutations.yml ----
+SCHED=$'  schedule:\n    - cron: \'23 18 * * 0\''
+ycase "mutations sample passes" 0 - mutations "$(mutations_doc - - - -)"
+ycase "mutations with push added is rejected (C6)" 1 C6 mutations "$(mutations_doc "on:
+${SCHED}
+  workflow_dispatch:
+  push:" - - -)"
+ycase "mutations with pull_request is rejected (C6)" 1 C6 mutations "$(mutations_doc "on:
+${SCHED}
+  workflow_dispatch:
+  pull_request:" - - -)"
+ycase "mutations with pull_request_target is rejected (C6)" 1 C6 mutations "$(mutations_doc "on:
+${SCHED}
+  workflow_dispatch:
+  pull_request_target:" - - -)"
+ycase "mutations without schedule is rejected (C6)" 1 C6 mutations "$(mutations_doc $'on:\n  workflow_dispatch:' - - -)"
+ycase "mutations without workflow_dispatch is rejected (C6)" 1 C6 mutations "$(mutations_doc "on:
+${SCHED}" - - -)"
+ycase "mutations workflow_dispatch with inputs is rejected (C6)" 1 C6 mutations "$(mutations_doc "on:
+${SCHED}
+  workflow_dispatch:
+    inputs:
+      x:
+        type: string" - - -)"
+ycase "mutations schedule entry with another key is rejected (C6)" 1 C6 mutations "$(mutations_doc "on:
+  schedule:
+    - cron: '1 2 * * 0'
+      timezone: x
+  workflow_dispatch:" - - -)"
+ycase "mutations without a fork guard is rejected (C6)" 1 C6 mutations "$(mutations_doc - - "true" -)"
+ycase "mutations guard of another repository is rejected (C6)" 1 C6 mutations "$(mutations_doc - - "github.repository == 'someone/else'" -)"
+ycase "mutations with top-level contents: write is rejected (C6)" 1 C6 mutations "$(mutations_doc - $'permissions:\n  contents: write' - -)"
+ycase "mutations uses pinned by tag is rejected (C6)" 1 C6 mutations "$(mutations_doc - - - 'actions/checkout@v4')"
+ycase "mutations uses of another owner is rejected (C6)" 1 C6 mutations "$(mutations_doc - - - "evil/act@${SHA}")"
+ycase "mutations with a second job without a fork guard is rejected (C6)" 1 C6 mutations "$(mutations_doc - - - - $'  other:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi')"
+printf 'name: Mutations\njobs:\n  a:\n    steps:\n      - run: echo %s\n' "\${{ secrets.X }}" >"${TMP_DIR}/mu-secret.yml"
+rc=0
+"${CHECK}" --mutations "${TMP_DIR}/mu-secret.yml" >/dev/null 2>"${TMP_DIR}/err" || rc=$?
+verdict "a secrets reference in mutations is rejected by the real checker (C6)" 1 C6 "${rc}" "${TMP_DIR}/err"
 
 # ---- D: ENGINE_REV の正準の形（教材 repo の workflow）----
 # 先行の字句実装（awk）が回避の指摘で収束しなかった形を、ここで拒否されることとして個別に確かめる。
@@ -619,6 +670,8 @@ case_ "missing cargo metadata JSON exits 2" 2 - --cargo-metadata-json "${TMP_DIR
 printf 'a: [unclosed\n' >"${TMP_DIR}/broken.yml"
 case_ "YAML syntax error in ci exits 2" 2 - --ci "${TMP_DIR}/broken.yml"
 case_ "YAML syntax error in deploy exits 2" 2 - --deploy "${TMP_DIR}/broken.yml"
+case_ "YAML syntax error in mutations exits 2" 2 - --mutations "${TMP_DIR}/broken.yml"
+case_ "missing mutations file exits 2" 2 - --mutations "${TMP_DIR}/none.yml"
 printf 'a: "\xff\xfe"\n' >"${TMP_DIR}/bad-utf8.yml"
 case_ "invalid UTF-8 exits 2" 2 - --ci "${TMP_DIR}/bad-utf8.yml"
 printf '{ not json' >"${TMP_DIR}/broken.json"

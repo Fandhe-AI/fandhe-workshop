@@ -9,6 +9,7 @@
 #
 # 発火の起点は schedule と workflow_dispatch だけにする。pull_request・pull_request_target・push を足さない
 # （fork や PR の内容が runner で動く経路になる）。workflow_dispatch に inputs を置かない。
+# この規則・permissions・fork での skip・secret の参照 0 件は scripts/check-fork-ci.sh の C6 が機械で強制する（#2135）。
 # 処理の実体は scripts/check-mutations.sh。ここでは crate ごとの定義を渡して呼ぶだけにする。
 # 1 件の定義の誤り・元の状態の失敗はスクリプトが終了コード 2 で全体を止める（fail-closed。止まらずに続ける指定は置かない）。
 #

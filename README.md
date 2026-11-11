@@ -405,7 +405,7 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 
 - A: private な依存が 0 件で、submodule を取得しない
 - B: `ci.yml` からの secret の参照が 0 件で、`uses` は許可した所有者の 40 桁 SHA 固定だけ
-- C: `ci.yml` のトップレベルの `permissions` が読み取り専用で、配信（`deploy.yml`）と実行ファイルの配布（`release.yml`。C4）とまっさらなコンテナの試験（`clean-room.yml`。C5。`schedule` と `workflow_dispatch` だけで動き、secret を参照しない）は別ワークフローに切り離され、fork では skip される
+- C: `ci.yml` のトップレベルの `permissions` が読み取り専用で、配信（`deploy.yml`）と実行ファイルの配布（`release.yml`。C4）とまっさらなコンテナの試験（`clean-room.yml`。C5。`schedule` と `workflow_dispatch` だけで動き、secret を参照しない）と変異注入の検査（`mutations.yml`。C6。同じ規則）は別ワークフローに切り離され、fork では skip される
 - D: 教材 repo の workflow が、固定したエンジンの版（`ENGINE_REV`。C-14）でエンジンを取得する。`ENGINE_REV` は 40 桁の小文字の 16 進を 1 行だけ持つ（D1）。workflow には、次の正準の 3 step で始まるジョブが 1 つ以上必要で（D2・D3）、4 番目以降の step は `actions/checkout`・`git` の語・エンジンの repo・`ENGINE_REV`・エンジンの置き場に触れてはならない（D4）
 
 D の正準の 3 step は、次の 1 つだけです。形が外れたものは拒否します。

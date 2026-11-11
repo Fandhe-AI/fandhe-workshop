@@ -64,7 +64,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── .github/workflows/
 │   ├── ci.yml                # changes / check / rust-lint / rust-test / browser-test / test-hooks / test-hooks-macos / pr-title / ci-complete
 │   ├── clean-room.yml        # まっさらなコンテナの試験（make clean-room）を週 1 回と手動で流す（schedule・workflow_dispatch のみ・permissions {}・fork では skip・PR の必須チェックに入れない。#2040）
-│   ├── mutations.yml         # 変異注入の検査（make check-mutations）を crate ごと（core・contract・pack・web）に週 1 回と手動で流す（schedule・workflow_dispatch のみ・permissions {}・fork では skip・PR の必須チェックに入れない。D-114）
+│   ├── mutations.yml         # 変異注入の検査（make check-mutations）を crate ごと（core・contract・pack・web）に週 1 回と手動で流す（schedule・workflow_dispatch のみ・permissions {}・fork では skip・PR の必須チェックに入れない。D-114。fork CI の検査は `check-fork-ci.sh` の C6。#2135）
 │   ├── release.yml           # 作成者向けの実行ファイル（fandhe-pack）のビルド（workflow_dispatch のみ・macos-latest・Apple シリコン・artifact に残す・fork では skip・Release は作らず人が承認の後に手で作る。TASK-415 1/2・2/2）
 │   ├── deploy.yml            # 配信の骨格（workflow_dispatch のみ・permissions {}・fork では skip・未実装で失敗。TASK-121 で実装）
 │   ├── ai-review.yml         # codex による PR 自動レビュー
