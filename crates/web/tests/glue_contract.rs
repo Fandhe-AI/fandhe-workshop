@@ -75,6 +75,8 @@ const ALLOWED_EVENTS: &[(&str, GlueOp)] = &[
     ("beforeinput", GlueOp::TextareaSync),
     ("compositionend", GlueOp::CompositionMark),
     ("compositionstart", GlueOp::CompositionMark),
+    // `compositionend` が来ないまま欄が焦点を失ったときに印を下ろす（#2121）。印の更新だけで、状態は変えない。
+    ("focusout", GlueOp::CompositionMark),
     ("keydown", GlueOp::KeydownReceive),
 ];
 

@@ -1,0 +1,8 @@
+id: FEND10-3
+package: fandhe-workshop-web
+test: composing_marker_host
+target: crates/web/src/host.rs
+find: if !self.composing_marker() && self.input.complete() {
+replace: if self.input.complete() {
+expect-fail: c8_印が立つと補完は下書きを変えず書き戻しも頼まない
+note: 変換中の補完を適用する側へ戻す（書き戻しの保留が立ち、変換の終わりで確定した文字が欄から消える。#2121・FEND-10）

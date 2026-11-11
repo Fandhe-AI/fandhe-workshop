@@ -38,7 +38,7 @@ thread_local! {
     static TICK_EPOCH: RefCell<u64> = const { RefCell::new(0) };
     /// 書き戻しの対象の root。送信で下書きを空にしたとき、タイマーのコールバックが `sync_draft` に渡す。
     static DRAFT_ROOT: RefCell<Option<web_sys::Element>> = const { RefCell::new(None) };
-    /// 変換中（`compositionstart` から `compositionend` まで）かどうか。`sync_draft` が変換中の書き換えを避けるために読む。
+    /// 変換中（`compositionstart` から `compositionend` または `focusout` まで）かどうか。`sync_draft` が変換中の書き換えを避けるために読む。
     static COMPOSING: RefCell<bool> = const { RefCell::new(false) };
     /// ホストが頼んだ書き戻しが、まだ欄へ反映されていないかどうか（Issue #1510）。
     /// 送信の直後・書き戻しのタイマーの実行前に変換が始まると、書き戻しは変換の終わりまで保留になる。
@@ -505,10 +505,7 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
     // （Chrome のように `compositionend` が後でも、状態は最新なので害はない）。
     let target = root.clone();
     let on_end = Closure::<dyn FnMut(web_sys::Event)>::new(move |_ev: web_sys::Event| {
-        mark_composing(false);
-        if draft_sync_pending() {
-            sync_draft(&target, false);
-        }
+        end_composition_marker(&target);
         let Some(window) = web_sys::window() else {
             return;
         };
@@ -523,7 +520,39 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
         true,
     )?;
     on_end.forget();
+    // `compositionend` が来ないまま欄が焦点を失うと印が残り、Enter が送信されず書き戻しも止まる（#2121）。
+    // 泡立つ `focusout` で root が受けて下ろす。変換は欄に焦点があるときだけ起きるので、進行中の変換は壊さない。
+    let target = root.clone();
+    // `focusout` は描画の最中（フォーカス中の欄を含む部分の差し替え）にも同期で届き、そこでアプリを借りると
+    // 二重借用で panic する。印は自前の thread_local だけなので即座に下ろし、書き戻しはタイマーに回す。
+    let on_focusout = Closure::<dyn FnMut(web_sys::Event)>::new(move |_ev: web_sys::Event| {
+        mark_composing(false);
+        if !draft_sync_pending() {
+            return;
+        }
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let target = target.clone();
+        let callback = Closure::once_into_js(move || {
+            if draft_sync_pending() {
+                sync_draft(&target, false);
+            }
+        });
+        let _ = window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(callback.unchecked_ref(), 0);
+    });
+    root.add_event_listener_with_callback("focusout", on_focusout.as_ref().unchecked_ref())?;
+    on_focusout.forget();
     Ok(())
+}
+
+/// 変換中の印を下ろし、保留した書き戻しがあれば反映する（`compositionend` の捕捉の段が使う。`focusout` は同期で借用に触れないよう別に書く）。
+fn end_composition_marker(root: &web_sys::Element) {
+    mark_composing(false);
+    if draft_sync_pending() {
+        sync_draft(root, false);
+    }
 }
 
 /// 上限を超える貼り付けを、貼った分だけで切る（TASK-283。JUDGE-24・D-60）。`mount_host` が 1 回だけ呼ぶ。

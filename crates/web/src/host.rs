@@ -1550,7 +1550,7 @@ impl EngineHost {
 
     /// 自前の変換中の印。口が無ければ偽（native の試験・未結線）。
     ///
-    /// 印が立つと Enter・Esc は IME に任せる側（送信しない・停止しない）へ倒れる。印が下りる経路は compositionend だけで、
+    /// 印が立つと Enter・Esc は IME に任せる側（送信しない・停止しない）へ倒れる。印が下りる経路は compositionend と focusout（#2121）で、補完の配送も変換中は適用しない側へ倒す。
     /// 口の実体は借用に失敗しても立つ側（真）を返すが、借用は印の更新の中で閉じるため実際には通らない。
     fn composing_marker(&self) -> bool {
         self.composing_probe.as_ref().is_some_and(|probe| probe())
@@ -3174,7 +3174,10 @@ impl Component for EngineHost {
                 {
                     self.complete_count = self.complete_count.saturating_add(1);
                 }
-                if self.input.complete() {
+                // 変換中の補完は適用しない（#2121）。配送は keydown の後のタイマーを通るため、配送の時点で変換が
+                // 始まっていることがある。適用すると書き戻しの保留が立ち、`compositionend` で変換前の値が欄へ
+                // 書かれて確定した文字が消える。補完を捨てても入力は失われない（打ち直せる）。
+                if !self.composing_marker() && self.input.complete() {
                     self.draft_select_pending = false;
                     self.extend_input_dirty();
                     if let Some(f) = self.draft_sync_request.as_ref() {

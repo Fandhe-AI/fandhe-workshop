@@ -3,7 +3,7 @@
 #
 # crates/web/src/glue.rs の sync_draft の先頭にある変換中の除外（`if is_composing() {`）を、常に偽の分岐に置き換えた写しを
 # ビルドし、tools/browser/ime-reload-flood.test.mjs が固定の印 IME-COMPOSING-LOST つきで失敗することを確かめる。
-# これで、試験が空振りでなく、除外の退行を実際に検出できると言える。
+# これで、試験が空振りでなく、除外の退行を実際に検出できると言える。検出する場面は S-M2b（変換中に送信の書き戻しが頼まれる場面。#2121）。
 #
 # 方式は test-chapter-key-control.sh と同じで、作業ツリーは書き換えない。mktemp -d の中に必要なファイルを写し、
 # 写した glue.rs の 1 か所を文字どおりの一致（awk の index）で置き換える。一致が 1 回でなければ止める。

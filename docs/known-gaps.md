@@ -729,3 +729,20 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 ### 根拠の試験
 
 - `crates/core/tests/export_unsent_draft.rs`・`crates/web/tests/export_unsent_draft_host.rs`・`tools/browser/export-draft.test.mjs` の D-5。記録は `docs/testing.md` の 5.499・5.500
+
+## FEND-10: 変換中の印の解除と補完の限界（#2121）
+
+### 状態
+
+- 解消済みの部分（2026-11-11）: `compositionend` が来ないまま欄が焦点を失ったときの印の残りは、root の `focusout` で下ろす。変換中に届いた補完は適用しない（確定した文字を消さない側へ倒す）
+
+### 限界
+
+- 実 IME・Firefox・Safari では確かめていない。確かめたのは Chromium の CDP の模擬だけ（TASK-93）
+- ウィンドウの切り替えで変換が続く IME では、戻った後に glue の印は下りている。その間の Enter はイベント自身の `isComposing`・keyCode 229 で除外されるため誤送信はしないが、試験していない
+- 補完の配送が `compositionstart` より前に適用され、書き戻しのタイマーが変換の開始より後に動く場合は、#1510 と同じく `compositionend` で保留の書き戻しが優先される
+- 操作を受け付けない分岐（表示だけの履歴など）で、変換中に届いた補完が書き戻しを頼む経路は変えていない
+
+### 根拠の試験
+
+- `crates/web/tests/composing_marker_host.rs` の c8・c9、`tools/browser/ime-reload-flood.test.mjs` の S-M2・S-M2b・B-1・B-1n・B-2。記録は `docs/testing.md` の 5.502
