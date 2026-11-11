@@ -20,6 +20,10 @@ use fandhe_workshop_web::card_view::{
 use fandhe_workshop_web::check_view::{
     CheckState, CHECK_DETAIL_TESTID, CHECK_LABEL_TESTID, DETAIL_CLASS, ICON_CLASS,
 };
+use fandhe_workshop_web::document_view::{
+    DOC_ROW_DETAIL_TESTID, DOC_ROW_STATE_TESTID, DOC_ROW_TITLE_TESTID, DR_DETAIL_CLASS,
+    DR_STATE_CLASS, DR_TITLE_CLASS,
+};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Match {
@@ -202,6 +206,14 @@ fn 綴りに固有の語が無い() {
             CARD_LABEL_TESTID,
             CARD_DETAIL_TESTID,
             CARD_TAGS_TESTID,
+        ])
+        .chain([
+            DOC_ROW_TITLE_TESTID,
+            DOC_ROW_STATE_TESTID,
+            DOC_ROW_DETAIL_TESTID,
+            DR_TITLE_CLASS,
+            DR_STATE_CLASS,
+            DR_DETAIL_CLASS,
         ])
         .chain([
             VIEW_LIST_TESTID,

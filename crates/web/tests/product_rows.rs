@@ -1,6 +1,6 @@
 //! 製品の左エリアの行の組み立て（`product_rows`）の試験（TASK-799・D-100）。
 //!
-//! 3 つを確かめる。(1) `item_rows` の印が `artifact_rows` の印と行ごとに一致すること（通し・合成）。
+//! 3 つを確かめる。(1) `item_rows` の印が `artifact_rows` の印と行ごとに一致すること（通し。合成は無くなった行と空の経路）。
 //! (2) 属性の読み方の仮置き（`read_cell`・`path_depth`）。(3) 7 種のビューそれぞれの `ArtifactPart::view` の HTML が、
 //! `tests/data/product_view_html/<種類>.html` の期待値と一致すること。
 //!
@@ -24,7 +24,8 @@ use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{load_ir, Session};
 use fandhe_workshop_pack::compile::compile_dir;
 use fandhe_workshop_web::a11y::ChangeMark;
-use fandhe_workshop_web::artifact_view::{Phase, RowKind, ViewKind};
+use fandhe_workshop_web::artifact_rows::DeriveError;
+use fandhe_workshop_web::artifact_view::{ArtifactViewError, Phase, RowKind, ViewKind};
 use fandhe_workshop_web::engine_parts::{artifact_rows, standard_registry};
 use fandhe_workshop_web::host::{EngineHost, HostAction};
 use fandhe_workshop_web::parts::Component;
@@ -221,4 +222,46 @@ fn fallback_rows_carry_pointing_attributes() {
         assert_eq!(body.matches("data-payload=").count(), 1, "{name}");
         assert_eq!(body.matches("tabindex=\"0\"").count(), 1, "{name}");
     }
+}
+
+#[test]
+fn item_rows_synthetic_removed_row() {
+    let rows = item_rows(
+        &World::new(),
+        &[("gone/x".to_owned(), Some(ChangeMark::Remove))],
+        |_| RowKind::Task,
+    )
+    .unwrap();
+    assert_eq!(rows.len(), 1);
+    let row = &rows[0];
+    assert_eq!(row.id().as_str(), "gone/x");
+    assert_eq!(row.depth(), path_depth("gone/x"));
+    assert_eq!(row.kind(), RowKind::Task);
+    assert!(row.after().is_none());
+    let before = row.before().unwrap();
+    assert_eq!(before.label, "gone/x");
+    assert!(before.detail.is_empty() && before.state.is_empty() && before.tags.is_empty());
+    let after = row.shown(Phase::After).unwrap();
+    assert_eq!(after.mark, Some(ChangeMark::Remove));
+    assert_eq!(after.content.label, "gone/x");
+    assert_eq!(row.shown(Phase::Before).unwrap().mark, None);
+}
+
+#[test]
+fn item_rows_synthetic_empty_path_is_err() {
+    let cases: [Vec<(String, Option<ChangeMark>)>; 4] = [
+        vec![(String::new(), None)],
+        vec![(String::new(), Some(ChangeMark::Add))],
+        vec![(String::new(), Some(ChangeMark::Remove))],
+        vec![(String::new(), None), ("notes/a".to_owned(), None)],
+    ];
+    for world_rows in cases {
+        let err = item_rows(&World::new(), &world_rows, |_| RowKind::Task).unwrap_err();
+        assert_eq!(err, DeriveError::Row(ArtifactViewError::EmptyRowId));
+    }
+    let dup = [("a".to_owned(), None), ("a".to_owned(), None)];
+    assert_eq!(
+        item_rows(&World::new(), &dup, |_| RowKind::Task).unwrap_err(),
+        DeriveError::Row(ArtifactViewError::DuplicateRowId)
+    );
 }
