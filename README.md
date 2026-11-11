@@ -183,7 +183,7 @@ Cargo ワークスペースは導入済みです。pack crate は `compile <pack
 
 - `make test`（`cargo test --locked --workspace`）: web を含む全 crate の native 試験を流します。CI の `rust-test` ジョブも同じ `--workspace` で流します。web の native 試験は PoC-11 当時は 33 件で、2026-10-19 時点（`b27ca0b`）は 795 件です（`cargo test --locked -p fandhe-workshop-web -- --list` の件数）
 - `cargo test --locked`: `default-members` だけを流します（web は含みません）
-- `make lint`: `cargo fmt --check`・clippy（警告をエラー扱い）・web の wasm32 向け clippy（feature なしと `test-hooks` の 2 通り）を流します。ソースは変更しません
+- `make lint`: `cargo fmt --check`・clippy（警告をエラー扱い）・web の wasm32 向け clippy（feature なしと `test-hooks` の 2 通り）・`cargo doc`（警告をエラー扱い。native と web の wasm32 向け）を流します。ソースは変更しません
 - `make fmt`: rustfmt で整形します（ソースを変更します）
 - `make check-deps`: crate 間の依存の向きを `cargo metadata` で検査します。`make test-check-deps` は、その検査自体の回帰テストです
 - `make check-mutations`: 変異注入の検査です。作業ツリーは書き換えず、一時コピーに誤りを 1 つ入れて試験が失敗することを確かめます（手順と記録の様式は [docs/testing.md](./docs/testing.md)）。遅いため `make check`・フック・PR の CI には含めません（週 1 回と手動は `mutations.yml` が crate ごとに流します）。`make test-check-mutations` は、その検査自体の回帰テストです
@@ -251,7 +251,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make setup` | `scripts/setup.sh` | Git hooks 有効化と `.env` 雛形の配置 |
 | `make check` | `scripts/check.sh` | editorconfig-checker + shellcheck + testdata の参照検査（ソースは変更しない） |
 | `make test-hooks` | `scripts/hooks/test-hooks.sh` | フックスクリプト自体の回帰テスト（一時 git リポジトリで検出・許可ケースを検証。bash + git のみ） |
-| `make lint` | `scripts/lint.sh` | Rust の fmt check + clippy + web の wasm32 向け clippy（ソースは変更しない） |
+| `make lint` | `scripts/lint.sh` | Rust の fmt check + clippy + web の wasm32 向け clippy + cargo doc（警告をエラー扱い。ソースは変更しない） |
 | `make fmt` | `cargo fmt --all` | Rust のソースを rustfmt で整形する（ソースを変更する） |
 | `make test` | `scripts/test.sh` | Rust の native 試験（web を含む全 crate） |
 | `make check-deps` | `scripts/check-crate-deps.sh` | crate 間の依存の向きを `cargo metadata` で検査する |

@@ -163,7 +163,7 @@ pub struct LoadedSession {
 
 /// 履歴ファイルを段 1〜8 で判定し、開いたときだけ実行環境（[`Session`]）を作る。別のオリジンへの読み込み（SAVE-16）の入口。
 ///
-/// 呼び出し元は web のホストの読み込みである。判定は [`load_history_with_envelope`] に任せ、条件は複製しない。
+/// 呼び出し元は web のホストの読み込みである。判定は `load_history_with_envelope` に任せ、条件は複製しない。
 /// `Session::from_state` をここで呼ぶのは、状態から実行環境を作り直す処理が保存復元の担当だからである
 /// （web の表示層は状態を作り直さない。`crates/web/tests/no_progress.rs`）。`ir` は状態と組にするため値で受ける。
 /// 表示だけ・開かないでは実行環境を作らず、判定だけを返す（SAVE-19）。純関数で、理由は固定のコードだけである（SAFE-40）。

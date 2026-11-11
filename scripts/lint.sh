@@ -2,6 +2,8 @@
 # Rust のソースを変えない検査（`make lint` から呼ばれる）。
 #
 # rustfmt の check、clippy（警告をエラー扱い）、web の wasm32 向け clippy（feature なしと test-hooks の 2 通り）を流す。
+# あわせて cargo doc（警告をエラー扱い）も流し、非公開の項目へのリンク（rustdoc::private_intra_doc_links）など rustdoc の警告を
+# 溜めない（#2130。CI に doc の検査が無く、警告が増え続けていたため）。clippy と同じ組み合わせ（ネイティブ 1 + wasm32 2）で流す。
 # 組み合わせはネイティブ 1 + wasm32 2 である。仕様（BUILD-5）が挙げる hello feature は、docs/architecture.md 第 7 節が
 # 「製品に持ち込まない」と定めるため web crate に無く、流さない。組み合わせは WASM_FEATURE_SETS の 1 か所で宣言し、
 # web crate が宣言した feature が配列に無ければ失敗させる（feature を足したとき網羅の更新漏れで関門が通らないようにする）。
@@ -59,5 +61,19 @@ for set in "${WASM_FEATURE_SETS[@]}"; do
   else
     log "cargo clippy (web, wasm32, features: ${set})"
     cargo clippy -p fandhe-workshop-web --target wasm32-unknown-unknown --locked --features "${set}" -- -D warnings
+  fi
+done
+
+# 依存の文書は作らない（--no-deps）。RUSTDOCFLAGS は doc の行だけに付け、他の検査へ持ち込まない。
+log "cargo doc (workspace, -D warnings)"
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+
+for set in "${WASM_FEATURE_SETS[@]}"; do
+  if [[ -z "${set}" ]]; then
+    log "cargo doc (web, wasm32, features: none)"
+    RUSTDOCFLAGS="-D warnings" cargo doc -p fandhe-workshop-web --target wasm32-unknown-unknown --no-deps --locked
+  else
+    log "cargo doc (web, wasm32, features: ${set})"
+    RUSTDOCFLAGS="-D warnings" cargo doc -p fandhe-workshop-web --target wasm32-unknown-unknown --no-deps --locked --features "${set}"
   fi
 done

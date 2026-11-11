@@ -113,7 +113,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make setup` | Git hooks の有効化と `.env` の作成（再実行可） |
 | `make check` | editorconfig-checker + shellcheck + testdata の参照検査 + 変異の定義の静的検査 + clean-room の無視してよい試験の一覧の照合（ソースは変更しない） |
 | `make test-hooks` | `scripts/hooks/` の回帰テスト |
-| `make lint` | Rust の fmt check + clippy + web の wasm32 clippy（ソースは変更しない） |
+| `make lint` | Rust の fmt check + clippy + web の wasm32 clippy + cargo doc（警告をエラー扱い。ソースは変更しない） |
 | `make fmt` | Rust の整形（ソースを変更する） |
 | `make test` | Rust の native 試験（web を含む全 crate） |
 | `make check-deps` | crate 間の依存の向きの検査（`cargo metadata` + jq） |

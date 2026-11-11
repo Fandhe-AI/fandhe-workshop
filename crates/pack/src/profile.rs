@@ -130,7 +130,7 @@ fn is_command_rule(rule: &Value) -> bool {
 /// ここでは該当なしとして扱う。診断の文面には入力の値・接頭辞を写さない。
 /// モジュールの `input` が引数の置換記号 `${` を含む Step は、置換前の `input.kind` が置換後と違いうる
 /// （例: `kind: "${k}"` が `text` になる）ため、ここでは飛ばし、展開（`expand`）が置換後の Step を
-/// [`check_profile_step`] で検査する。規則の `on.text`（真偽値）・`on.command`（キーの有無）は置換で変わらない。
+/// `check_profile_step` で検査する。規則の `on.text`（真偽値）・`on.command`（キーの有無）は置換で変わらない。
 pub fn check_profile_steps(setting: &ProfileSetting, scopes: &[LoadedScope]) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for scope in scopes {

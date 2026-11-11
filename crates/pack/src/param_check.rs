@@ -1,13 +1,13 @@
 //! モジュール・章の引数の型と範囲外の値の検査（TASK-71 2/3。PACK-51・MOD-17 (c)・D-43）。
 //!
-//! 呼び出し元は `compile`・`validate`（宣言の検査 [`check_param_types`]）と、モジュールの展開
-//! `expand::expand_use`（呼び出しの引数の検査 [`arg_message`]）である。引数は文字列のまま IR に載り
+//! 呼び出し元は `compile`・`validate`（宣言の検査 `check_param_types`）と、モジュールの展開
+//! `expand::expand_use`（呼び出しの引数の検査 `arg_message`）である。引数は文字列のまま IR に載り
 //! （`Instance.args`）、`condition.param` は文字列の完全一致で比べる。綴り違い（`"flase"`）や範囲外の値は
 //! 黙って別の分岐に倒れるため、作成者が `param_types` で宣言した型と範囲に合わない値を、実体を作る前に拒否する。
 //!
 //! - `param_types` は `params` の隣の任意の欄で、鍵は `params` の名前。省略した引数は従来どおり検査しない
 //! - 型は `bool`（`true`・`false`）・`int`（10 進の正準形。`min`・`max` は両端を含む）・`enum`（`values` のどれか）
-//! - 既定値（`params`）も、渡す引数も、同じ [`value_fits`] で判定する
+//! - 既定値（`params`）も、渡す引数も、同じ `value_fits` で判定する
 //! - `param_types` は検査のための宣言であり、IR には載せない（使わない教材と IR は変わらない）
 //!
 //! 診断は固定の英語で、値・`values` の中身を写さない。名前は `safe_ident` を通るものだけを写す。
