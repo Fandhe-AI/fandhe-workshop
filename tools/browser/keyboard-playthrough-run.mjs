@@ -66,27 +66,35 @@ function report({ result, items }) {
   return lines.join('\n');
 }
 
+// 終了コードは process.exitCode に設定して関数を抜ける（process.exit() だと finally の browser.close() とパイプの書き込みが保証されない）。
 async function main() {
   const need = (name) => {
     const v = process.env[name];
     if (!v || !fs.existsSync(v)) {
       process.stderr.write(`error: ${name} must point to an existing path\n`);
-      process.exit(2);
+      return null;
     }
     return v;
   };
   const webDir = need('FANDHE_WEB_PACK_DIR');
-  const ir = JSON.parse(fs.readFileSync(need('FANDHE_PACK_IR'), 'utf8'));
-  const playthrough = JSON.parse(fs.readFileSync(need('FANDHE_PLAYTHROUGH_JSON'), 'utf8'));
+  const irPath = need('FANDHE_PACK_IR');
+  const ptPath = need('FANDHE_PLAYTHROUGH_JSON');
+  if (webDir === null || irPath === null || ptPath === null) {
+    process.exitCode = 2;
+    return;
+  }
+  const ir = JSON.parse(fs.readFileSync(irPath, 'utf8'));
+  const playthrough = JSON.parse(fs.readFileSync(ptPath, 'utf8'));
   if (!Array.isArray(playthrough.segments) || playthrough.segments.length === 0) {
     process.stderr.write('error: playthrough has no segments\n');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   const browser = await launchBrowser({ channel: channelFromEnv() });
   try {
     const out = await runKeyboardPlaythrough({ browser, webDir, ir, playthrough });
     process.stdout.write(`${report(out)}\n`);
-    process.exit(out.items.every((i) => i.ok) ? 0 : 1);
+    process.exitCode = out.items.every((i) => i.ok) ? 0 : 1;
   } finally {
     await browser.close();
   }

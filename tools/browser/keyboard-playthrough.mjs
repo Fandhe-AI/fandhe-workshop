@@ -33,6 +33,8 @@ export function snapshotInPage() {
     word: document.querySelector('[data-testid="step-status"]')?.textContent ?? '',
     run: document.querySelector('[data-testid="run-status"]')?.getAttribute('data-state') ?? '',
     next: next.map((b) => b.getAttribute('data-payload') ?? ''),
+    pos: document.querySelector('[data-testid="shell-position"]')?.getAttribute('data-position-m') ?? '',
+    posK: document.querySelector('[data-testid="shell-position"]')?.getAttribute('data-position-k') ?? '',
   };
 }
 
@@ -41,7 +43,13 @@ export function buildIndex(ir) {
   const titleOf = new Map(ir.nodes.map((n) => [n.uid, n.step.title]));
   const kindOf = new Map(Object.entries(ir.views ?? {}).map(([id, v]) => [id, v.kind]));
   const startNode = new Map(ir.starts.map((s) => [s.id, s.node]));
-  return { titleOf, kindOf, startNode };
+  // 同じ章（unit）の中の順番 M と総数 K。題が重なる節点を位置で見分けるのに使う。
+  const posOf = new Map();
+  const perUnit = new Map();
+  for (const n of ir.nodes) perUnit.set(n.unit, [...(perUnit.get(n.unit) ?? []), n.uid]);
+  for (const uids of perUnit.values()) uids.forEach((u, i) => posOf.set(u, { m: String(i + 1), k: String(uids.length) }));
+  const sameTitle = (uid) => ir.nodes.filter((n) => n.step.title === titleOf.get(uid)).length;
+  return { titleOf, kindOf, startNode, posOf, sameTitle };
 }
 
 // 期待の語を { kind, category } にする。知らない語は例外（fail-closed）。
@@ -179,8 +187,15 @@ export async function runPlaythrough({ page, driver, ir, playthrough, observeTim
   if (end === 'complete') {
     if (last.word !== DONE) return stop(segs.length, 0, 'complete', 'not_complete');
   } else {
-    const want = idx.titleOf.get(String(end));
+    const endUid = String(end);
+    const want = idx.titleOf.get(endUid);
     if (want === undefined || last.title !== want) return stop(segs.length, 0, 'end_step', 'not_at_end');
+    // 題は一意と限らない。重なるときは、章内の位置（M・K）が実体のものと一致することまで確かめる。読めなければ止める（fail-closed）。
+    if (idx.sameTitle(endUid) > 1) {
+      const p = idx.posOf.get(endUid);
+      if (last.pos === '' || last.posK === '') return stop(segs.length, 0, 'end_step', 'ambiguous_title');
+      if (p === undefined || last.pos !== p.m || last.posK !== p.k) return stop(segs.length, 0, 'end_step', 'not_at_end');
+    }
   }
   res.complete = true;
   return res;

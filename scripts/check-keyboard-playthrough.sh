@@ -47,7 +47,7 @@ case "${FANDHE_BROWSER_CHANNEL:-}" in
     ;;
 esac
 
-for cmd in node cargo wasm-bindgen jq mktemp; do
+for cmd in node cargo wasm-bindgen jq mktemp rm; do
   require_cmd "${cmd}" || exit 2
 done
 
@@ -74,8 +74,8 @@ TEST_HOOKS="" OUT_DIR="${TMP}/web" IR_FILE="${TMP}/ir.json" SKIP_WASM_OPT="${SKI
 
 log "writing the playthrough as JSON"
 PACK_ABS="$(cd "${PACK}" && pwd)"
-FANDHE_PLAYTHROUGH_PACK="${PACK_ABS}" FANDHE_PLAYTHROUGH_ID="${ID}" FANDHE_PLAYTHROUGH_OUT="${TMP}/pt" \
-  cargo test --locked -q -p fandhe-workshop-pack --test playthrough_emit -- --ignored --exact emit_playthrough_for_browser >/dev/null
+(cd "${ROOT_DIR}" && FANDHE_PLAYTHROUGH_PACK="${PACK_ABS}" FANDHE_PLAYTHROUGH_ID="${ID}" FANDHE_PLAYTHROUGH_OUT="${TMP}/pt" \
+  cargo test --locked -q -p fandhe-workshop-pack --test playthrough_emit -- --ignored --exact emit_playthrough_for_browser >/dev/null)
 [ -s "${TMP}/pt/playthrough.json" ] || {
   echo "error: playthrough.json is missing or empty" >&2
   exit 1

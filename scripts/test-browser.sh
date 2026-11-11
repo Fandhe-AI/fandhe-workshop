@@ -101,8 +101,8 @@ TEST_HOOKS="" OUT_DIR="${TMP}/web-author" IR_FILE="${TMP}/author-ir.json" SKIP_W
 # キーボードだけの通し（keyboard-playthrough。TASK-92 2/2）の入力。試験用教材の通しを fandhe-pack の読み込み器を通して JSON にする。
 # 空・不在は失敗にする（skip にしない）。
 log "writing the playthrough JSON of the authoring pack for keyboard-playthrough"
-FANDHE_PLAYTHROUGH_PACK="${ROOT_DIR}/crates/web/tests/data/ch0_3_pack" FANDHE_PLAYTHROUGH_ID="pt-ch0-3-keys" FANDHE_PLAYTHROUGH_OUT="${TMP}/playthrough" \
-  cargo test --locked -q -p fandhe-workshop-pack --test playthrough_emit -- --ignored --exact emit_playthrough_for_browser >/dev/null
+(cd "${ROOT_DIR}" && FANDHE_PLAYTHROUGH_PACK="${ROOT_DIR}/crates/web/tests/data/ch0_3_pack" FANDHE_PLAYTHROUGH_ID="pt-ch0-3-keys" FANDHE_PLAYTHROUGH_OUT="${TMP}/playthrough" \
+  cargo test --locked -q -p fandhe-workshop-pack --test playthrough_emit -- --ignored --exact emit_playthrough_for_browser >/dev/null)
 [ -s "${TMP}/playthrough/playthrough.json" ] || { echo "error: playthrough.json is missing or empty" >&2; exit 1; }
 
 # 同梱つきの fandhe-pack（preview が URL を出すビルド。TASK-429 2/3）。IR_FILE つきの配信する設定 web-author を同梱の元に使い、
