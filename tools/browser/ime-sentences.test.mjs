@@ -9,6 +9,7 @@
 // 誤送信の assert は keydown の表明より先に置き、失敗の文言に印 IME-MIS-SEND と誤送信の件数が出る。
 // 再現は scripts/test-ime-composing-control.sh（make test-ime-composing-control。#2123）。M3（Esc を外す）は、
 // 上流の action_from_keydown が変換中の keydown を先に除くため、ブラウザでは生き残る（docs/testing.md 5.503）。
+// M3 の検出は、Esc の後の件数の表明に付く印 IME-ESC-STOP（件数 1 以上）で判定する。S-C の Esc の前の表明や集計の失敗では印が出ない。
 // S-A が途中で落ちた場合、集計は組の欠けで失敗する。誤送信の件数は S-A の各試験の文言で読む。
 // 証拠の種類はシミュレーター（CDP による IME の模擬）で、実 IME でも人の評価でもない（実 IME は TASK-93 / BUILD-18。未実施）。
 // 集計の数え方（misSendCount 等）は本番の行列と対照（C-1〜C-3）で同じ関数を使い、数え方が 0 より大きく数えられることを示す。
@@ -32,6 +33,8 @@ import {
 
 const BASE = '/fandhe-ime-sentences/';
 const MIS_SEND_MARK = 'IME-MIS-SEND';
+// Esc を送った後の停止・世代・取り消しの件数の表明にだけ付ける印。Esc の前の表明（runStatus が busy 等）と集計には付けない。
+const ESC_STOP_MARK = 'IME-ESC-STOP';
 const INPUT = '[data-testid="draft-input"]';
 const ITEMS = '[data-testid="log-list"] > li';
 const RAW = '[data-testid="raw-trigger"]';
@@ -252,7 +255,7 @@ for (const draftKind of DRAFTS) {
         assert.equal(await page.inputValue(INPUT), draft, `${why} ${SIM_LABEL}`);
         results.push({ id: s.id, kind: s.kind, draft: draftKind, csp: 'test', state: 'waiting', misSend, missed: 0, escStop });
         assert.equal(misSend, 0, `誤送信 ${why} ${SIM_LABEL}`);
-        assert.equal(escStop, 0, `変換中の Esc ${why} ${SIM_LABEL}`);
+        assert.equal(escStop, 0, `${ESC_STOP_MARK} 停止 ${escStop} 件 ${why} ${SIM_LABEL}`);
       }
       assertClean(rec);
       await context.close();
@@ -277,7 +280,7 @@ for (const draftKind of DRAFTS) {
         const escStop = stopCount(e0, e1) + (e1.ignoredReasons.length === e0.ignoredReasons.length ? 0 : 1);
         await imeCancel(cdp);
         results.push({ id: s.id, kind: s.kind, draft: draftKind, csp: 'test', state: 'busy', misSend: 0, missed: 0, escStop });
-        assert.equal(escStop, 0, `変換中の Esc ${why} ${SIM_LABEL}`);
+        assert.equal(escStop, 0, `${ESC_STOP_MARK} 停止 ${escStop} 件 ${why} ${SIM_LABEL}`);
         assert.equal(await page.inputValue(INPUT), draft, `${why} ${SIM_LABEL}`);
         assertClean(rec);
         await context.close();

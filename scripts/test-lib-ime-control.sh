@@ -56,7 +56,19 @@ expect_eq other "$(judge_m1 1 "${title}" 2>/dev/null)" "M1: zero-count mark is a
 expect_eq established "$(judge_m1 1 "${mark}" 2>/dev/null)" "M1: marked failure with a count is established"
 expect_eq survived "$(judge_m3 0 "${plain}" 2>/dev/null)" "M3: rc 0 is survived"
 esc="${TMP}/esc.txt"
-printf '✖ S-B 取り消しの 3 文 待機中の変換中の Esc はログも世代も変えない\nAssertionError [ERR_ASSERTION]: 変換中の Esc 1\n' >"${esc}"
+printf '✖ S-B 取り消しの 3 文 待機中の変換中の Esc はログも世代も変えない\nAssertionError [ERR_ASSERTION]: IME-ESC-STOP 停止 1 件 S-01 待機中\n' >"${esc}"
+# 集計の失敗: 試験名に「変換中の Esc」を含むが、Esc の後の表明ではない（行列が不完全なだけ）。
+summary="${TMP}/summary.txt"
+printf '✖ 集計 試験文 30 文 × 下書き 3 通りで、誤送信 0 件・確定後の送信漏れ 0 件・変換中の Esc での停止 0 件\nAssertionError [ERR_ASSERTION]: 行列の全ての組が積まれている\n' >"${summary}"
+# Esc の前の表明の失敗: S-C の runStatus が busy の表明。
+prebusy="${TMP}/prebusy.txt"
+printf '✖ S-C S-01 処理中の変換中の Esc は世代・停止・進行を変えない\nAssertionError [ERR_ASSERTION]: S-01 処理中 (模擬) 1 !== 0\n' >"${prebusy}"
+# 件数 0 の印（印の取り違え）。
+zero="${TMP}/zero.txt"
+printf '✖ x\nAssertionError: IME-ESC-STOP 停止 0 件\n' >"${zero}"
+expect_eq other "$(judge_m3 1 "${summary}" 2>/dev/null)" "M3: summary failure is another reason"
+expect_eq other "$(judge_m3 1 "${prebusy}" 2>/dev/null)" "M3: failure before the Esc assertion is another reason"
+expect_eq other "$(judge_m3 1 "${zero}" 2>/dev/null)" "M3: zero-count mark is another reason"
 expect_eq other "$(judge_m3 1 "${plain}" 2>/dev/null)" "M3: failure without an Esc assertion is another reason"
 expect_eq other "$(judge_m3 3 "${plain}" 2>/dev/null)" "M3: launch failure (rc 3) is another reason"
 expect_eq detected "$(judge_m3 1 "${esc}" 2>/dev/null)" "M3: Esc assertion failure is detected"

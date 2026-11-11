@@ -11,9 +11,10 @@
 # shellcheck disable=SC2034 # 呼び出し側（test-ime-composing-control.sh）も出力の抜き出しに使う
 IME_MIS_SEND_RE='IME-MIS-SEND 誤送信 [1-9][0-9]* 件'
 
-# M3 の検出の証拠: 変換中の Esc の試験の失敗行。
+# M3 の検出の証拠: Esc を送った後の停止・取り消しの件数の表明に付く印（件数 1 以上）。
+# tools/browser/ime-sentences.test.mjs の ESC_STOP_MARK と合わせる。Esc の前の表明（runStatus が busy 等）・集計・試験名には出ない。
 # shellcheck disable=SC2034 # judge_m3 が使う
-IME_ESC_FAIL_RE='^[[:space:]]*(✖|not ok).*変換中の Esc'
+IME_ESC_STOP_RE='IME-ESC-STOP 停止 [1-9][0-9]* 件'
 
 # load_variant <def-file>: 定義を読み、M_TARGET・M_FIND・M_REPLACE を使える状態にする。
 load_variant() {
@@ -55,13 +56,13 @@ judge_m3() {
     echo other
     return 0
   fi
-  # 検出と数えるのは、Esc の表明（AssertionError）で失敗した証拠がある場合だけにする。
-  # Chromium の起動失敗・モジュールの読み込み失敗・タイムアウトは other（fail-closed）。
-  if grep -Eq "${IME_ESC_FAIL_RE}" "${out}" && grep -Fq 'AssertionError' "${out}"; then
+  # 検出と数えるのは、Esc を送った後の件数の表明が印つきで失敗した場合だけにする。
+  # 集計の失敗・Esc の前の表明の失敗・Chromium の起動失敗・モジュールの読み込み失敗・タイムアウトは other（fail-closed）。
+  if grep -Eq "${IME_ESC_STOP_RE}" "${out}"; then
     echo detected
     return 0
   fi
-  echo "M3: the test failed without an Esc assertion failure (launch, module load or timeout?)" >&2
+  echo "M3: the test failed without an IME-ESC-STOP mark (earlier scene, summary, launch, module load or timeout?)" >&2
   echo other
 }
 
