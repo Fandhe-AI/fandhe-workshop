@@ -63,6 +63,8 @@ test('U1: 結果の分類', () => {
   const w = snap({ word: '受付済み（確認待ち）' });
   assert.equal(classify(w, snap({ word: '達成' })), 'achieved');
   assert.equal(classify(w, snap({ title: 'U' })), 'achieved');
+  // 確認待ちのまま取り消しが受理され行が追記された場合は受付（none にしない）。
+  assert.equal(classify(w, snap({ kinds: ['received'], cats: [null], word: '受付済み（確認待ち）' })), 'accepted');
   assert.equal(classify(snap(), snap()), 'none');
   assert.equal(classify(b, snap()), 'folded');
   assert.ok(matches({ kind: 'rejected', category: 'a' }, 'rejected:a'));
@@ -91,6 +93,11 @@ test('U3: 追記位置の追跡と章つきの位置', () => {
   assert.deepEqual(idx.posOf.get('main/a'), { chapter: 'c1', m: '1', k: '2' });
   assert.deepEqual(idx.posOf.get('main/c'), { chapter: 'c2', m: '1', k: '2' });
   assert.deepEqual(idx.posOf.get('m@x/s'), { chapter: 'c1', m: '2', k: '2' });
+  // 同じモジュール内の同題の Step は位置が同じになり、区別できない。
+  assert.equal(idx.sameTitle('m@x/s'), 1);
+  const ir2 = { ...ir, nodes: [...ir.nodes, n('m@x/t', 'm@x', 'm', 'V')] };
+  assert.equal(buildIndex(ir2).sameTitle('m@x/s'), 2);
+  assert.equal(buildIndex(ir2).sameTitle('main/a'), 1);
 });
 
 test('U2: 期待の語・ID の形・asserts の未判定', async () => {

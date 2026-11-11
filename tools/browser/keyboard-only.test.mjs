@@ -98,7 +98,7 @@ test('U3: playStep は 7 種の入力をドライバの操作に写す', async (
   const seen = [];
   const rec = (n) => async (...a) => seen.push([n, ...a]);
   const d = {
-    send: rec('send'), sendMultiline: rec('sendMultiline'), choose: rec('choose'), point: rec('point'),
+    send: rec('send'), sendMultiline: rec('sendMultiline'), sendLines: (l) => { seen.push(['sendLines', ...l]); }, choose: rec('choose'), point: rec('point'),
     decide: rec('decide'), revise: rec('revise'), esc: rec('esc'),
   };
   const kind = (v) => (v === 'docs' ? 'document' : undefined);
@@ -119,7 +119,10 @@ test('U3: playStep は 7 種の入力をドライバの操作に写す', async (
     ['decide', 'approve'], ['revise', 't-1'], ['esc'], ['send', 'x'],
     ['sendMultiline', 'a', 'b'], ['send', 'a'],
   ]);
-  await assert.rejects(() => playStep(d, { text: 'a\nb\nc\n' }), /only two-line input/);
+  // 3 行以上は sendLines へ渡す。
+  seen.length = 0;
+  await playStep(d, { text: 'a\nb\nc\nd\n' });
+  assert.deepEqual(seen, [['sendLines', 'a', 'b', 'c', 'd']]);
   await assert.rejects(() => playStep(d, { unknown: 1 }), /unknown play step key/);
   await assert.rejects(() => playStep(d, { cmd: 'a', choice: 'b' }), /one operation key/);
   await assert.rejects(() => playStep(d, { approval: 'maybe' }), /approval must be/);

@@ -35,7 +35,7 @@ export function snapshotInPage() {
     // 行の指紋。畳みの要約行（data-fold）は 'fold|' で始める。件数ではなく中身で追記位置を決めるのに使う。
     fps: rows.map((r) => (r.hasAttribute('data-fold')
       ? `fold|${r.getAttribute('data-fold-rows') ?? ''}`
-      : [r.getAttribute('data-kind'), r.getAttribute('data-gen'), r.getAttribute('data-category'), r.getAttribute('data-index'), r.getAttribute('data-total')].join('|'))),
+      : [r.getAttribute('data-kind'), r.getAttribute('data-gen'), r.getAttribute('data-category'), r.getAttribute('data-index'), r.getAttribute('data-total'), r.getAttribute('data-event')].join('|'))),
     chapter: posText === null ? '' : posText[1],
     title: document.querySelector('[data-testid="step-title"]')?.textContent ?? '',
     word: document.querySelector('[data-testid="step-status"]')?.textContent ?? '',
@@ -70,7 +70,9 @@ export function buildIndex(ir) {
     const uids = mainOf.get(cur.unit);
     posOf.set(n.uid, { chapter: cur.unit, m: String(uids.indexOf(cur.uid) + 1), k: String(uids.length) });
   }
-  const sameTitle = (uid) => ir.nodes.filter((n) => n.step.title === titleOf.get(uid)).length;
+  // 題と（章・M・K の）位置の組が同じ節点の数。モジュールの節点は呼び出し元の位置に読み替わるため、同じモジュール内の同題の Step は 2 以上になり、画面では区別できない。
+  const posKey = (uid) => { const p = posOf.get(uid); return p === undefined ? '' : `${p.chapter}|${p.m}|${p.k}`; };
+  const sameTitle = (uid) => ir.nodes.filter((n) => n.step.title === titleOf.get(uid) && posKey(n.uid) === posKey(uid)).length;
   return { titleOf, kindOf, startNode, posOf, sameTitle };
 }
 
@@ -122,7 +124,9 @@ export function classify(before, after) {
   const waiting = before.word === WAITING;
   const moved = after.word === DONE || after.title !== before.title;
   if (waiting && moved) return 'achieved';
-  if (!waiting && (after.word === WAITING || moved || added.length > 0)) return 'accepted';
+  // 確認待ちのまま題も変わらずに行が追記された場合（取り消しの受理など）も受付として扱う。達成は上で先に判定済み。
+  if (waiting) return added.length > 0 ? 'accepted' : 'none';
+  if (after.word === WAITING || moved || added.length > 0) return 'accepted';
   return 'none';
 }
 
@@ -239,9 +243,9 @@ export async function runPlaythrough({ page, driver, ir, playthrough, observeTim
     // 題は一意と限らない。章の ID と章内の位置（M・K）が実体のものと一致することまで、題が重ならなくても確かめる
     // （play_run.rs は end を現在の Step の実体 ID との完全一致で判定する）。位置が導けない節点で題が重なるときは止める（fail-closed）。
     const p = idx.posOf.get(endUid);
-    if (p === undefined) {
-      if (idx.sameTitle(endUid) > 1) return stop(segs.length, 0, 'end_step', 'ambiguous_title');
-    } else {
+    // 題と位置が同じ節点が複数あれば、画面から実体を特定できないので止める（fail-closed）。
+    if (idx.sameTitle(endUid) > 1) return stop(segs.length, 0, 'end_step', 'ambiguous_title');
+    if (p !== undefined) {
       if (last.chapter === '' || last.pos === '' || last.posK === '') return stop(segs.length, 0, 'end_step', 'ambiguous_title');
       if (last.chapter !== p.chapter || last.pos !== p.m || last.posK !== p.k) return stop(segs.length, 0, 'end_step', 'not_at_end');
     }

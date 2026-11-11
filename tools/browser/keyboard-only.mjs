@@ -190,6 +190,16 @@ export function keyOnlyDriver(page) {
       await kb.type(second);
       await kb.press('Enter');
     },
+    // 3 行以上。各行の間に Shift+Enter を挟み、最後に Enter で送る。
+    async sendLines(lines) {
+      await assertNoTablist(page);
+      await focusDraft(page);
+      for (const [i, line] of lines.entries()) {
+        if (i > 0) await kb.press('Shift+Enter');
+        await kb.type(line);
+      }
+      await kb.press('Enter');
+    },
     async completeAndSend(prefix, completed) {
       await assertNoTablist(page);
       await focusDraft(page);
@@ -224,8 +234,8 @@ export async function playStep(driver, step, { viewKind = () => undefined } = {}
     case 'text': {
       const lines = String(v).replace(/\n$/, '').split('\n');
       if (lines.length === 1) return driver.send(lines[0]);
-      assert.equal(lines.length, 2, 'only two-line input is supported');
-      return driver.sendMultiline(lines[0], lines[1]);
+      if (lines.length === 2) return driver.sendMultiline(lines[0], lines[1]);
+      return driver.sendLines(lines);
     }
     case 'choice':
       return driver.choose(String(v));
