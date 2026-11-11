@@ -28,6 +28,7 @@
 # compile した IR の手元の配信と章の完走の試験（author-preview。形式 B の試験用教材を compile → IR_FILE を指定したビルド → サブパス配信 → CH-0〜CH-3 の完走。
 # 配信元以外への通信 0 件・ページ内エラー 0 件。AUTHOR-21。TASK-427 1/2。記録は docs/testing.md 5.292）を含む。
 # 入力欄のない教材の完走と画面の値の測定（choice-journey。docs/examples/choice-only-pack とその派生版を web-author の写しで流す。SECOND-4・SECOND-7。TASK-748 1/2。記録は docs/testing.md 5.436）を含む。教材固有の値は tools/browser/choice-journey/*.json の設定ファイルにあり（2/2）、設定の読み込み・検証・照合は choice-journey-config.test.mjs（ブラウザなし）が確かめる。設定ごとの CLI 実行は make check-choice-journey（記録は 5.437）。
+# キーボードだけの自動操作の部品とマウスの click の計数の試験（keyboard-only。Tab・Enter・Space・Shift+Enter・Esc と文字だけで 20 Step と CH-4〜CH-9 の形の 17 Step を通し、マウス・禁止のキー 0。負の対照つき。BUILD-17。TASK-92 1/2。記録は docs/testing.md 5.507）を含む。
 # preview の URL を開いた 20 Step の通し・診断ありで配らない・文章を直した再実行の反映の試験（preview-command。AUTHOR-22。TASK-429 3/3。記録は docs/testing.md 5.428）を含む。
 # 試験用クエリ 7 種（persist・store・manual・tick・os・osmode・flood）を付けて開いても配信する設定の画面・取得資源・保存先・再読み込みの後が変わらない試験（query-inert。CSP あり・なし。SHELL-35。TASK-547 2/3。記録は docs/testing.md 5.405）と、配信物の部品を CH-0〜CH-3 の 20 Step の全時点で調べ check-delivery.sh と項目ごとに突き合わせる試験（delivery-ports。SHELL-35。TASK-547 3/3。記録は docs/testing.md 5.407）を含む。
 # 開発用の残り物（「Hello」の文字と受け付けた入力の数）が配信する設定の画面で見えないことの試験（dev-leftovers。SHELL-35。#2081。記録は docs/testing.md 5.475）も含む。
@@ -287,6 +288,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/refusal-keeps-saved.test.mjs" \
   "${ROOT_DIR}/tools/browser/next-chapter.test.mjs" \
   "${ROOT_DIR}/tools/browser/ch4-9-run.test.mjs" \
+  "${ROOT_DIR}/tools/browser/keyboard-only.test.mjs" \
   "${ROOT_DIR}/tools/browser/round-handoff.test.mjs" \
   "${ROOT_DIR}/tools/browser/out-of-range-chapter.test.mjs" \
   "${ROOT_DIR}/tools/browser/chapter-select-absent.test.mjs" \

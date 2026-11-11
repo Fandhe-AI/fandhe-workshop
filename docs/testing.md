@@ -13693,3 +13693,38 @@ first-paint は配信する設定、redraw は試験の設定（`test-hooks`）�
 - 全行に本文を付けた文書は p95 58,500 us で、閾値を大きく超える。参考の変種で、ART-26 の判断は変えていない。
 - カード・チェックの語彙は仮置きで、変わったら `SHAPED_STATE_TEXTS` と単体試験を直す。人の確認は無い。
 - `scripts/test-measure.sh`（`make test-measure`）全体は流していない（未検証。(h2)・(k2) が見る値は上の JSON で確認済みで、CI は流さない）。
+
+### 5.507 キーボードだけの自動操作の部品とマウスの click の計数（#928。TASK-92 1/2。BUILD-17）
+
+実行日: 2026-11-11。開発機（Linux x86_64）・Playwright 同梱の Chromium。試験の設定は `TEST_HOOKS=1 SKIP_WASM_OPT=1` のビルド。
+
+BUILD-17 は、Tab・Enter・Space・Shift+Enter・Esc だけで 1 周目と 2 周目の全周を自動操作で進められ、そのときマウスの click が 0 回であることを求める。本件は、その部品と計数を `tools/browser/keyboard-only.mjs` に置き、`tools/browser/keyboard-only.test.mjs` で確かめた。教材 repo の通し `pt-ch0-15` の全周と CH-4 以降の結果の記録は 2/2（#929）が受け持つ。
+
+#### 作ったもの
+
+- `restrictedKeyboard`: 許すキー 5 つ（`ALLOWED_KEYS`）の外は押す前に例外にする（fail-closed）。押した回数を持つ。`type` は改行・タブ・制御文字を拒む（改行は Shift+Enter で打つ）。文字の入力は許す。BUILD-17 の「操作」は画面を進めるキーを指すと解釈した。
+- `guardPage`: page を包み、要素を指す呼び出し（`click`・`fill`・`focus`・`press`・`page.mouse.*` ほか。`locator()` が返すものを含む）を数える。keyboard は制限つきに差し替える。観察（`evaluate`・`waitForFunction`・`count` など）は数えない。
+- `installInputCounter`: context の `exposeBinding` と `addInitScript` で、信頼されたマウス系のイベントと keydown の分類を Node 側へ報告する。累計は Node 側なので再読み込みの後も消えない。報告は件数とキーの名前だけで、入力した値は含まない。
+- `keyOnlyDriver`: journey が呼ぶ口と同じ名前のドライバ。フォーカスは Tab だけで移す（Shift+Tab を使わない）。入力欄の置き換えは、Ctrl+A を使わず、欄が空か全選択（拒否の後に付く。TASK-284 2/2）であることを確かめてから打つ。どちらでもなければ理由つきで止める。tablist が見えていれば止める。
+- `playStep`: `fandhe-pack test` の 1 操作（`cmd`・`text`・`choice`・`ui`・`approval`（と `target`）・`cancel`・`tick`）をドライバの操作に写す。2/2 への引き継ぎ口。`expect` の判定と YAML の読み込みは含めない（新しい依存を足さないため）。
+
+#### 結果
+
+| 試験 | 内容 | 結果 |
+|---|---|---|
+| U1〜U3 | 制限つきキーボード・監視・`playStep` の単体（ブラウザなし） | 合格 |
+| K1 | `?fixture=ch0-3-chapters` の 20 Step を通す。CSP あり・なし | 各 81 項目合格。Tab 564・Enter 48・Space 11・Shift+Enter 2・Esc 1・文字 116。マウス 0・禁止のキー 0・監視 0 |
+| K2 | `?fixture=ch4-9` の 17 Step を CH-9 まで通す。CSP あり | 96 項目合格。Tab 508・Enter 43・Space 7（文字入力の空白を含む）・Shift+Enter 1。マウス 0・禁止のキー 0・監視 0 |
+| N1〜N4 | 負の対照: 実マウスの click がページ内の計数に出る・監視が click を数える・制限なしの矢印・Shift+Tab・Ctrl+A が禁止として出る・再読み込みの後も累計が増える | 合格 |
+| N5 | 幅 959px の tablist でドライバが例外で止まる | 合格 |
+
+K1・K2 は、承認・対象つきの「直す」・カード・差分の行・「次の章へ進む」5 回・Esc の取り消し・Space・複数行・補完を含め、キーボードだけで最後まで進んだ（製品の側で止まる箇所は無かった）。ブラウザ試験は 11 件増える。
+
+#### 限界・未検証
+
+- 信頼されない click（`detail` 0）は数えない。glue が Enter・Space で行へ `click()` を送る正規の経路と見分けられないため。ドライバ側の監視と、ドライバが `page.evaluate` を観察だけに使うことで補う（`evaluate` の中の click は監視できない）。
+- ページ内の Space の計数は、文字入力の空白も数える。5 キーの使用の確かめはドライバ側（`used`）が主。K2 の通しは Space・Esc を使わないので、必須のキーは Tab・Enter・Shift+Enter に絞った。
+- 幅 960px 未満の tablist は矢印キーが要り、許すキーの集合では足りないので扱わない（幅 1280px で使う前提）。
+- 処理中の Esc による停止が先頭以外の Step で警告になる限界（5.3 系）は、本件の `esc`（取り消しの経路）では確かめていない（未検証）。
+- 全周（CH-0〜CH-15）と教材 repo の通し・期待の判定・結果の記録は 2/2（#929）。K2 は本物の CH-4 以降ではなく形を写した試験用の教材である。
+- `make test-browser` の全体と `scripts/expected-test-counts.txt` の件数の更新は、本件では行っていない（未検証。件数の期待値は触っていない）。
