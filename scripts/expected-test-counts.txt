@@ -1,4 +1,4 @@
-# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-11-10・元にしたコミット: 6c32e88c
+# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-11-11・元にしたコミット: 39033bc0
 # 更新は `make update-test-counts`（遅い。ブラウザ試験も流す）。版上げ PR の中では変えない（CI が失敗する）。版を上げる前に別の PR で更新する。
 # 書式: rust|<試験の束>|passed=<n>|ignored=<n>。同じ束の記述が crate をまたいで重複する場合は合算する（限界）。
 rust|doc-tests fandhe_workshop_contract|passed=0|ignored=0
