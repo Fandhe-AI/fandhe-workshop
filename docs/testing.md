@@ -13632,3 +13632,57 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 - コマンド: `scripts/check-mutations.sh crates/web/tests/mutations/FEND13-{3..10}.mutation`（`TMPDIR` はディスク側）。結果は 8 件とも DETECTED（FEND13-4・5・6・8・9 は `seven_kinds_html_matches_expected`、FEND13-7 は `app_demo_product` の `指せる行の中の欄とボタンは行の_click_を妨げない`、FEND13-10 は `fallback_rows_carry_pointing_attributes`、FEND13-3 は既存の 2 件）
 - `check-fork-ci.sh` に C6（`--mutations`。`mutations.yml`）を足した。規則は C5 と同じ（`schedule` と `workflow_dispatch` だけ・トップレベルの `permissions` が空・全ジョブが fork で skip・`uses` の SHA 固定・secret の参照 0 件）。`test-check-fork-ci.sh` に C5 と同じ形の回帰ケースと、守りの無い 2 つ目のジョブ・構文誤り・ファイル無しのケースを足した
 - 未検証: 手元に `ruby` が無く、`make check-fork-ci`・`make test-check-fork-ci`・`make check-workflow-secrets` は流していない（`shellcheck` は通った）。CI の `check` ジョブで確かめる。`scripts/expected-test-counts.txt` は版上げ PR でだけ照合されるため変えていない
+
+### 5.506 形つきの再描画の測定の残り（カード・チェックの形の検査・文書の全行の本文・形つきの CPU 4 倍）と、first-paint・redraw の手順どおりの記録（#2127。ART-26。5.472 の続き）
+
+実行日: 2026-11-11。端末は開発機（Linux x86_64・13th Gen Intel Core i7-13700K・論理コア 10・メモリ約 27 GiB。出典は各 JSON の `baseline.device` と、first-paint・redraw には `baseline.device` が無いため `lscpu` の手書き）。ブラウザは Playwright 同梱の Chromium 153.0.8010.12（Playwright 1.63.0。Chrome の原本ではない）。Node は 24.16.0。基準端末 A ではない。
+
+#### 変えたもの
+
+- 形の検査（`productRedrawInPage` の `checkShape`）にカードとチェックを足した。全行が `data-kind` = `card`（`check`）で、各行に状態のバッジ（`[data-scope="marker"][data-part="root"]`）がちょうど 1 個あり、バッジの文字の分布が語彙の固定の文字（`SHAPED_STATE_TEXTS`。カード 4 語 × 5 件、チェック 5 語 × 4 件）と完全一致すること。外れたら例外にする。native の単体試験（`test_fixture.rs`）にも同じ検査を足した。
+- 文書の本文の区画の数を正確に比べる（通常は 1、変種 `body_all` は行数 200）。
+- 参考の変種 `?fixture=artifact-redraw-shaped-document-200-body_all` を足した（全 200 行が同じ 80 ブロックの練習データ 1 件を共有するので IR の大きさは変わらない）。`cases()` と `judge()` には入れず、`conditions.reference_variants.document_body_all` に記録する（判定の欄なし）。近い綴り（`&x=1`・`body_ALL`・`-body`・件数や種類違い）は既定に倒れる。
+- 形つきの CPU 4 倍の記録 `tools/measure/product-redraw-shaped-cpu4x.sh`（`--kind product-redraw-shaped-cpu4x`）。タスク 50・文書 200（先頭の 1 行だけに本文）・差分 500、形の検査つき、記録だけで判定に使わない。
+- 試験: `tools/browser/product-redraw.test.mjs` に PS1 の 1 件（変種）と PS4（属性の無い固定データでカード・チェックの形の検査が失敗する負の対照）・PS5（先頭の 1 行だけの文書で全行の本文の検査が失敗する負の対照）を足した（ブラウザ全体で +3。`scripts/expected-test-counts.txt` の `browser|total` を 2077 から 2080 へ）。`scripts/test-measure.sh` の (h2)（24 件・参考の変種）と (k2) を足した。
+
+#### 結果（開発機。各 1 回。`SKIP_WASM_OPT=1` の試験の設定。commit `af5f1894`・dirty: false。この commit は squash の前のブランチのコミットで main には残らない）
+
+| 組 | 中央値（us） | p95（us） | 16,000 us |
+|---|---:|---:|---|
+| タスク 50（判定） | 2,700 | 4,700 | 内 |
+| 文書 200・先頭の 1 行だけ本文（判定） | 7,000 | 13,400 | 内 |
+| 差分 500（判定） | 16,600 | 20,200 | 超（部分的な判定） |
+| ファイルツリー 200（参考） | 7,000 | 9,000 | 内 |
+| カード 20（参考） | 1,500 | 2,400 | 内 |
+| チェック 20（参考） | 1,500 | 2,500 | 内 |
+| アプリのデモ 9（参考） | 1,000 | 2,100 | 内 |
+| 文書 200・全行に本文（参考の変種） | 43,950 | 58,500 | 超（判定に入れない） |
+
+| 形つき・CPU 4 倍（記録だけ） | 中央値（us） | p95（us） |
+|---|---:|---:|
+| タスク 50 | 10,300 | 14,000 |
+| 文書 200（先頭の 1 行だけ本文） | 27,800 | 32,400 |
+| 差分 500 | 67,500 | 79,000 |
+
+CPU 4 倍の較正の比は 3.85〜4.22（30 回。下限 2）。
+
+#### first-paint・redraw を `docs/measurement.md` §2 の手順どおりに流した記録
+
+`tools/measure/first-paint.sh`・`tools/measure/redraw.sh` を直接呼んだ（`SKIP_WASM_OPT` なし。`wasm-opt` 適用済み〔version 116〕）。commit `b072c34e`・dirty: false。どちらも終了コード 0。
+
+| 測定 | 値 |
+|---|---|
+| `first_paint_mounted` 中央値・最大 | 566,050 us・572,700 us |
+| `first_contentful_paint` 中央値 | 578,000 us |
+| `first_paint_wasm_transfer` | 460,099 bytes |
+| `redraw` 中央値・p95・最大 | 260 us・317 us・359 us |
+
+first-paint は配信する設定、redraw は試験の設定（`test-hooks`）。測定日時はそれぞれ 2026-11-11T09:35:33Z・09:36:00Z。
+
+#### 比べられるか・限界
+
+- 5.472 の形つきの値とは、巡回の組が 7 から 8 になり commit も違うため、条件の違いを併記して読む。形つきの CPU 4 倍の値は、属性の無い経路の行の CPU 4 倍（5.471）・減速なしの形つきの値と比べない。
+- 開発機の各 1 回だけの測定で、他の作業と並走していたため CPU の負荷が混ざりうる。基準端末 A（Chrome の原本）での形つきの CPU 4 倍と `body_all` の測定はしていない（範囲外）。`body_all` は CPU 4 倍の組に入れていない。
+- 全行に本文を付けた文書は p95 58,500 us で、閾値を大きく超える。参考の変種で、ART-26 の判断は変えていない。
+- カード・チェックの語彙は仮置きで、変わったら `SHAPED_STATE_TEXTS` と単体試験を直す。人の確認は無い。
+- `scripts/test-measure.sh`（`make test-measure`）全体は流していない（未検証。(h2)・(k2) が見る値は上の JSON で確認済みで、CI は流さない）。
