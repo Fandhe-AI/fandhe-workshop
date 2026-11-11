@@ -2,7 +2,7 @@
 //
 // 役割: BUILD-17 は「Tab・Enter・Space・Shift+Enter・Esc だけで全周を自動操作で進められ、そのときマウスの click が 0 回」を求める。
 // 本モジュールは、その部品（許すキーの集合に閉じたキーボード・ドライバ側の監視・ページ内の計数）を試験の外へ置く。
-// 呼び出し元は keyboard-only.test.mjs（本件の試験）と、2/2（教材 repo の通し pt-ch0-15 の全周。別 Issue）。`.test.mjs` を import すると
+// 呼び出し元は keyboard-only.test.mjs（本件の試験）と、keyboard-playthrough.mjs（教材の通しの流し。2/2）。`.test.mjs` を import すると
 // 試験が二重に登録されるため、試験でない本モジュールに置く。journey（ch0-3-journey.mjs・ch4-9-journey.mjs）の操作の口と同じ名前の
 // ドライバを返すので、journey の本体は変えずに差し替えられる。既存の keyboardDriver（csp-runs ほかが共有）は変えない。
 //

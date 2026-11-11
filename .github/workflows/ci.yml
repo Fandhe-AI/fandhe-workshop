@@ -202,6 +202,11 @@ jobs:
       - name: make test-check-choice-journey
         run: make test-check-choice-journey
 
+      # 教材の通しをキーボードだけで流す入口（TASK-92 2/2）の回帰テスト。誤用の拒否だけで、ビルド・ブラウザは使わない。
+      # 既存ジョブへの step 追加のため、ジョブ名・ci-complete の needs・ruleset の必須チェックは変わらない。secret は使わない。
+      - name: make test-check-keyboard-playthrough
+        run: make test-check-keyboard-playthrough
+
       # 変換中の判定の変異 M1・M3 の対照（#2123）の判定の回帰テスト。ビルド・ブラウザは使わない。既存ジョブへの step 追加のため必須チェックは変わらない。
       - name: make test-lib-ime-control
         run: make test-lib-ime-control

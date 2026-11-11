@@ -1,0 +1,137 @@
+// 教材の通しをキーボードだけで流す部品の試験（TASK-92 2/2。BUILD-17。記録は docs/testing.md 5.508）。
+//
+// 入力: FANDHE_WEB_AUTHOR_DIR（試験用教材 ch0_3_pack を compile した IR 同梱の配信物）・FANDHE_AUTHOR_IR・FANDHE_PLAYTHROUGH_JSON
+// （scripts/test-browser.sh が playthrough_emit.rs で書き出す）・FANDHE_PACK_BIN。未設定・不在は skip にせず失敗にする。
+// 確かめること:
+//   U1 結果の分類の純関数  U2 期待の語・ID の形の拒否・asserts の未判定の数え方
+//   P0 同じ教材で fandhe-pack test が全件合格（期待そのものがエンジンの判定と一致している前提）
+//   P1 配信する設定の画面（CSP あり・なし）で、キーボードだけで 4 区間を最後まで流し、期待がすべて一致し、マウス 0・禁止のキー 0・監視 0
+//   N1 期待を 1 件書き換えると、区間番号・操作番号つきで不一致が出る
+//   N2 区間 2 の開始点を書き換えると、「次の章へ進む」の data-payload の不一致で止まる
+//   N3 制限なしのドライバ（実クリック）で流すと、マウスの計数が 1 以上になる（計数が素通りでない）
+// 出力は項目の名前・件数だけ。入力値・本文は出さない。
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import {
+  launchBrowser, channelFromEnv, packBinFromEnv, withServer, withCspMode, openPage, waitMounted,
+} from './harness.mjs';
+import { mouseDriver } from './ch0-3-journey.mjs';
+import { installInputCounter } from './keyboard-only.mjs';
+import {
+  classify, matches, parseExpect, runPlaythrough,
+} from './keyboard-playthrough.mjs';
+import { runKeyboardPlaythrough } from './keyboard-playthrough-run.mjs';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const PACK = path.resolve(HERE, '../../crates/web/tests/data/ch0_3_pack');
+let browser;
+let bin;
+let webDir;
+let ir;
+let pt;
+
+before(async () => {
+  bin = packBinFromEnv();
+  webDir = process.env.FANDHE_WEB_AUTHOR_DIR;
+  assert.ok(webDir && fs.statSync(webDir, { throwIfNoEntry: false })?.isDirectory(), 'FANDHE_WEB_AUTHOR_DIR must point to a web directory built with IR_FILE');
+  const irFile = process.env.FANDHE_AUTHOR_IR;
+  assert.ok(irFile && fs.statSync(irFile, { throwIfNoEntry: false })?.isFile(), 'FANDHE_AUTHOR_IR must point to the compiled IR');
+  ir = JSON.parse(fs.readFileSync(irFile, 'utf8'));
+  const ptFile = process.env.FANDHE_PLAYTHROUGH_JSON;
+  assert.ok(ptFile && fs.statSync(ptFile, { throwIfNoEntry: false })?.isFile() && fs.statSync(ptFile).size > 0, 'FANDHE_PLAYTHROUGH_JSON must point to a non-empty file');
+  pt = JSON.parse(fs.readFileSync(ptFile, 'utf8'));
+  browser = await launchBrowser({ channel: channelFromEnv() });
+});
+
+after(async () => {
+  if (browser) await browser.close();
+});
+
+const snap = (o = {}) => ({
+  kinds: [], cats: [], title: 'T', word: 'entered', run: 'idle', next: [], ...o,
+});
+
+test('U1: 結果の分類', () => {
+  const b = snap({ kinds: ['received'], cats: [null] });
+  assert.equal(classify(b, snap({ kinds: ['received', 'rejected'], cats: [null, 'wrong_order'] })), 'rejected:wrong_order');
+  assert.equal(classify(b, snap({ kinds: ['received', 'clarified'], cats: [null, null] })), 'clarified');
+  assert.equal(classify(b, snap({ kinds: ['received', 'received'], cats: [null, null], word: '受付済み（確認待ち）' })), 'accepted');
+  const w = snap({ word: '受付済み（確認待ち）' });
+  assert.equal(classify(w, snap({ word: '達成' })), 'achieved');
+  assert.equal(classify(w, snap({ title: 'U' })), 'achieved');
+  assert.equal(classify(snap(), snap()), 'none');
+  assert.equal(classify(b, snap()), 'folded');
+  assert.ok(matches({ kind: 'rejected', category: 'a' }, 'rejected:a'));
+  assert.ok(!matches({ kind: 'accepted' }, 'rejected:a'));
+  console.log('U1: 6 分類と一致の判定');
+});
+
+test('U2: 期待の語・ID の形・asserts の未判定', async () => {
+  assert.deepEqual(parseExpect('accepted:free_text_unjudged'), { kind: 'accepted' });
+  assert.deepEqual(parseExpect('rejected:wrong_order'), { kind: 'rejected', category: 'wrong_order' });
+  for (const bad of ['ignored', 'rejected', 'achieved:x', 'a"b', '']) assert.throws(() => parseExpect(bad));
+  // 形の合わない ID は、ブラウザを開く前に止まる（page には触れない）。
+  const evil = { id: 'x', end: 'complete', segments: [{ start: 's-0-1', steps: [{ choice: 'a"]x', expect: 'accepted' }] }] };
+  await assert.rejects(() => runPlaythrough({ page: {}, driver: {}, ir, playthrough: evil }), /形が合わない/);
+  // asserts は件数だけ返し、判定しない（合格に数えない）。
+  const r = await runPlaythrough({ page: {}, driver: {}, ir, playthrough: { ...pt, segments: [{ start: 'no-such', steps: [] }], asserts: [{}, {}] } });
+  assert.equal(r.unjudgedAsserts, 2);
+  assert.equal(r.complete, false);
+  console.log('U2: 語 5 件の拒否・ID の形・asserts 2 件が未判定');
+});
+
+test('P0: 同じ教材で fandhe-pack test が全件合格する', () => {
+  const r = spawnSync(bin, ['test', PACK], { encoding: 'utf8' });
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /模範解答: \d+\/\d+ 完走/);
+  assert.match(r.stdout, /入らなかった実体: なし/);
+});
+
+for (const csp of [true, false]) {
+  test(`P1: キーボードだけで 4 区間を最後まで流す（CSP ${csp ? 'あり' : 'なし'}）`, { timeout: 300000 }, async () => {
+    const { result, items } = await runKeyboardPlaythrough({
+      browser, webDir, ir, playthrough: pt, csp, requiredKeys: ['Tab', 'Enter', 'Shift+Enter', 'Escape'],
+    });
+    assert.deepEqual(result.mismatches, []);
+    assert.equal(result.segments, 4);
+    assert.equal(result.nextPresses, 3);
+    assert.equal(result.matched, result.ops);
+    assert.deepEqual(items.filter((i) => !i.ok).map((i) => i.name), []);
+    console.log(`P1(csp=${csp}): 操作 ${result.ops} 件一致・項目 ${items.length}/${items.length}`);
+  });
+}
+
+test('N1: 期待を 1 件書き換えると、区間・操作つきで不一致になる', { timeout: 300000 }, async () => {
+  const bad = JSON.parse(JSON.stringify(pt));
+  bad.segments[1].steps[0].expect = 'accepted';
+  const { result, items } = await runKeyboardPlaythrough({ browser, webDir, ir, playthrough: bad, requiredKeys: [] });
+  assert.equal(result.mismatches.length, 1);
+  assert.deepEqual(result.mismatches[0], { seg: 2, op: 1, expected: 'accepted', observed: 'rejected:unknown_command' });
+  assert.equal(items[0].ok, false);
+});
+
+test('N2: 区間 2 の開始点を書き換えると、次の章へ進むの payload の不一致で止まる', { timeout: 300000 }, async () => {
+  const bad = JSON.parse(JSON.stringify(pt));
+  bad.segments[1].start = 's-2-1';
+  const { result } = await runKeyboardPlaythrough({ browser, webDir, ir, playthrough: bad, requiredKeys: [] });
+  assert.equal(result.mismatches.length, 1);
+  assert.equal(result.mismatches[0].observed, 'payload_mismatch');
+  assert.equal(result.mismatches[0].seg, 2);
+});
+
+test('N3: 制限なしのドライバ（実クリック）で流すと、マウスの計数が 1 以上になる', { timeout: 300000 }, async () => {
+  await withCspMode({ dir: webDir, csp: true }, (dir) => withServer({ dir, base: '/fandhe-kp-control/' }, async (srv) => {
+    const { page, context } = await openPage(browser, { origin: srv.origin, viewport: { width: 1280, height: 900 } });
+    const counter = await installInputCounter(context);
+    await page.goto(srv.url);
+    await waitMounted(page);
+    const seg = { ...pt, segments: [{ start: pt.segments[0].start, steps: pt.segments[0].steps.slice(0, 3) }], end: 'x' };
+    await runPlaythrough({ page, driver: mouseDriver(page), ir, playthrough: seg });
+    assert.ok((await counter.read(page)).mouse >= 1);
+    await context.close();
+  }));
+});

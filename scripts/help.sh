@@ -83,6 +83,8 @@ cat <<'EOF'
   test-build-pack-preview      scripts/test-build-pack-preview.sh      上の作成スクリプトの回帰テスト（誤用の拒否。ビルドなし）
   check-choice-journey         scripts/check-choice-journey.sh         入力欄のない教材の完走の道具を設定ファイルで流す（CHOICE_JOURNEY_CONFIG=<path> で 1 本に絞る。遅い）
   test-check-choice-journey    scripts/test-check-choice-journey.sh    上の入口の回帰テスト（誤用の拒否・偽の node。ビルドなし）
+  check-keyboard-playthrough   scripts/check-keyboard-playthrough.sh   教材の通し 1 本をキーボードだけで流す（PACK=<dir> PLAYTHROUGH=<id> 必須。遅い）
+  test-check-keyboard-playthrough scripts/test-check-keyboard-playthrough.sh 上の入口の回帰テスト（誤用の拒否。ビルドなし）
   test-keydown-control         scripts/test-keydown-control.sh         action-keydown を外した写しで keydown の試験が正しい理由で失敗することの対照（遅い）
   test-chapter-key-control     scripts/test-chapter-key-control.sh     鍵を修正前の固定の文字列にした写しで章の試験が正しい理由で失敗することの対照（遅い）
   test-ime-sync-control        scripts/test-ime-sync-control.sh        反映の変換中の除外を外した写しで IME の試験が正しい理由で失敗することの対照（遅い）

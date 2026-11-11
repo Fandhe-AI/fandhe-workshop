@@ -47,6 +47,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── check-license.sh      # 全 crate の license と直下の 2 つのライセンスの本文と雛形の表記の検査（回帰テストは test-check-license.sh）
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
 │   ├── check-choice-journey.sh # 入力欄のない教材の完走の道具を設定ファイルで流す入口（回帰テストは test-check-choice-journey.sh。TASK-748）
+│   ├── check-keyboard-playthrough.sh # 教材パックの通し 1 本をキーボードだけで配信する設定の画面に流す入口（回帰テストは test-check-keyboard-playthrough.sh。TASK-92 2/2）
 │   ├── check-second-pack.sh  # 第 2 教材の骨格・validate・test の検査（CI の rust-test が流す。回帰テストは test-check-second-pack.sh。TASK-102）
 │   ├── check-third-pack.sh   # 3 本目の教材の validate・test の検査（CI の rust-test が流す。回帰テストは test-check-third-pack.sh。TASK-797）
 │   ├── check-sibling-free.sh # 兄弟の 03-poc/prototype と docs/spec の中身が無いことの検査（回帰テストは test-check-sibling-free.sh）
@@ -151,6 +152,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-build-pack-preview` | 上の作成スクリプトの回帰テスト（誤用の拒否。ビルドなし） |
 | `make check-choice-journey` | 入力欄のない教材の完走の道具を設定ファイル（`tools/browser/choice-journey/*.json`。教材固有の値の置き場）で流し、期待と照合する（`CHOICE_JOURNEY_CONFIG=<path>` で 1 本に絞る。`scripts/check-choice-journey.sh`。遅く、ブラウザを要する。CI の `browser-test` が流す。記録は `docs/testing.md` 5.437。TASK-748） |
 | `make test-check-choice-journey` | 上の入口の回帰テスト（誤用の拒否・偽の node。ビルドなし。CI の `check` ジョブが流す） |
+| `make check-keyboard-playthrough PACK=<dir> PLAYTHROUGH=<id>` | 教材パックの通し 1 本を、validate → compile → 配信する設定のビルド → 通しの JSON（`crates/pack/tests/playthrough_emit.rs`）の後、Tab・Enter・Space・Shift+Enter・Esc と文字だけで最後まで画面に流し、期待の一致・マウス 0 を確かめる（`scripts/check-keyboard-playthrough.sh`。引数は必須で既定値なし。遅く、ブラウザを要する。自己確認は `keyboard-playthrough.test.mjs`（`make test-browser`）。記録は `docs/testing.md` 5.508。TASK-92 2/2） |
+| `make test-check-keyboard-playthrough` | 上の入口の回帰テスト（誤用の拒否。ビルドなし。CI の `check` ジョブが流す） |
 | `make test-build-pack-release` | 上の作成スクリプトの回帰テスト（偽の実行ファイル。ビルドなし。CI の `check` ジョブが流す） |
 | `make test-build-pack-bin` | `fandhe-pack` の前提バイナリの解決が `CARGO_TARGET_DIR` に追従することの回帰テスト（遅く、CI・フックには入れない） |
 | `make test-chapter-key-control` | 鍵を修正前の固定の文字列にした写しで、章の試験（`chapter-keys`）が「先の章の履歴が出た」理由で失敗することの対照（遅く、CI・フックには入れない） |

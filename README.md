@@ -307,6 +307,8 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-build-pack-preview` | `scripts/test-build-pack-preview.sh` | 上の作成スクリプトの回帰テスト（誤用の拒否。ビルドなし） |
 | `make check-choice-journey` | `scripts/check-choice-journey.sh` | 入力欄のない教材の完走の道具を設定ファイル（`tools/browser/choice-journey/*.json`）で流す。`CHOICE_JOURNEY_CONFIG=<path>` で 1 本に絞る（遅く、ブラウザを要する。CI の `browser-test` が流す。TASK-748） |
 | `make test-check-choice-journey` | `scripts/test-check-choice-journey.sh` | 上の入口の回帰テスト（誤用の拒否・偽の node。ビルドなし。CI の `check` ジョブが流す） |
+| `make check-keyboard-playthrough PACK=<dir> PLAYTHROUGH=<id>` | `scripts/check-keyboard-playthrough.sh` | 教材パックの通し 1 本をキーボードだけで画面に流し、期待の一致とマウス 0 を確かめる（引数は必須。遅く、ブラウザを要する。記録は `docs/testing.md` 5.508） |
+| `make test-check-keyboard-playthrough` | `scripts/test-check-keyboard-playthrough.sh` | 上の入口の回帰テスト（誤用の拒否。ビルドなし） |
 | `make test-build-pack-release` | `scripts/test-build-pack-release.sh` | 上の作成スクリプトの回帰テスト（偽の実行ファイル。ビルドなし。CI の `check` ジョブが流す） |
 | `make test-build-pack-bin` | `scripts/test-build-pack-bin.sh` | `fandhe-pack` の前提バイナリの解決が `CARGO_TARGET_DIR` の別置きと既定の両方で動くことの回帰テスト（遅く、CI・フックには入れない） |
 | `make test-chapter-key-control` | `scripts/test-chapter-key-control.sh` | 鍵を修正前の固定の文字列にした写しで、章の試験（`chapter-keys`）が「先の章の履歴が出た」理由で失敗することの対照。依存を冷えた状態からビルドするため遅く、CI・フックには入れません |

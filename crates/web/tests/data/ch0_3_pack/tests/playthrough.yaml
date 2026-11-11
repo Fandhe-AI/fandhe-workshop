@@ -1,0 +1,67 @@
+# キーボードだけの通し（TASK-92 2/2）の自己確認に使う模範解答。journey（tools/browser/ch0-3-journey.mjs）の操作を写した。
+# 架空・汎用の題材で、教材 repo の通しの写しではない。`asserts` は fandhe-pack test が未対応のため置かない。
+playthroughs:
+  - id: pt-ch0-3-keys
+    end: complete
+    segments:
+      - start: s-0-1
+        steps:
+          - { choice: opt-left, expect: "rejected:not_in_this_step" }
+          - { choice: opt-top, expect: "rejected:not_in_this_step" }
+          - { choice: opt-right, expect: accepted }
+          - { ui: "v-cards cards/notice", expect: achieved }
+          - { choice: opt-read-a, expect: accepted }
+          - { choice: ans-a-ng, expect: "rejected:not_in_this_step" }
+          - { choice: ans-a-ok, expect: achieved }
+          - { choice: opt-read-b, expect: accepted }
+          - { choice: ans-b-ok, expect: achieved }
+          - { choice: opt-read-c, expect: accepted }
+          - { choice: ans-c-ok, expect: achieved }
+      - start: s-1-1
+        steps:
+          - { cmd: "/hepl", expect: "rejected:unknown_command" }
+          - { cmd: "/help", expect: accepted }
+          - { ui: "v-cards cards/help-1", expect: achieved }
+          - { cmd: "/help", expect: accepted }
+          - { text: "memo line 1\nmemo line 2", expect: "accepted:free_text_unjudged" }
+          - { cmd: "/new-idea", expect: clarified }
+          - { cmd: "/advance-phase", expect: "rejected:wrong_order" }
+          - { cancel: true, expect: accepted }
+          - { choice: asked-back, expect: achieved }
+          - { cmd: "/make-card sample", expect: accepted }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { ui: "v-cards cards/sample", expect: achieved }
+          - { choice: opt-right, expect: accepted }
+          - { choice: ans-restored, expect: achieved }
+      - start: s-2-1
+        steps:
+          - { cmd: "/new-idea ideas", expect: accepted }
+          - { ui: "v-files docs/readme", expect: achieved }
+          - { choice: opt-view, expect: accepted }
+          - { choice: ans-readme, expect: achieved }
+          - { approval: approve, expect: accepted }
+          - { ui: "v-files docs/plan", expect: achieved }
+          - { text: "status line 1\nstatus line 2", expect: "accepted:free_text_unjudged" }
+          - { cmd: "/run-check", expect: accepted }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { ui: "v-files checks/result", expect: achieved }
+          - { approval: revise, expect: "rejected:not_in_this_step" }
+          - { approval: approve, expect: "rejected:not_in_this_step" }
+          - { approval: revise, target: t-expect, expect: accepted }
+          - { approval: approve, expect: achieved }
+          - { ui: "v-files tasks/t-2", expect: "rejected:not_in_this_step" }
+          - { ui: "v-files tasks/t-1", expect: accepted }
+          - { choice: ans-t2, expect: "rejected:not_in_this_step" }
+          - { choice: ans-t1, expect: achieved }
+          - { choice: opt-go, expect: accepted }
+      - start: s-3-1
+        steps:
+          - { choice: opt-place-ng, expect: "rejected:not_in_this_step" }
+          - { choice: opt-place-ok, expect: accepted }
+          - { ui: "v-files work/place", expect: achieved }
+          - { approval: approve, expect: accepted }
+          - { approval: approve, expect: achieved }
