@@ -22,7 +22,7 @@ import {
 import { mouseDriver } from './ch0-3-journey.mjs';
 import { installInputCounter } from './keyboard-only.mjs';
 import {
-  classify, matches, parseExpect, runPlaythrough,
+  classify, matches, parseExpect, runPlaythrough, addedFrom, buildIndex,
 } from './keyboard-playthrough.mjs';
 import { runKeyboardPlaythrough } from './keyboard-playthrough-run.mjs';
 
@@ -68,6 +68,29 @@ test('U1: 結果の分類', () => {
   assert.ok(matches({ kind: 'rejected', category: 'a' }, 'rejected:a'));
   assert.ok(!matches({ kind: 'accepted' }, 'rejected:a'));
   console.log('U1: 6 分類と一致の判定');
+});
+
+test('U3: 追記位置の追跡と章つきの位置', () => {
+  const f = (k, g) => `${k}|${g}||`;
+  const mk = (fps) => ({ kinds: fps.map((x) => x.split('|')[0]), cats: fps.map(() => null), fps });
+  // 畳みなし: 件数で決める。縮んだら追跡できない。
+  assert.equal(addedFrom(mk([f('a', 1)]), mk([f('a', 1), f('b', 2)])), 1);
+  assert.equal(addedFrom(mk([f('a', 1), f('b', 2)]), mk([f('a', 1)])), null);
+  // 畳みあり: 件数が減っても末尾の指紋で追記位置が決まる。件数が同じまま入れ替わっても新しい行を取る。
+  const before = mk(['fold|3', f('a', 1), f('b', 2), f('c', 3)]);
+  assert.equal(addedFrom(before, mk(['fold|4', f('a', 1), f('b', 2), f('c', 3), f('d', 4)])), 4);
+  assert.equal(addedFrom(before, mk(['fold|5', f('b', 2), f('c', 3), f('d', 4), f('e', 5)])), 3);
+  assert.equal(addedFrom(before, mk(['fold|9', f('x', 9)])), null);
+  // 章をまたぐ位置: 同じ題・同じ M・K でも章が違えば別の位置。モジュールの節点は呼び出し元の章へ読み替える。
+  const n = (uid, scope, unit, title) => ({ uid, scope, unit, step: { title } });
+  const ir = {
+    nodes: [n('main/a', 'main', 'c1', 'T'), n('main/b', 'main', 'c1', 'U'), n('main/c', 'main', 'c2', 'T'), n('main/d', 'main', 'c2', 'U'), n('m@x/s', 'm@x', 'm', 'V')],
+    instances: [{ id: 'm@x', caller: 'main/b' }], starts: [], views: {},
+  };
+  const idx = buildIndex(ir);
+  assert.deepEqual(idx.posOf.get('main/a'), { chapter: 'c1', m: '1', k: '2' });
+  assert.deepEqual(idx.posOf.get('main/c'), { chapter: 'c2', m: '1', k: '2' });
+  assert.deepEqual(idx.posOf.get('m@x/s'), { chapter: 'c1', m: '2', k: '2' });
 });
 
 test('U2: 期待の語・ID の形・asserts の未判定', async () => {
