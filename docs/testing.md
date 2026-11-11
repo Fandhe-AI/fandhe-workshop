@@ -13601,3 +13601,23 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 
 - 変異注入の CI への組み込み（TASK-33）
 - S-B・S-C の assert の順の変更
+
+### 5.504 Tab の列挙と判定の tab-focus.mjs への集約（#2124。TASK-373 の続き）
+
+目的は、Tab の試験 3 本（`tab-cycle`・`tab-exit`・`tab-trap`）に重複していた、列挙の前提の確認と一巡の歩行・判定を共通の部品 `tools/browser/tab-focus.mjs` へまとめることである。試験の挙動・件数・合否は変えない。実行日 2026-11-11、元にしたコミット 7bb8d2b9、ブラウザは同梱の Chromium（Linux）。
+
+- `exitProblems`（欄からの退出の判定）を `tab-exit.test.mjs` から移した。本文・文言は同じ。
+- `walkCycle(page, key, { fromBody, require })` を新設した。列挙の前提（2 個以上・`tabindex > 0` が 0 個・`require` の ID が在る）を確かめ、2 × (n + 1) 回押して `findCycleProblems` で判定する。`tab-cycle` の `cycle`・`tab-trap` の `walkFromTop` と C2b がこれを使う。教材固有の確認（始点が入力欄であること）と `installTabProbe` は呼び出し元に残した。C2b は前提の確認が足され、これまでより厳しくなった（同じ画面の C1 で成り立つ前提のため合否は変わらない）。
+- 件数（各ファイルを単独で流した結果。全件合格）:
+
+  | ファイル | 移す前 | 移した後 |
+  |---|---|---|
+  | `tab-cycle.test.mjs` | 10 | 10 |
+  | `tab-exit.test.mjs` | 18 | 18 |
+  | `tab-trap.test.mjs` | 28 | 28 |
+  | `tab-focus.test.mjs` | 7 | 12 |
+
+- 自己確認（`tab-focus.test.mjs` の追加 5 件）: `exitProblems` の受理と拒否 7 通り、N1・N2 型の罠の検出、`walkCycle` の正常系（Tab・Shift+Tab）と前提不足の reject、body からの歩行（フォーカスが body に無ければ reject）、罠の検出。
+- `scripts/expected-test-counts.txt` は変えていない（#2117・#2118 と同じ。版上げ PR か同ファイルの変更時だけ照合される）。
+- 範囲外: `assertClean` は harness の `summarize` を使う安全性の計数で、`tools/browser` の複数ファイルに同じ写しがあり、harness へまとめる別の課題とした。`reverseProblems` は `tab-trap` の件数を保つため移していない。
+- 限界: Chromium だけで確かめた。

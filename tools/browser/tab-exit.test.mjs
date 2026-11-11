@@ -6,7 +6,7 @@
 //   X6 補完の直後: 1 回目は補完（preventDefault）、2 回目で出る。
 //   E1 前の要素から Tab で入る。E2 出て戻っても値が残る。
 // 退出先は ID を決め打ちにせず、DOM 順で欄の次のフォーカスできる要素とする（送信ボタンが無効のときの違いを吸収する）。
-// 対照として、罠を試験のページの中だけに入れ、判定の関数 exitProblems が検出できることを確かめる（配信物には残さない）。
+// 対照として、罠を試験のページの中だけに入れ、判定の関数 exitProblems（tab-focus.mjs に置く。#2124）が検出できることを確かめる（配信物には残さない）。
 // Shift+Tab・一巡・罠 0 件の主張は TASK-373 2/2。既存の tab-complete・tab-cycle は IR なしの画面で、本試験は IR ありの画面。
 //
 // 入力: FANDHE_WEB_AUTHOR_DIR（IR 同梱の配信する設定）。未設定・不在は skip にせず失敗にする。
@@ -17,7 +17,7 @@ import {
   launchBrowser, channelFromEnv, withServer, withCspMode, openPage, waitMounted, summarize,
 } from './harness.mjs';
 import {
-  listFocusables, installTabProbe, pressTracked, activeTestId, focusAt,
+  listFocusables, installTabProbe, pressTracked, activeTestId, focusAt, exitProblems,
 } from './tab-focus.mjs';
 
 const BASE = '/fandhe-tab-exit/';
@@ -39,16 +39,6 @@ before(async () => {
 after(async () => {
   if (browser) await browser.close();
 });
-
-// 欄から 1 回の Tab で出たときの問題の一覧を返す。空なら期待どおり（preventDefault なし・次の要素へ移動・値が不変）。
-export function exitProblems({ before: from, after: to, prevented, value, expectedValue }) {
-  const problems = [];
-  if (prevented.length !== 1 || prevented[0] !== false) problems.push(`Tab was prevented or not seen: ${JSON.stringify(prevented)}`);
-  if (typeof from !== 'number' || to !== from + 1) problems.push(`focus did not move to the next element: ${from} -> ${to}`);
-  if (value !== expectedValue) problems.push('draft value changed');
-  if (value.includes('\t')) problems.push('tab character entered the draft');
-  return problems;
-}
 
 async function open(srv) {
   const opened = await openPage(browser, { origin: srv.origin, viewport: { width: 1024, height: 768 } });

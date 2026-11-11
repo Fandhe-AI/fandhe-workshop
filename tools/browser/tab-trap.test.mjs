@@ -20,7 +20,7 @@ import {
   launchBrowser, channelFromEnv, withServer, withCspMode, openPage, waitMounted, summarize,
 } from './harness.mjs';
 import {
-  OUT, listFocusables, installTabProbe, pressTracked, walkTracked, findCycleProblems, focusAt,
+  OUT, listFocusables, installTabProbe, pressTracked, walkCycle, focusAt,
 } from './tab-focus.mjs';
 import { startLinksOf } from './author-preview.mjs';
 
@@ -92,16 +92,7 @@ async function arm(page, value, listOpen) {
 }
 
 // 先頭から（body にフォーカスがある状態から）key を 2 周ぶん押した結果を返す。start は findCycleProblems の始点（body の 1 つ手前）。
-async function walkFromTop(page, key) {
-  const { ids, positive } = await listFocusables(page);
-  assert.ok(ids.length >= 2, JSON.stringify(ids));
-  assert.equal(positive, 0, 'tabindex > 0 makes DOM order differ from Tab order');
-  assert.equal(await page.evaluate(() => document.activeElement === document.body), true, 'walk must start from body');
-  const n = ids.length;
-  const [start, dir] = key === 'Tab' ? [n - 1, 1] : [0, -1];
-  const { seq, prevented } = await walkTracked(page, key, 2 * (n + 1));
-  return { ids, n, seq, prevented, problems: findCycleProblems(seq, n, start, dir) };
-}
+const walkFromTop = (page, key) => walkCycle(page, key, { fromBody: true });
 
 const REVERSE_SCENES = [
   { id: 'R3a 空欄', value: '' },
@@ -206,11 +197,9 @@ for (const csp of [true, false]) {
     await run(async (srv) => {
       const { page, context, rec } = await open(srv);
       const { idx } = await arm(page, '/he', true);
-      const lst = await listFocusables(page);
-      const n = lst.ids.length;
-      const { seq, prevented } = await walkTracked(page, 'Shift+Tab', 2 * (n + 1));
-      const problems = findCycleProblems(seq, n, idx, -1);
-      const detail = JSON.stringify({ ids: lst.ids, seq, prevented, problems });
+      const { ids, start, seq, prevented, problems } = await walkCycle(page, 'Shift+Tab');
+      assert.equal(start, idx);
+      const detail = JSON.stringify({ ids, seq, prevented, problems });
       console.log(`# C2b csp=${cspLabel} ${detail}`);
       assert.deepEqual(problems, [], detail);
       assert.ok(prevented.length >= seq.length && prevented.every((p) => p === false), detail);

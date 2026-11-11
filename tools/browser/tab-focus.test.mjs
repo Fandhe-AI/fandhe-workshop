@@ -1,12 +1,13 @@
 // tab-focus.mjs（Tab の出入りの観察の共通の部品）の自己確認（TASK-373）。
 //
 // 固定の HTML を page.setContent で置くだけなので、サーバもビルドも要らない。
+// 退出の判定 exitProblems と一巡の歩行 walkCycle（#2124）も、罠を入れた対照で検出できることを確かめる。
 // 列挙の選び方（隠れた要素・disabled・tabindex=-1 を除く）と、押下ごとの位置・defaultPrevented の記録が正しいことを確かめる。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { launchBrowser, channelFromEnv } from './harness.mjs';
 import {
-  listFocusables, focusIndex, activeTestId, installTabProbe, pressTracked, focusAt, walkTracked, findCycleProblems, OUT,
+  listFocusables, focusIndex, activeTestId, installTabProbe, pressTracked, focusAt, walkTracked, findCycleProblems, exitProblems, walkCycle, OUT,
 } from './tab-focus.mjs';
 
 const HTML = `<!doctype html><body>
@@ -96,4 +97,91 @@ test('findCycleProblems を body から歩く始点（Tab は n-1・Shift+Tab �
   assert.ok(findCycleProblems([0, 0, 1, 2], 3, 2, 1).length > 0);
   assert.ok(findCycleProblems([2, 2, 1, 0], 3, 0, -1).length > 0);
   assert.ok(findCycleProblems([0, 1, 1, 2], 3, 2, 1).length > 0);
+});
+
+test('exitProblems は期待どおりの退出を受理し、食い違いを検出する', () => {
+  const ok = { before: 1, after: 2, prevented: [false], value: 'x', expectedValue: 'x' };
+  assert.deepEqual(exitProblems(ok), []);
+  assert.ok(exitProblems({ ...ok, prevented: [true] }).length >= 1);
+  assert.ok(exitProblems({ ...ok, prevented: [] }).length >= 1);
+  assert.ok(exitProblems({ ...ok, after: 1 }).length >= 1);
+  assert.ok(exitProblems({ ...ok, after: 3 }).length >= 1);
+  assert.ok(exitProblems({ ...ok, after: OUT }).length >= 1);
+  assert.ok(exitProblems({ ...ok, value: 'y' }).length >= 1);
+  assert.ok(exitProblems({ ...ok, value: 'x\t', expectedValue: 'x\t' }).length >= 1);
+});
+
+test('exitProblems: 罠が無ければ [] で、Tab の握りつぶし（N1・N2 型）は検出される', async () => {
+  const page = await fresh();
+  await listFocusables(page);
+  await focusAt(page, 1);
+  const clean = await pressTracked(page, 'Tab');
+  assert.deepEqual(exitProblems({ ...clean, value: '', expectedValue: '' }), []);
+  await page.close();
+  for (const refocus of [false, true]) {
+    const trapped = await fresh();
+    await listFocusables(trapped);
+    await trapped.evaluate((r) => {
+      document.querySelector('[data-testid="b"]').addEventListener('keydown', (e) => {
+        if (e.key !== 'Tab') return;
+        e.preventDefault();
+        if (r) document.querySelector('[data-testid="b"]').focus();
+      });
+    }, refocus);
+    await focusAt(trapped, 1);
+    const r = await pressTracked(trapped, 'Tab');
+    assert.ok(exitProblems({ ...r, value: '', expectedValue: '' }).length >= 1, JSON.stringify(r));
+    await trapped.close();
+  }
+});
+
+test('walkCycle は一巡を受理し、前提（require・key）の不足は reject する', async () => {
+  for (const key of ['Tab', 'Shift+Tab']) {
+    const page = await fresh();
+    await listFocusables(page);
+    await focusAt(page, 0);
+    const r = await walkCycle(page, key);
+    assert.deepEqual(r.problems, [], JSON.stringify(r));
+    assert.equal(r.n, 3);
+    assert.equal(r.seq.length, 8);
+    assert.equal(r.start, 0);
+    await page.close();
+  }
+  const page = await fresh();
+  await assert.rejects(walkCycle(page, 'Tab', { require: ['nope'] }));
+  await assert.rejects(walkCycle(page, 'Enter'));
+  await page.close();
+});
+
+test('walkCycle は body から歩く（fromBody）。フォーカスが body に無ければ reject する', async () => {
+  // fill・focus を挟まない新しいページで歩く（blur の後も Chromium は直前の位置から Tab を始めるため）。
+  for (const key of ['Tab', 'Shift+Tab']) {
+    const page = await fresh();
+    const r = await walkCycle(page, key, { fromBody: true });
+    assert.deepEqual(r.problems, [], JSON.stringify(r));
+    assert.equal(r.start, key === 'Tab' ? 2 : 0);
+    await page.close();
+  }
+  const page = await fresh();
+  await page.focus('[data-testid="a"]');
+  await assert.rejects(walkCycle(page, 'Tab', { fromBody: true }));
+  await page.close();
+});
+
+test('walkCycle: 罠（Tab の握りつぶし・先頭へ戻す）は problems か prevented で検出される', async () => {
+  for (const refocus of [false, true]) {
+    const page = await fresh();
+    await page.evaluate((r) => {
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab' && e.target.getAttribute('data-testid') === 'c') {
+          e.preventDefault();
+          if (r) document.querySelector('[data-testid="a"]').focus();
+        }
+      }, true);
+    }, refocus);
+    await page.focus('[data-testid="a"]');
+    const r = await walkCycle(page, 'Tab');
+    assert.ok(r.problems.length >= 1 || r.prevented.some((p) => p === true), JSON.stringify(r));
+    await page.close();
+  }
 });
