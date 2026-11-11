@@ -86,6 +86,8 @@ cat <<'EOF'
   test-keydown-control         scripts/test-keydown-control.sh         action-keydown を外した写しで keydown の試験が正しい理由で失敗することの対照（遅い）
   test-chapter-key-control     scripts/test-chapter-key-control.sh     鍵を修正前の固定の文字列にした写しで章の試験が正しい理由で失敗することの対照（遅い）
   test-ime-sync-control        scripts/test-ime-sync-control.sh        反映の変換中の除外を外した写しで IME の試験が正しい理由で失敗することの対照（遅い）
+  test-ime-composing-control   scripts/test-ime-composing-control.sh   変換中の除外から Enter・Esc を外した写し（M1・M3）で ime-sentences を流し、M1 が誤送信の印つきで失敗し M3 が記録どおり生き残ることの対照（遅い）
+  test-lib-ime-control         scripts/test-lib-ime-control.sh         上の対照の判定と定義の解決の回帰テスト（ビルドなし）
   check-mutations              scripts/check-mutations.sh             変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）
   test-check-mutations         scripts/test-check-mutations.sh         変異注入の検査自体の回帰テスト
   check-wasm-size              scripts/check-wasm-size.sh              配信する設定の WASM の gzip -9 が 1 MB 以下であることの関門（遅い。CI の browser-test）

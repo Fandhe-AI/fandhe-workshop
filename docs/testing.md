@@ -13217,7 +13217,7 @@ product-redraw-shaped（描画部品の実際の形の行。`artifact-redraw-sha
 
 #### 範囲外
 
-- ブラウザの変異（B-M1・B-M3）を再現するスクリプトと Make のターゲット
+- ブラウザの変異（B-M1・B-M3）を再現するスクリプトと Make のターゲット（#2123 で足した。5.503）
 - 変異注入の CI への組み込み（TASK-33）
 - blur で印を下ろす処理（5.484 から引き継ぐ。#2121 で直した。5.502）
 - 試験の件数の期待値: `scripts/expected-test-counts.txt` は版上げ PR でだけ照合するため更新していない（試験は変えていない）
@@ -13583,3 +13583,21 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 - 順序の観察（O-1）: CDP の模擬では、変換中に欄を blur すると `compositionend` が先、`focusout` が後に届いた（Chromium）。どちらの順でも結果は変わらない設計である。
 - 既存の IME 系（ime-defer・ime-sentences・ime-input・draft-sync・submit-wiring・enter-submit）は変えずに 140 件全件合格した。
 - 限界: 実 IME・Firefox・Safari では未確認（TASK-93）。ウィンドウの切り替えで変換が続く IME では戻った後に印が下りているが、その間の Enter はイベント自身の `isComposing`・keyCode 229 で除外される（試験していない）。補完の配送が `compositionstart` より前に適用され、書き戻しのタイマーが変換の開始より後に動く競合は #1510 と同じ扱いである。操作を受け付けない分岐（表示だけの履歴など）で `Complete` が書き戻しを頼む経路は変えていない。
+
+### 5.503 変換中の判定の変異 M1・M3 のブラウザでの再現スクリプトと、誤送信の件数の文言（#2123。JUDGE-14・JUDGE-16。5.486 の続き）
+
+目的は、5.486 で手で確かめたブラウザの変異 B-M1・B-M3 を 1 コマンドで再現できるようにし、B-M1 の失敗を誤送信の件数として読めるようにし、B-M3 の検出力の限界を記録することである。実行日 2026-11-11、元にしたコミット ff704619、ブラウザは同梱の Chromium（Linux）。
+
+- 再現: `make test-ime-composing-control`（`scripts/test-ime-composing-control.sh`。遅く、CI・フックには入れない）。M1・M3 の定義の正は `crates/contract/tests/mutations/` の `JUDGE14-2.mutation`・`JUDGE16-1.mutation` で、FIND・REPLACE はそこから読む。`mktemp -d` の写しに 1 か所だけ置換し（作業ツリーは書き換えない）、配信する設定と試験の設定の 2 つをビルドして `ime-sentences` を流す（`CARGO_TARGET_DIR` は共有）。判定の関数は `scripts/lib-ime-control.sh`、その回帰テストは `make test-lib-ime-control`（ビルドなし。CI の `check` ジョブが流す）。
+- 終了コード: 0 = M1 が印つきで失敗し M3 が記録どおり生き残った / 1 = M1 が不成立 / 2 = 誤用・前提の不足・ビルドの失敗・別の理由での失敗 / 3 = M3 が記録と食い違う（検出された）。
+- 印 `IME-MIS-SEND`: `ime-sentences` の S-A で、誤送信の assert を `assertComposingKeydown` より先に置き、文言を `IME-MIS-SEND 誤送信 <n> 件 …` にした。判定は件数が 1 以上の形だけを成立と数える（テスト名の「誤送信 0 件」に一致しない）。試験の件数は 22 のまま。
+- 実行の記録（終了コード 0）:
+  - M1: S-A の 6 件と集計が失敗した。印つきで落ちたのは下書き 1 行・複数行 × CSP あり・なしの 4 件（S-01 で誤送信 1 件）。下書きなしの 2 件は、`host.rs` の `submit` が空の下書きを送らないため誤送信が 0 のまま、`defaultPrevented` の表明で落ちた（印なし）。判定は印つきが 1 件以上あれば成立とした。
+  - M3: 全件合格（生き残り。5.486 と同じ）。
+- M3 の検出力の限界: 上流 `fandhe-frontend-wasm-full` 0.46.0（`Cargo.lock`）の `action_from_keydown` が `is_composing_keydown` で変換中の keydown を先に除くため、契約の Esc の除外を外してもブラウザでは観察できない。上流の除外を外した場合の検出力は、上流 crate が repo の外にあり写しでは変えられないため示せない（記録だけで、vendoring や `[patch]` はしない）。Esc の除外の検出先は native の `JUDGE16-1`〜`JUDGE16-3` である。
+- 証拠の種類: CDP の模擬（シミュレーター）であり、実 IME でも人の評価でもない。実 IME（TASK-93／BUILD-18）は未実施。作成者と実装者が同じ AI である。
+
+#### 範囲外
+
+- 変異注入の CI への組み込み（TASK-33）
+- S-B・S-C の assert の順の変更

@@ -38,6 +38,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── help.sh / doctor.sh / setup.sh / check.sh
 │   ├── test-keydown-control.sh # action-keydown を外した対照の検査（make test-keydown-control）
 │   ├── test-chapter-key-control.sh # 鍵を修正前の固定の文字列にした対照の検査（make test-chapter-key-control）
+│   ├── test-ime-composing-control.sh # 変換中の除外から Enter・Esc を外した対照の検査（make test-ime-composing-control。M3 はブラウザで生き残る記録の再現。判定は lib-ime-control.sh、回帰テストは test-lib-ime-control.sh）
 │   ├── test-ime-sync-control.sh # 反映の変換中の除外を外した対照の検査（make test-ime-sync-control）
 │   ├── check-mutation-defs.sh # 変異の定義の find の一意性と expect-fail の名前の実在の静的検査（make check に含む。回帰テストは test-check-mutation-defs.sh。共有は lib-mutations.sh）
 │   ├── check-ignored-tests.sh # clean-room の無視してよい試験の一覧（ALLOWED_IGNORED）と crates/ の #[ignore] の現物の照合（make check に含む。回帰テストは test-check-ignored-tests.sh。#2045）
@@ -153,6 +154,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-build-pack-release` | 上の作成スクリプトの回帰テスト（偽の実行ファイル。ビルドなし。CI の `check` ジョブが流す） |
 | `make test-build-pack-bin` | `fandhe-pack` の前提バイナリの解決が `CARGO_TARGET_DIR` に追従することの回帰テスト（遅く、CI・フックには入れない） |
 | `make test-chapter-key-control` | 鍵を修正前の固定の文字列にした写しで、章の試験（`chapter-keys`）が「先の章の履歴が出た」理由で失敗することの対照（遅く、CI・フックには入れない） |
+| `make test-ime-composing-control` | 変換中の除外から Enter（M1）・Esc（M3）を外した写しで `ime-sentences` を流し、M1 が印 `IME-MIS-SEND` つきで失敗し M3 が記録どおり生き残ることの対照（遅く、CI・フックには入れない。#2123。`docs/testing.md` 5.503） |
+| `make test-lib-ime-control` | 上の対照の判定と定義の解決の回帰テスト（ビルドなし。CI の `check` ジョブが流す） |
 | `make test-ime-sync-control` | 反映の変換中の除外（`glue.rs` の `sync_draft` の先頭）を外した写しで、`ime-reload-flood` の試験が印 `IME-COMPOSING-LOST` つきで失敗することの対照（変異 M2。遅く、CI・フックには入れない。TASK-355 2/2） |
 | `make test-keydown-control` | `action-keydown` を外した写しで keydown の試験が正しい理由で失敗することの対照（遅く、CI・フックには入れない） |
 | `make check-toolchain` | 固定ファイルの版・README の「前提」の表と `docs/toolchain.md` の一致の検査 |

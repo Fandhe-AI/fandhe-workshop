@@ -310,6 +310,8 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-build-pack-release` | `scripts/test-build-pack-release.sh` | 上の作成スクリプトの回帰テスト（偽の実行ファイル。ビルドなし。CI の `check` ジョブが流す） |
 | `make test-build-pack-bin` | `scripts/test-build-pack-bin.sh` | `fandhe-pack` の前提バイナリの解決が `CARGO_TARGET_DIR` の別置きと既定の両方で動くことの回帰テスト（遅く、CI・フックには入れない） |
 | `make test-chapter-key-control` | `scripts/test-chapter-key-control.sh` | 鍵を修正前の固定の文字列にした写しで、章の試験（`chapter-keys`）が「先の章の履歴が出た」理由で失敗することの対照。依存を冷えた状態からビルドするため遅く、CI・フックには入れません |
+| `make test-ime-composing-control` | `scripts/test-ime-composing-control.sh` | 変換中の除外から Enter（M1）・Esc（M3）を外した写しで `ime-sentences` を流し、M1 が印 `IME-MIS-SEND` と誤送信の件数つきで失敗し、M3 が記録どおり（上流の除外のため）生き残ることの対照（遅く、CI・フックには入れない。#2123。`docs/testing.md` 5.503） |
+| `make test-lib-ime-control` | `scripts/test-lib-ime-control.sh` | 上の対照の判定と定義の解決の回帰テスト（ビルドなし。CI の `check` ジョブが流す） |
 | `make test-ime-sync-control` | `scripts/test-ime-sync-control.sh` | 反映の変換中の除外（`glue.rs` の `sync_draft` の先頭）を外した写しで、`ime-reload-flood` の試験が印 `IME-COMPOSING-LOST` つきで失敗することの対照（変異 M2。遅く、CI・フックには入れない。TASK-355 2/2） |
 | `make test-keydown-control` | `scripts/test-keydown-control.sh` | `action-keydown` を外した写しで keydown の試験が「キーが届かない」理由で失敗することの対照。依存を冷えた状態からビルドするため遅く、CI・フックには入れません |
 | `make build-web` | `tools/build-web.sh` | web を wasm にビルドして `dist/web` に配る一式を作る（`TEST_HOOKS=1` で試験の設定、`IR_FILE` で IR を同梱） |

@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help check-engine-zero-diff test-check-engine-zero-diff check-second-pack test-check-second-pack check-second-pack-repro test-check-second-pack-repro check-third-pack test-check-third-pack doctor setup check test-hooks lint fmt test check-deps test-check-deps check-license test-check-license check-no-egress check-no-egress-dist test-check-no-egress check-testdata test-check-testdata check-sibling-free test-check-sibling-free check-mutation-defs test-check-mutation-defs check-ignored-tests test-check-ignored-tests check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 update-l2 test-update-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin build-pack-release test-build-pack-release build-pack-preview test-build-pack-preview check-choice-journey test-check-choice-journey test-keydown-control test-chapter-key-control test-ime-sync-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items measure-first-paint-direct measure-ir-memory test-measure-ir-memory test-measure test-measure-result clean-room test-clean-room check-build-inventory test-check-build-inventory check-generic-words test-check-generic-words test-browser-durations check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
+.PHONY: help test-ime-composing-control test-lib-ime-control check-engine-zero-diff test-check-engine-zero-diff check-second-pack test-check-second-pack check-second-pack-repro test-check-second-pack-repro check-third-pack test-check-third-pack doctor setup check test-hooks lint fmt test check-deps test-check-deps check-license test-check-license check-no-egress check-no-egress-dist test-check-no-egress check-testdata test-check-testdata check-sibling-free test-check-sibling-free check-mutation-defs test-check-mutation-defs check-ignored-tests test-check-ignored-tests check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 update-l2 test-update-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin build-pack-release test-build-pack-release build-pack-preview test-build-pack-preview check-choice-journey test-check-choice-journey test-keydown-control test-chapter-key-control test-ime-sync-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items measure-first-paint-direct measure-ir-memory test-measure-ir-memory test-measure test-measure-result clean-room test-clean-room check-build-inventory test-check-build-inventory check-generic-words test-check-generic-words test-browser-durations check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -228,6 +228,12 @@ test-keydown-control: ## action-keydown を外した写しで keydown の試験�
 
 test-chapter-key-control: ## 鍵を修正前の固定の文字列にした写しで章の試験が正しい理由で失敗することの対照（遅い）。直接: scripts/test-chapter-key-control.sh
 	@scripts/test-chapter-key-control.sh
+
+test-ime-composing-control: ## 変換中の除外から Enter・Esc を外した写し（M1・M3）で ime-sentences を流し、M1 が誤送信の印つきで失敗し M3 が記録どおり生き残ることの対照（遅い）。直接: scripts/test-ime-composing-control.sh
+	@scripts/test-ime-composing-control.sh
+
+test-lib-ime-control: ## 上の対照の判定と定義の解決の回帰テスト（ビルドなし）。直接: scripts/test-lib-ime-control.sh
+	@scripts/test-lib-ime-control.sh
 
 test-ime-sync-control: ## 反映の変換中の除外を外した写しで IME の試験が正しい理由で失敗することの対照（遅い）。直接: scripts/test-ime-sync-control.sh
 	@scripts/test-ime-sync-control.sh
