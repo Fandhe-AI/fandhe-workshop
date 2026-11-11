@@ -210,7 +210,8 @@ export function keyOnlyDriver(page) {
 }
 
 // 教材テスト（fandhe-pack test）の 1 操作（play_script の記法を JSON にしたもの）を、ドライバの操作に写す。2/2 への引き継ぎ口。
-// cmd・text → send（改行は Shift+Enter で区切る）、choice → choose、ui（"<ビュー ID> <path>"）→ point、approval（`approval: approve|reject|revise` と兄弟の `target`）→ decide か revise（target つき）、
+// cmd・text → send（改行は Shift+Enter で区切る。YAML の `|` が付ける末尾の改行 1 つは除いてから分ける。
+// 教材テスト側は値をそのまま core へ渡すが、判定は text を trim し cmd を空白で分けるので、末尾の改行は結果を変えない）、choice → choose、ui（"<ビュー ID> <path>"）→ point、approval（`approval: approve|reject|revise` と兄弟の `target`）→ decide か revise（target つき）、
 // cancel → esc、tick → キーを押さない（画面が進行を自動で進める。観察は呼び出し側）。期待（expect）の判定と YAML の読み込みは含めない。
 // viewKind は、ビュー ID から種類への写し（IR の views から呼び出し側が作る）。知らない鍵・2 つの鍵は例外にする。
 export async function playStep(driver, step, { viewKind = () => undefined } = {}) {
@@ -221,7 +222,7 @@ export async function playStep(driver, step, { viewKind = () => undefined } = {}
   switch (k) {
     case 'cmd':
     case 'text': {
-      const lines = String(v).split('\n');
+      const lines = String(v).replace(/\n$/, '').split('\n');
       if (lines.length === 1) return driver.send(lines[0]);
       assert.equal(lines.length, 2, 'only two-line input is supported');
       return driver.sendMultiline(lines[0], lines[1]);

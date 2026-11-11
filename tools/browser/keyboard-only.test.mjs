@@ -111,14 +111,19 @@ test('U3: playStep は 7 種の入力をドライバの操作に写す', async (
   await playStep(d, { cancel: true });
   await playStep(d, { tick: true });
   await playStep(d, { cmd: 'x', expect: {} });
+  // YAML の `|` のように末尾に改行が付いた値。末尾の改行 1 つは行に数えない。
+  await playStep(d, { text: 'a\nb\n' });
+  await playStep(d, { cmd: 'a\n' });
   assert.deepEqual(seen, [
     ['send', '/help'], ['sendMultiline', 'a', 'b'], ['choose', 'opt-a'], ['point', 'cards/notice', 'document'],
     ['decide', 'approve'], ['revise', 't-1'], ['esc'], ['send', 'x'],
+    ['sendMultiline', 'a', 'b'], ['send', 'a'],
   ]);
+  await assert.rejects(() => playStep(d, { text: 'a\nb\nc\n' }), /only two-line input/);
   await assert.rejects(() => playStep(d, { unknown: 1 }), /unknown play step key/);
   await assert.rejects(() => playStep(d, { cmd: 'a', choice: 'b' }), /one operation key/);
   await assert.rejects(() => playStep(d, { approval: 'maybe' }), /approval must be/);
-  console.log('U3: 8 種の写しと例外 3 つ');
+  console.log('U3: 8 種の写しと末尾の改行 2 つと例外 4 つ');
 });
 
 // 試験の設定の画面を、計数つきの context で開く。幅は 1280px。
