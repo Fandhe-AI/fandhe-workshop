@@ -13893,13 +13893,13 @@ TERM の対応（`auto` は束のファイルが判定つきで確かめる。`p
 
 実測（2026-11-12）: 静的な検査と回帰テストは合格。`make test-right-pane` の実行は、この作業環境に `node_modules/playwright` が無く流せなかった（未検証）。実測は 5.514 で行った。
 
-限界: 件数の基準は 5.514（2/3）で記録した。置き換えの前後の比較は 3/3 が行う。`modifier-enter-paste-st14.test.mjs` の Shift+Enter の観察のコメントは TERM-13 と書くが、中身は TERM-2 に当たる（束の根拠にはしていない）。人の確認と TERM-13 の判定は束の外。
+限界: 件数の基準は 5.514（2/3）で記録した。置き換えの前後の比較は 5.515（3/3）で行った。`modifier-enter-paste-st14.test.mjs` の Shift+Enter の観察のコメントは TERM-13 と書くが、中身は TERM-2 に当たる（束の根拠にはしていない）。人の確認と TERM-13 の判定は束の外。
 
 範囲外: `scripts/expected-test-counts.txt`（試験ファイルを足していないため合計は変わらない）。
 
 ### 5.514 右の画面の試験の束の件数の基準（TASK-458 2/3。TERM-40。#1004。5.513 の続き）
 
-目的: 入力欄のキー処理の受け持ちを変える作業の前後で比べられるよう、現状の glue で 5.513 の束を流した件数を基準として固定する。現状の glue は D-42 の案 (c)（維持）の形で、上流の口への置き換えは起きない（5.92）。前後の比較は 3/3（#1005）が行う。実装日 2026-11-12。製品のコードと `scripts/expected-test-counts.txt` は変えない（変えると `check-frontend-bump.sh counts` が全体の件数の照合を始め、古い期待値との差で落ちるため）。
+目的: 入力欄のキー処理の受け持ちを変える作業の前後で比べられるよう、現状の glue で 5.513 の束を流した件数を基準として固定する。現状の glue は D-42 の案 (c)（維持）の形で、上流の口への置き換えは起きない（5.92）。前後の比較は 5.515（3/3。#1005）で行った。実装日 2026-11-12。製品のコードと `scripts/expected-test-counts.txt` は変えない（変えると `check-frontend-bump.sh counts` が全体の件数の照合を始め、古い期待値との差で落ちるため）。
 
 基準の置き場: `tools/browser/suites/right-pane-baseline.txt`（束の定義の隣。一か所の正）。`suite|` の行（束のファイル数・screen・helper。定義とのずれを検出する）と `browser|total|` の行（`check-frontend-bump.sh normalize browser` の出力そのもの）の 2 行。静的な整合は `scripts/check-right-pane-suite.sh` の R8（`make check` に含む）が確かめ、回帰テストは `make test-check-right-pane-suite`（62 件）。
 
@@ -13929,3 +13929,39 @@ scripts/check-frontend-bump.sh normalize browser <tap>
 - 作業環境の `/tmp`（tmpfs）で 1 回目の実行が `EIO`（入出力エラー）で 44 件失敗した。`TMPDIR` をディスク上に変えた 2 回目は全件合格した。基準は 2 回目の値。環境の問題で、試験の欠陥とは判断していない。
 
 範囲外: 束の拡張（上記の外の試験を入れるかの判断は 3/3 か別の Issue）。
+
+### 5.515 右の画面の試験の束の置き換えの前後の比較（TASK-458 3/3。TERM-40。#1005。5.514 の続き）
+
+目的: 入力欄のキー処理の受け持ちの置き換えの前後で、5.513 の束が同じ件数で通ることを確かめる。実装日 2026-11-12。製品のコード・試験・`scripts/expected-test-counts.txt`・基準のデータ行は変えない。
+
+置き換えは起きていない。TASK-352 は D-42 の案 (c)（glue を維持する）で閉じており（5.91・5.92）、`bce13df0` 以降も `crates/` の差分は 0 行で、`glue.rs`・`key_route.rs` に触れる変更も無い。このため「前」は 5.514 の基準（`bce13df0` で流した 194 件）、「後」はこの作業の起点（`9226c10b`）で同じ手順を流し直した結果とした。束の試験の多くは TASK-352 の完了より後に足されたため、TASK-352 より前のコミットでは束を流せない。この比較が示すのは、基準を取った後も受け持ちが変わらず、束が同じ件数で通ることまでである。
+
+条件（2026-11-12）: 「後」のコミット `9226c10b`・Linux x86_64・node v24.16.0・Playwright 1.63.0（channel 未指定）・`SKIP_WASM_OPT=1`・`TMPDIR` はディスク上。実行したコマンド:
+
+```text
+FANDHE_TEST_TAP_OUT=<tap> FANDHE_TEST_JUNIT_OUT=<xml> make test-right-pane
+scripts/check-frontend-bump.sh normalize browser <tap>
+```
+
+| 時点 | コミット | `browser\|total\|` の行 |
+|---|---|---|
+| 前（5.514 の基準） | `bce13df0` | `tests=194\|pass=194\|skipped=0\|todo=0\|cancelled=0` |
+| 後 | `9226c10b` | `tests=194\|pass=194\|skipped=0\|todo=0\|cancelled=0` |
+
+基準のファイルの同じ行との `diff` は差なし。junit の testcase をファイルごとに数えた内訳も、5.514 の参考の内訳（15 ファイル）とすべて一致した。
+
+基準からの差分: `git diff --stat bce13df0..HEAD -- crates/ Cargo.toml Cargo.lock tools/browser/ scripts/test-right-pane.sh` は 5.514 の基準のファイルと束の定義のコメントだけで、`crates/` は 0 行。`git log bce13df0..HEAD -- crates/web/src/glue.rs crates/web/src/key_route.rs` は 0 件。`glue.rs` は 909 行、`key_route.rs` は 553 行。
+
+負の対照（glue の変更を入れて束が失敗することの確認）は、この作業では未実施。5.91 に前例がある。
+
+親 #1002 の受け入れ条件との対応:
+
+| 条件 | 記録 |
+|---|---|
+| 束ねた試験の件数が基準として記録される | 5.514 と `right-pane-baseline.txt` |
+| TASK-352 の置き換えの前後で同じ件数が通る | 本節の表（置き換えが無いため、基準の後の同一性として確かめた） |
+| 基準に TERM-1〜TERM-14・TERM-23 の項目がすべて含まれる | 5.513 と R6 |
+
+限界: 比較は置き換えの成否ではない。件数は PoC の 148 項目・52 項目そのものではない（BUILD-14）。TERM-4・TERM-5・TERM-12・TERM-13 は proxy で、人の確認は束の外。Chromium 以外と `wasm-opt` 適用後は未測定。束は CI・フックに入れていない。置き換えが将来起きた場合は、本節と同じ手順で比べ直す。
+
+範囲外: 束の拡張（B-*・OS-*・FLOOD・R-19 に当たる試験）。比較の自動化。`modifier-enter-paste-st14.test.mjs` のコメントの TERM-13 の誤記。TERM-13 の Tab の回数の判定（TASK-374）。
