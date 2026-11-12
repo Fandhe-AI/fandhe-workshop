@@ -22,7 +22,7 @@
 | 区分 | 試験ファイル | 主な試験関数 | ビヘイビア |
 |---|---|---|---|
 | 進行管理 | `crates/core/tests/fast_forward.rs` | `fast_forward_matches_tick_by_tick`・`fast_forward_records_same_ops`・`fast_forward_stop_midway_restores_entry`・`fast_forward_keeps_point_at_scene` | 進行の連続適用（EVT-17） |
-| 進行管理 | `crates/core/tests/fast_forward_on_off.rs` | `on_off_fixed_st1`・`on_off_identity_property`・`on_off_script_specs` | 早送りの入・切の同一性（EVT-27） |
+| 進行管理 | `crates/core/tests/fast_forward_on_off.rs` | `on_off_fixed_st1`・`on_off_identity_property`・`on_off_script_specs`・`ops_identity_fixed_st1`・`toggle_fixed_st1`・`fast_forward_when_idle_records_nothing` | 早送りの入・切の同一性（EVT-27）・`ops` の一致・列の途中の切り替え（D-54） |
 | 進行管理 | `crates/core/tests/tick_progress.rs` | `matching_tick_advances_once`・`duplicate_index_advances_once` | 進行の照合と重複の無視 |
 | 進行管理 | `crates/core/tests/generation_keep.rs` | `keep_on_accept`・`keep_on_confirm_achieve` | 世代の維持 |
 | 進行管理 | `crates/core/tests/busy_resend.rs` | `burst_of_20_accepts_once_and_rejects_19_as_busy` | 処理中の再送 |
@@ -13791,3 +13791,28 @@ EVT27-3 は当初 `on_off_fixed_st1` も期待したが、固定例では読み�
 限界: core に時刻が無いため間隔そのものの比較は扱わない。web の `artifact_rows` までの左の行は core では扱わない。
 
 範囲外: 履歴の `ops` の一致と列の途中の入・切の切り替え（TASK-228 2/2）、画面を通した確認（TASK-542）、進行の間隔の既定（TASK-229）。
+
+### 5.510 早送りの入・切と列の途中の切り替えでの `ops` の一致の試験と変異注入（TASK-228 2/2。EVT-27。#943）
+
+実行日: 2026-11-12。元にしたコミット: `7c6b5c5a`（作業ツリーの変更つき）。開発機（Linux x86_64）。
+
+目的は、5.509 の入・切の同一性に、履歴の入力の列（`ops`）の一致と、列の途中で入・切を切り替えた列（mixed）が切り替えない列と同じ結果になることを足すことである。決定 D-54 の「入れない案」に沿い、早送りの入・切そのものは `ops` に入れず、早送りを使った痕跡は保存用の包みにも書き出しにも残らない（SESS-6）。
+
+- 試験: `crates/core/tests/fast_forward_on_off.rs`（10 件。5.509 の 7 件に、固定例 3 本を追加）。5.509 の性質テスト 5 本と固定列は、操作ごとの比較に次を足した。
+  - `ops` の一致（入・切・mixed）、保存用の包みの一致、書き出しのバイト列の一致
+  - mixed の状態・進行の宛先と数・`Changed` の列・印・復習の一致
+  - 列の終わりで `history_replay::replay` が mixed の `ops` から同じ状態へ戻せること
+- 切り替えの予定は、操作ごとに「最初の向き」と「区切りの長さ（0〜3）の 0〜2 個」で表し、予定は 1〜7 操作分を巡回して使う。区切るたびに入（上限つきの連続適用）と切（1 件ずつ）を入れ替え、最後は入で終わりまで流す。
+- 固定例: `ops_identity_fixed_st1`（受付 1 + 進行 5 の 6 件）、`toggle_fixed_st1`（切 2 件 → 入、入（上限 2）→ 切 → 入）、`fast_forward_when_idle_records_nothing`（処理中でない連続適用は何も記録しない）。
+- 空振りの確認として、1 つの処理中の区間で入と切の両方が進行を適用した例が 1 件以上あることを、各性質テストの終わりに `assert!` する。
+
+| 変異 | 対象 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|
+| EVT27-4 | `recorded_session.rs`: 連続適用の進行を `ops` に記録しない | `ops_identity_fixed_st1`・`on_off_identity_property` ほか | 検出 |
+| EVT27-5 | `recorded_session.rs`: 早送りを呼ぶたびに記録を 1 件足す（入・切を履歴に入れた効果） | `toggle_fixed_st1`・`on_off_identity_property` ほか | 検出 |
+
+EVT27-5 は `OpsRecorder::reload` が常に 1 件追記するため、処理中でないときに `fast_forward` を直接呼ぶ `fast_forward_when_idle_records_nothing` も失敗する（`mixed_run` は処理中でないと `fast_forward` を呼ぶ前に抜けるため、直接呼ぶ形にした）。既存の EVT27-1〜3・EVT17-1 も引き続き検出される。`CONTRACT_VERSION` と `scripts/expected-test-counts.txt` は変えていない。
+
+限界: core に時刻が無いため間隔そのものの比較は扱わない。画面の切り替え（SHELL-24 以降）は未実装で、web のホストでの結線は扱わない。
+
+範囲外: 画面を通した確認（TASK-542）、進行の間隔の既定（TASK-229）。
