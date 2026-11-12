@@ -8,7 +8,7 @@
 //   C3 開始点ごとに C1・C2（入力欄の無い Step でも成り立つ）。
 // Tab の出入り（K-01・K-03・K-05・K-06・K-08）は tab-exit.test.mjs、K-07（変換中の Tab）は candidates.test.mjs（合成の isComposing）と
 // ime-input.test.mjs の I-4（CDP の模擬）が担当する。対応表は docs/testing.md 5.497。
-// 範囲外: 一覧が開いた状態の Tab（順方向）の一巡（補完が挟まる。TASK-451）・幅 959px 以下（shell-boundary）・実 IME と人の確認（TASK-93・TASK-386）。
+// 一覧が開いた状態の Tab（順方向）の一巡と部品がそろった画面での再確認は tab-parts.test.mjs（TASK-451）。範囲外: 幅 959px 以下（shell-boundary）・実 IME と人の確認（TASK-93・TASK-386）。
 // 対照として、罠と配置の変更を試験のページの中だけに入れ、判定が検出することを確かめる（配信物には残さない）。
 // R4 の tabindex=-1 の付与は、入力欄を最初の操作対象にするための試験のページの中の配置の変更であり、観察の口ではない。
 //
@@ -20,7 +20,7 @@ import {
   launchBrowser, channelFromEnv, withServer, withCspMode, openPage, waitMounted, summarize,
 } from './harness.mjs';
 import {
-  OUT, listFocusables, installTabProbe, pressTracked, walkCycle, focusAt,
+  OUT, listFocusables, installTabProbe, pressTracked, walkCycle, focusAt, reverseProblems,
 } from './tab-focus.mjs';
 import { startLinksOf } from './author-preview.mjs';
 
@@ -47,17 +47,6 @@ before(async () => {
 after(async () => {
   if (browser) await browser.close();
 });
-
-// 欄で Shift+Tab を 1 回押したときの問題の一覧を返す。空なら期待どおり（preventDefault なし・expectedAfter へ移動・値が不変）。
-export function reverseProblems({ before: from, after: to, prevented, value, expectedValue, expectedAfter }) {
-  const problems = [];
-  if (prevented.length !== 1 || prevented[0] !== false) problems.push(`Shift+Tab was prevented or not seen: ${JSON.stringify(prevented)}`);
-  if (typeof from !== 'number') problems.push(`focus did not start on a listed element: ${from}`);
-  else if (to !== expectedAfter) problems.push(`focus did not move to ${expectedAfter}: ${from} -> ${to}`);
-  if (value !== expectedValue) problems.push('draft value changed (completion?)');
-  if (value.includes('\t')) problems.push('tab character entered the draft');
-  return problems;
-}
 
 async function open(srv, start = 's-1-1') {
   const opened = await openPage(browser, { origin: srv.origin, viewport: { width: 1024, height: 768 } });
@@ -288,16 +277,4 @@ test('N4 欄が最初の操作対象で Shift+Tab を捕まえる罠: body へ�
     assert.ok(problems.length >= 1, JSON.stringify(r));
     await context.close();
   }));
-});
-
-test('reverseProblems は期待どおりを受理し、食い違いを拒否する', () => {
-  const ok = { before: 5, after: 4, prevented: [false], value: '/he', expectedValue: '/he', expectedAfter: 4 };
-  assert.deepEqual(reverseProblems(ok), []);
-  assert.deepEqual(reverseProblems({ ...ok, before: 0, after: OUT, expectedAfter: OUT }), []);
-  assert.ok(reverseProblems({ ...ok, prevented: [true] }).length > 0);
-  assert.ok(reverseProblems({ ...ok, prevented: [] }).length > 0);
-  assert.ok(reverseProblems({ ...ok, after: 5 }).length > 0);
-  assert.ok(reverseProblems({ ...ok, after: OUT }).length > 0);
-  assert.ok(reverseProblems({ ...ok, value: '/help' }).length > 0);
-  assert.ok(reverseProblems({ ...ok, value: '/he\t', expectedValue: '/he\t' }).length > 0);
 });

@@ -13489,7 +13489,7 @@ PoC-2 は update のたびに欄へ反映したので、ログの追加が M2 �
 | K-08 | `/help` で Tab → 次の要素 | `tab-exit` X3（`candidates`） |
 | K-15 | 先頭から両方向に全要素を通り行き止まりなし | `tab-trap` C1・C2・C2b・C3（IR なしの画面は `tab-cycle`） |
 
-- 未実施: K-07 を試験用の口が無い製品の画面で流すこと（変換中の判定は試験の設定の画面で確かめた経路と同じ glue。製品の画面での再確認は TASK-451 の担当に含める）。一覧が開いた状態の Tab（順方向）の一巡（補完が挟まる。TASK-451）
+- 未実施: K-07 を試験用の口が無い製品の画面で流すこと（変換中の判定は試験の設定の画面で確かめた経路と同じ glue。製品の画面での再確認は TASK-451 の担当に含める）。一覧が開いた状態の Tab（順方向）の一巡（補完が挟まる。TASK-451）。どちらも 5.512 で回収した
 - 限界: ブラウザは Chromium だけ、幅は 1024px だけ（360px の tablist は `shell-boundary`）。R4 は試験のページの中の配置の変更による観察。実 IME・人の確認・Windows は扱わない。自動の操作の証拠で人の評価ではない
 
 ### 5.498 幅 360px で枠の部品が欠けない試験（TASK-518 1/2。SHELL-3。#1018）
@@ -13837,3 +13837,24 @@ EVT27-5 は `OpsRecorder::reload` が常に 1 件追記するため、処理中�
 未実施: 実 IME（macOS の日本語入力・Chrome。TASK-93・BUILD-18）・Firefox・Safari・人の確認。M1・M3 の対照（`make test-ime-composing-control`）は `ime-sentences` だけを対象にし、本試験には広げていない。
 
 範囲外: 結果の仕様への反映（TASK-459）、`scripts/expected-test-counts.txt` の更新。
+
+### 5.512 部品がそろった画面での Tab・Shift+Tab の結果（TASK-451。TERM-10・JUDGE-19・A11Y-16。#991。5.496・5.497 の続き）
+
+目的: 選択肢・承認のボタンなど右のエリアの部品が増えた本体の画面で、入力欄の Tab・Shift+Tab の結果（補完か通常の移動か・body への退出・一巡で行き止まりが 0 件）を再確認する。あわせて、5.497 が TASK-451 へ先送りした 3 件（一覧が開いた欄からの順方向の一巡・K-07 を試験用の口の無い画面で・部品がそろった画面での再確認）を回収する。実行日 2026-11-12、元にしたコミット 4b163a18。製品のコードは変えない。
+コマンド: `FANDHE_WEB_DIR=<配信する設定（IR なし）> node --test tools/browser/tab-parts.test.mjs`（47 件合格、約 21 秒。Chromium）。部品の移設に伴い `tab-focus.test.mjs`（14 件）・`tab-trap`・`tab-exit`・`tab-cycle`・`shift-tab` も合格（計 75 件）。
+
+- 画面: 配信する設定の写しに、開始点 `s-1-1`・`s-1-5`・`s-1-6`・`s-2-6`（effects なし）を足した IR を `ir/main.json` として置き、`?start=` で開く。試験用の口は使わず、`window.__fandheTest` が undefined であることを毎回確かめる。CSP あり・なし。幅 1024px
+- 場面（部品は製品の表示条件で排他になるため、全部品が 1 画面にそろう場面は作れない）: W1 `s-1-1` command の入力待ち、W2 `s-1-6` choice の入力待ち（`choice-btn` ×2）、W3 W2 で選択肢を押した answer の確認待ち、W4 `s-2-6` approval の入力待ち（`approval-btn` ×4）、W5 W4 で対象つきの「直す」を押した approve の確認待ち（`approval-btn` ×3）。W3・W5 の準備は実クリックと DOM の待ちだけ（固定の sleep なし）
+- 各場面で、空欄・`/zzz`・`/help`・Esc で閉じた `/he` の欄は Tab で 1 つ次、Shift+Tab で 1 つ前へ移り、preventDefault なし・値不変・ログの行は増えない（K-01・K-04・K-05・K-06・K-08）。一覧が開いた `/he` は、Tab の 1 回目が補完（preventDefault された 1 回・フォーカスは欄に残る・値 `/help`）、2 回目が通常の移動、Shift+Tab は補完せず 1 つ前（K-03・K-04）。判定は `tab-focus.mjs` の `exitProblems`・`reverseProblems`・新設の `completionProblems`
+- 一巡（K-15）: 欄から Tab・Shift+Tab を 2 周ぶん押すと、全要素を通り行き止まりと preventDefault が 0 件。一覧が開いた欄で補完した後の Tab の一巡も同じ（1 回目の補完は罠ではないため、歩行の前に分けて確かめる）。観察した順: 上部の `checkpoint-save`・（`hint-open`）・`shell-delete`・`shell-export`・読み込みの `INPUT`・`view-select-button` ×7・（確認待ちでは左の指せる行 `LI`）・`draft-input`・`submit-input`・`os-select`・`stop-btn`・`choice-btn` または `approval-btn`。`candidate-btn` は一覧が開いていても順に入らない
+- body への退出: 欄の前を試験のページの中だけ `tabindex=-1` にして欄を先頭にした配置（B）では、Shift+Tab は preventDefault されず body へ出る。配置を変えない画面では欄の前に 11〜13 個の操作対象があり、欄からの Shift+Tab は body へ出ない（B0 の記録）。そのままの画面で body へ出るのは、実際の最初の操作対象（`checkpoint-save`）からの Shift+Tab である。TERM-10 の「入力欄が最初の操作対象のため」は、そのままの画面では成り立たない点を記録する（仕様側の書き直しは spec repo の担当）
+- K-07: W1 で `/he` を入れ、CDP の模擬で変換中の Tab を送ると、keydown が 1 件で `isComposing` が真・preventDefault なし、値に `/help` が入らない。CSP あり・なしで 1 件ずつ
+- 対照（CSP あり）: N1 選択肢のボタンの Tab を捕まえる罠・N2 承認のボタンの Tab を捕まえて自分へ戻す罠・N3 停止のボタンの Shift+Tab を捕まえる罠を、欄からの一巡が検出する。N4 欄の補完を `stopImmediatePropagation` で打ち消すと `completionProblems` が不合格にする。N5 最初の操作対象の欄で Shift+Tab を捕まえる罠を `reverseProblems` が検出する
+- 部品の整理: `reverseProblems` を `tab-trap.test.mjs` から `tab-focus.mjs` へ移し（試験ファイルから import すると試験が登録されるため）、単体の受理・拒否の例を `tab-focus.test.mjs` へ移した。判定の意味は変えていない
+- K-01〜K-08・K-15 の担当の試験の列に `tab-parts`（W1〜W5・K7）を足す。5.497 の未実施 2 件（K-07 を製品の画面で・一覧が開いた欄からの順方向の一巡）は本節で回収した
+
+証拠の種類: 自動のブラウザ操作と CDP による IME の模擬で、人の評価ではない。作成者と実装者は同じ AI である。
+
+限界: 処理中の一巡（進行の間隔 300ms 固定で時間に依存するため必須にしていない。`stop-btn` は全場面で一巡に入ることを確かめた）・幅 959px 以下（`shell-boundary`）・Chromium 以外・実 IME と人の確認（TASK-93・TASK-386）・TASK-374 の束への組み込み。
+
+範囲外: `scripts/expected-test-counts.txt` の更新（版上げ PR でだけ照合する）。

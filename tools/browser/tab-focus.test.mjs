@@ -7,7 +7,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { launchBrowser, channelFromEnv } from './harness.mjs';
 import {
-  listFocusables, focusIndex, activeTestId, installTabProbe, pressTracked, focusAt, walkTracked, findCycleProblems, exitProblems, walkCycle, OUT,
+  listFocusables, focusIndex, activeTestId, installTabProbe, pressTracked, focusAt, walkTracked, findCycleProblems, exitProblems, reverseProblems, completionProblems, walkCycle, OUT,
 } from './tab-focus.mjs';
 
 const HTML = `<!doctype html><body>
@@ -184,4 +184,28 @@ test('walkCycle: 罠（Tab の握りつぶし・先頭へ戻す）は problems �
     assert.ok(r.problems.length >= 1 || r.prevented.some((p) => p === true), JSON.stringify(r));
     await page.close();
   }
+});
+
+test('reverseProblems は期待どおりを受理し、食い違いを拒否する', () => {
+  const ok = { before: 5, after: 4, prevented: [false], value: '/he', expectedValue: '/he', expectedAfter: 4 };
+  assert.deepEqual(reverseProblems(ok), []);
+  assert.deepEqual(reverseProblems({ ...ok, before: 0, after: OUT, expectedAfter: OUT }), []);
+  assert.ok(reverseProblems({ ...ok, prevented: [true] }).length > 0);
+  assert.ok(reverseProblems({ ...ok, prevented: [] }).length > 0);
+  assert.ok(reverseProblems({ ...ok, after: 5 }).length > 0);
+  assert.ok(reverseProblems({ ...ok, after: OUT }).length > 0);
+  assert.ok(reverseProblems({ ...ok, value: '/help' }).length > 0);
+  assert.ok(reverseProblems({ ...ok, value: '/he\t', expectedValue: '/he\t' }).length > 0);
+});
+
+test('completionProblems は補完の 1 押下を受理し、食い違いを拒否する（TASK-451）', () => {
+  const ok = { before: 3, after: 3, prevented: [true], value: '/help', expectedValue: '/help' };
+  assert.deepEqual(completionProblems(ok), []);
+  assert.ok(completionProblems({ ...ok, prevented: [false] }).length > 0);
+  assert.ok(completionProblems({ ...ok, prevented: [] }).length > 0);
+  assert.ok(completionProblems({ ...ok, prevented: [true, true] }).length > 0);
+  assert.ok(completionProblems({ ...ok, after: 4 }).length > 0);
+  assert.ok(completionProblems({ ...ok, after: OUT }).length > 0);
+  assert.ok(completionProblems({ ...ok, value: '/he' }).length > 0);
+  assert.ok(completionProblems({ ...ok, value: '/help\t', expectedValue: '/help\t' }).length > 0);
 });
