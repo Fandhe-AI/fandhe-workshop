@@ -1,0 +1,9 @@
+# 右の画面の試験の束の件数の基準（TASK-458 2/3。TERM-40。#1004）。3/3（#1005）はこのファイルと比べる。
+# 対象: 現状の glue（D-42 の案 (c)＝維持。docs/testing.md 5.92）で束 tools/browser/suites/right-pane.txt を流した結果。
+# 記録日: 2026-11-12・元にしたコミット: bce13df0・node: v24.16.0・Playwright: 1.63.0（Chromium 153.0.8010.12。channel 未指定）・SKIP_WASM_OPT=1
+# 数え方: FANDHE_TEST_TAP_OUT=<tap> make test-right-pane の TAP を scripts/check-frontend-bump.sh normalize browser で正規化した行。
+#   tests は node:test の test() の数（describe を含まない）。
+# 書き直しは docs/testing.md 5.514 の手順で行う（試験が 1 件でも失敗・cancelled なら書き直さない）。
+# 静的な整合は scripts/check-right-pane-suite.sh の R8 が確かめる。
+suite|files=15|screen=11|helper=4
+browser|total|tests=194|pass=194|skipped=0|todo=0|cancelled=0

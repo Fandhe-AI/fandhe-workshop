@@ -191,7 +191,7 @@ Cargo ワークスペースは導入済みです。pack crate は `compile <pack
 - `make check-testdata`: repo の外（兄弟の `03-poc/`・`prototype/` など）への相対参照が 0 件であることを検査します（`make check` にも含まれます）。`make test-check-testdata` は、その検査自体の回帰テストです
 - `make check-mutation-defs`: 変異の定義の `find` が 1 回だけ現れ、`expect-fail` の名前が試験に実在することを静的に検査します（`make check` にも含まれます）。`make test-check-mutation-defs` は、その検査自体の回帰テストです
 - `make check-ignored-tests`: `tools/clean-room.sh` の無視してよい試験の一覧が `crates/` の `#[ignore]` の現物と一致することを静的に検査します（`make check` にも含まれます）。`make test-check-ignored-tests` は、その検査自体の回帰テストです
-- `make test-right-pane`: 右の画面の試験の束（`tools/browser/suites/right-pane.txt`。TERM-1〜TERM-14・TERM-23。TASK-458）だけを 1 つの回帰として流します。遅く、ブラウザが要ります。束の定義の整合は `make check-right-pane-suite`（`make check` にも含まれます）が静的に検査し、`make test-check-right-pane-suite` はその検査自体の回帰テストです
+- `make test-right-pane`: 右の画面の試験の束（`tools/browser/suites/right-pane.txt`。TERM-1〜TERM-14・TERM-23。TASK-458）だけを 1 つの回帰として流します。遅く、ブラウザが要ります。件数の基準は `tools/browser/suites/right-pane-baseline.txt`（194 件。`docs/testing.md` 5.514）に記録しています。束の定義と基準の整合は `make check-right-pane-suite`（`make check` にも含まれます）が静的に検査し、`make test-check-right-pane-suite` はその検査自体の回帰テストです
 
 ### wasm32 のビルド
 

@@ -42,7 +42,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── test-ime-sync-control.sh # 反映の変換中の除外を外した対照の検査（make test-ime-sync-control）
 │   ├── check-mutation-defs.sh # 変異の定義の find の一意性と expect-fail の名前の実在の静的検査（make check に含む。回帰テストは test-check-mutation-defs.sh。共有は lib-mutations.sh）
 │   ├── check-ignored-tests.sh # clean-room の無視してよい試験の一覧（ALLOWED_IGNORED）と crates/ の #[ignore] の現物の照合（make check に含む。回帰テストは test-check-ignored-tests.sh。#2045）
-│   ├── check-right-pane-suite.sh # 右の画面の試験の束（tools/browser/suites/right-pane.txt）の定義の静的検査（make check に含む。TERM の網羅・ファイルの実在・test-browser.sh に載っていること。回帰テストは test-check-right-pane-suite.sh。実行は test-right-pane.sh。TASK-458 1/3）
+│   ├── check-right-pane-suite.sh # 右の画面の試験の束（tools/browser/suites/right-pane.txt）の定義の静的検査（make check に含む。TERM の網羅・ファイルの実在・test-browser.sh に載っていること・件数の基準との整合（R8）。回帰テストは test-check-right-pane-suite.sh。実行は test-right-pane.sh。TASK-458 1/3）
 │   ├── check-build-inventory.sh # Cargo.lock の private な依存 0 件と経路の secret らしい語 0 件の棚卸し検査（回帰テストは test-check-build-inventory.sh）
 │   ├── check-no-egress.sh    # 依存と配信物に通信・学習分析の手段と初回に持たない機能（EXT-1〜EXT-3）が無いことの検査（deps・dist。回帰テストは test-check-no-egress.sh）
 │   ├── check-license.sh      # 全 crate の license と直下の 2 つのライセンスの本文と雛形の表記の検査（回帰テストは test-check-license.sh）
@@ -135,7 +135,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-ignored-tests` | 上の静的検査自体の回帰テスト |
 | `make check-right-pane-suite` | 右の画面の試験の束（`tools/browser/suites/right-pane.txt`）の定義の静的検査（`make check` に含む。cargo・node 不要。TASK-458） |
 | `make test-check-right-pane-suite` | 上の静的検査自体の回帰テスト（CI の `check` ジョブが流す） |
-| `make test-right-pane` | 右の画面の試験の束（TERM-1〜TERM-14・TERM-23 の画面の試験 11 件と部品の自己確認 4 件）だけを 1 つの回帰として流す（遅く、ブラウザを要し、CI・フックには入れない。件数の基準は 2/3。`docs/testing.md` 5.513） |
+| `make test-right-pane` | 右の画面の試験の束（TERM-1〜TERM-14・TERM-23 の画面の試験 11 件と部品の自己確認 4 件）だけを 1 つの回帰として流す（遅く、ブラウザを要し、CI・フックには入れない。件数の基準は `tools/browser/suites/right-pane-baseline.txt`（194 件。`docs/testing.md` 5.514）。定義は 5.513） |
 | `make check-dom-reads` | web crate が DOM の値を読まないことの検査（`tools/check-deps.sh`。例外は件数固定。crate 間の依存は `make check-deps`） |
 | `make test-check-dom-reads` | DOM 読み取りの検査自体の回帰テスト |
 | `make check-frontend-bump` | 版上げ PR の受け入れ確認 (4)(5) の関門（feature の明示と、版上げ PR で変えてはいけないファイル。(2) の件数の照合は CI の rust-test・browser-test が、(3) の WASM の gzip +10% の判定は browser-test の wasm-gzip が行う） |
