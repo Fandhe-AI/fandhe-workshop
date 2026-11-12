@@ -1,0 +1,9 @@
+id: EVT27-5
+package: fandhe-workshop-core
+test: fast_forward_on_off
+target: crates/core/src/recorded_session.rs
+find:         drive(self, limit)
+replace:         self.recorder.reload(); drive(self, limit)
+expect-fail: toggle_fixed_st1
+expect-fail: on_off_identity_property
+note: 早送りを呼ぶたびに記録を 1 件足し、入・切の切り替えを ops に入れたのと同じ効果（D-54 の違反）を模す

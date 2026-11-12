@@ -1,0 +1,9 @@
+id: EVT27-4
+package: fandhe-workshop-core
+test: fast_forward_on_off
+target: crates/core/src/recorded_session.rs
+find:         self.apply(op).to_vec()
+replace:         self.session.apply(op).to_vec()
+expect-fail: ops_identity_fixed_st1
+expect-fail: on_off_identity_property
+note: 連続適用の進行を ops に記録せず適用だけ行い、入と切の ops を食い違わせる（状態・進行の数・左の変化は一致したまま）
