@@ -496,11 +496,16 @@ fn toggle_fixed_st1() {
 }
 
 /// 処理中でないときの連続適用は何も記録せず、`ops` の件数を増やさない（早送りそのものは履歴に入れない。D-54）。
+/// `mixed_run` は処理中でないと `fast_forward` を呼ぶ前に抜けるため、ここでは `fast_forward` を直接呼ぶ。
 #[test]
 fn fast_forward_when_idle_records_nothing() {
     let mut pair = Pair::new(min_ir(), entered());
+    assert!(next_tick(pair.mixed.session().state()).is_none());
     let before = pair.mixed.ops().len();
-    pair.mixed_run(&(true, vec![1, 2]));
-    assert_eq!(pair.mixed.ops().len(), before);
-    assert!(pair.mixed.envelope_for_save().is_none());
+    for limit in [0, 1, 2, u32::MAX] {
+        let ff = pair.mixed.fast_forward(limit);
+        assert!(ff.ticks.is_empty(), "limit={limit}");
+        assert_eq!(pair.mixed.ops().len(), before, "limit={limit}");
+        assert!(pair.mixed.envelope_for_save().is_none(), "limit={limit}");
+    }
 }

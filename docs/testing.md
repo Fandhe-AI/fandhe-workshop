@@ -13811,7 +13811,7 @@ EVT27-3 は当初 `on_off_fixed_st1` も期待したが、固定例では読み�
 | EVT27-4 | `recorded_session.rs`: 連続適用の進行を `ops` に記録しない | `ops_identity_fixed_st1`・`on_off_identity_property` ほか | 検出 |
 | EVT27-5 | `recorded_session.rs`: 早送りを呼ぶたびに記録を 1 件足す（入・切を履歴に入れた効果） | `toggle_fixed_st1`・`on_off_identity_property` ほか | 検出 |
 
-EVT27-5 は当初 `fast_forward_when_idle_records_nothing` も期待したが、`ops` が空のときの再読み込みの記録は何も足さないため失敗せず（SURVIVED）、期待を実際に失敗する試験に合わせた。既存の EVT27-1〜3・EVT17-1 も引き続き検出される。`CONTRACT_VERSION` と `scripts/expected-test-counts.txt` は変えていない。
+EVT27-5 は `OpsRecorder::reload` が常に 1 件追記するため、処理中でないときに `fast_forward` を直接呼ぶ `fast_forward_when_idle_records_nothing` も失敗する（`mixed_run` は処理中でないと `fast_forward` を呼ぶ前に抜けるため、直接呼ぶ形にした）。既存の EVT27-1〜3・EVT17-1 も引き続き検出される。`CONTRACT_VERSION` と `scripts/expected-test-counts.txt` は変えていない。
 
 限界: core に時刻が無いため間隔そのものの比較は扱わない。画面の切り替え（SHELL-24 以降）は未実装で、web のホストでの結線は扱わない。
 
