@@ -1,0 +1,9 @@
+id: SAVE23-1
+package: fandhe-workshop-core
+test: draft_save_restore
+target: crates/core/src/recorded_session.rs
+find:         record_draft(self.session.state_mut(), &mut self.recorder, text);
+replace:         self.recorder.draft(text);
+expect-fail: drafts_round_trip_byte_exact_through_load_and_boot
+expect-fail: set_draft_holds_current_and_other_root_drafts
+note: 下書きを ops に記録するだけで、写しの drafts に保持しない

@@ -3,6 +3,7 @@
 //! 呼び出し元は web のホスト（受講中の操作の記録と、離れる直前の保存用の包みの組み立て）と、起動の分岐
 //! （[`crate::history_boot`]）である。web の表示層は状態を直に触れない（`crates/web/tests/no_progress.rs`）ため、
 //! `ops` への記録と、写しの下書き `drafts` の同期（[`record_draft`]・[`record_submit`]）はここに集める。
+//! 下書きの保存の口は [`RecordedSession::set_draft`]（spec の `Session::set_draft` に当たる。SAVE-23）。
 //! 進行の規則は [`Session`] が持ち、この型は記録を足すだけで、世代・Step・処理中の判定は変えない。
 //!
 //! 不変条件。
@@ -91,9 +92,22 @@ impl RecordedSession {
         self.session.apply(Op::Input(submit_input(prefix, text)))
     }
 
-    /// 下書きの置き換えを記録する（写しの現在の根の下書きも同じ値にする）。
-    pub fn draft(&mut self, text: String) {
+    /// 下書きの置き換えを保存の口として記録する（SAVE-23。TASK-328 1/3）。
+    ///
+    /// `ops` への記録と、写しの現在の根の下書き（`drafts`）の更新を 1 か所で行う。連続する置き換えは最後の 1 つに畳む
+    /// （直前が `Draft` のときだけ。`Reload`・`Engine`・`Submit` を挟むと畳まず追記する）。空文字列も `Some("")` で保持する。
+    /// 現在の Step が無い（開始前の）間は `ops` にだけ残る。
+    ///
+    /// spec の `Session::set_draft` に当たる口である。`Session` は記録器を持たないため、状態だけを書く口を公開すると
+    /// `ops` の末尾の `Draft` と写しが食い違い、読み込みで `replay_mismatch` になる。口をここに置く理由はこれである。
+    /// 版 1 の写しは現在の根の下書きも `drafts` に持つ。spec の `snapshot.draft` は [`RecordedSession::current_draft`] に当たる。
+    pub fn set_draft(&mut self, text: String) {
         record_draft(self.session.state_mut(), &mut self.recorder, text);
+    }
+
+    /// [`RecordedSession::set_draft`] と同じ。既存の呼び出し元のための名前。
+    pub fn draft(&mut self, text: String) {
+        self.set_draft(text);
     }
 
     /// 現在の根の下書き（MOD-4）。[`Session::current_draft`] と同じ。

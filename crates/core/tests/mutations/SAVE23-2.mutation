@@ -1,0 +1,9 @@
+id: SAVE23-2
+package: fandhe-workshop-core
+test: draft_save_restore
+target: crates/core/src/history_envelope.rs
+find:     rec.draft(text);
+replace:     drop(text);
+expect-fail: set_draft_folds_consecutive_replacements_to_last
+expect-fail: exported_snapshot_keeps_drafts_and_has_no_draft_key
+note: 下書きを写しにだけ保持し、ops に記録しない
