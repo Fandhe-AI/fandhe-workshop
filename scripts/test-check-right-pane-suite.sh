@@ -16,6 +16,7 @@ require_cmd sed
 require_cmd rm
 require_cmd mktemp
 require_cmd cp
+require_cmd cat
 require_cmd grep
 
 TMP_DIR="$(mktemp -d)"
