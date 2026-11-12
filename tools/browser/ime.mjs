@@ -4,9 +4,10 @@
 // （Input.imeSetComposition・Input.insertText・Input.dispatchKeyEvent）で作る。変換中の Enter・Tab・Esc が
 // isComposing=true・keyCode=229 で届くことは、PoC-2 の観察（logs/cdp-ime-probe.txt）に合わせている。
 // これはシミュレーターであり、実 IME でも人の評価でもない。実 IME の確認は TASK-93 / BUILD-18 の担当で、ここでは扱わない。
-// 呼び出し元: ime.test.mjs（ヘルパの自己確認）・ime-input.test.mjs（入力欄と IME の層 3）。ime-sentences.test.mjs（TASK-276 2/3。試験文 30 文の行列と集計）・ime-defer.test.mjs（TASK-355 1/2。変換中の延期と確定値の経路）・ime-reload-flood.test.mjs（TASK-355 2/2。ログの追加中の消失・再読み込み・変異 M2）。
+// 呼び出し元: ime.test.mjs（ヘルパの自己確認）・ime-input.test.mjs（入力欄と IME の層 3）。ime-sentences.test.mjs（TASK-276 2/3。試験文 30 文の行列と集計）・ime-screen.test.mjs（TASK-439。本体の画面での同じ行列。数え方は本モジュールの共有）・ime-defer.test.mjs（TASK-355 1/2。変換中の延期と確定値の経路）・ime-reload-flood.test.mjs（TASK-355 2/2。ログの追加中の消失・再読み込み・変異 M2）。
 // CDP は Chromium 系でしか使えない（FANDHE_BROWSER_CHANNEL=chrome でも可。Firefox・WebKit は対象外）。
 // 引数は page・CDP セッションと文字列だけで、page.evaluate へ文字列からコードを組み立てない。
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -149,4 +150,35 @@ export function clearValueWriteProbe(page) {
   return page.evaluate(() => {
     if (window.__fandheValueWrites) { window.__fandheValueWrites.composing = 0; window.__fandheValueWrites.idle = 0; }
   });
+}
+
+// 集計の数え方と印（TASK-276 2/3・TASK-439）。ime-sentences.test.mjs（IR なしの画面）と ime-screen.test.mjs（本体の画面）が
+// 同じ関数を使い、数え方が両方で揃うようにする。.test.mjs は import できないためここに置く。
+// 印は scripts/lib-ime-control.sh が失敗の理由の判定に読む。文言の形（印 + 件数）を変えない。
+export const MIS_SEND_MARK = 'IME-MIS-SEND';
+// Esc を送った後の停止・世代・取り消しの件数の表明にだけ付ける印。Esc の前の表明（runStatus が busy 等）と集計には付けない。
+export const ESC_STOP_MARK = 'IME-ESC-STOP';
+
+// 予約済みのタイマーの後ろに自分のタイマーを積み、固定の sleep を使わずに直前の処理が走り終わるのを待つ。
+export const settle = (page) => page.evaluate(() => new Promise((resolve) => {
+  setTimeout(() => setTimeout(resolve, 0), 0);
+}));
+
+export const misSendCount = (delta) => delta;
+export const missedCount = (delta, lastText, expected) => (delta === 1 && lastText === expected ? 0 : 1);
+export const stopCount = (e0, e1) => (e1.generation !== e0.generation || e1.runStatus === 'stopped' ? 1 : 0);
+export const cancelLogCount = (l0, l1) => (l1 === l0 ? 0 : 1);
+
+// 誤送信の件数を文言そのものに入れ、固定の印を付ける。assertComposingKeydown より先に置くことで、
+// 変換中の判定を外す変異（M1）の失敗が defaultPrevented の表明でなく誤送信の件数として読める。
+export function assertNoMisSend(delta, why) {
+  const n = misSendCount(delta);
+  assert.equal(n, 0, `${MIS_SEND_MARK} 誤送信 ${n} 件 ${why} ${SIM_LABEL}`);
+}
+
+export function assertComposingKeydown(kd, why) {
+  assert.equal(kd.length, 1, `${why} ${SIM_LABEL}`);
+  assert.equal(kd[0].isComposing, true, `${why} ${SIM_LABEL}`);
+  assert.equal(kd[0].keyCode, 229, `${why} ${SIM_LABEL}`);
+  assert.equal(kd[0].defaultPrevented, false, `${why} ${SIM_LABEL}`);
 }
