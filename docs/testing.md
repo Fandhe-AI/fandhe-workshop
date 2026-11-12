@@ -13965,3 +13965,25 @@ scripts/check-frontend-bump.sh normalize browser <tap>
 限界: 比較は置き換えの成否ではない。件数は PoC の 148 項目・52 項目そのものではない（BUILD-14）。TERM-4・TERM-5・TERM-12・TERM-13 は proxy で、人の確認は束の外。Chromium 以外と `wasm-opt` 適用後は未測定。束は CI・フックに入れていない。置き換えが将来起きた場合は、本節と同じ手順で比べ直す。
 
 範囲外: 束の拡張（B-*・OS-*・FLOOD・R-19 に当たる試験）。比較の自動化。`modifier-enter-paste-st14.test.mjs` のコメントの TERM-13 の誤記。TERM-13 の Tab の回数の判定（TASK-374）。
+
+### 5.516 キーボードだけでの CH-1 の 6 Step の完走（TASK-374 1/2。A11Y-17。#978。5.507 の続き）
+
+目的: マウスの click を 0 回にし、`fill` を使わず、Tab・Enter・Space・Shift+Enter・Esc と文字だけで CH-1 の 6 Step（ST-1.1〜ST-1.6）を達成まで通す。5.507 の K1 は CH-0 から始まり、確認の Step で「受付の時点では未達成で、確認のキーで初めて達成になる」ことを判定していない。本節の試験はそれを CH-1 だけで判定する。実装日 2026-11-12。製品のコード・共有の部品（`keyboard-only.mjs`・`ch0-3-journey.mjs`）・`scripts/expected-test-counts.txt` は変えない。
+
+作ったもの: `tools/browser/ch1-keyboard.test.mjs`（`make test-browser` の `node --test` の一覧に追加）。試験の設定の `?fixture=ch0-3-chapters&start=s-1-1` を CH-1 の先頭で開き、許すキーに閉じたドライバ（`keyOnlyDriver`）で通す。確認の宛先は、st-1-1 と st-1-4 が Enter、st-1-5 と st-1-6 が Space（st-1-1・st-1-5 は左の行、st-1-4・st-1-6 は選択肢）。確認のない st-1-2（Tab 補完）・st-1-3（Shift+Enter の複数行）は、受付と同時に達成になることを確かめる。
+
+条件（2026-11-12）: Linux x86_64・Chromium（Playwright。channel 未指定）・`SKIP_WASM_OPT=1`・幅 1280px。単体の実行: `FANDHE_WEB_TEST_DIR=<TEST_HOOKS=1 の dist> node --test tools/browser/ch1-keyboard.test.mjs`。
+
+| 試験 | 内容 | 結果 |
+|---|---|---|
+| U1 | 試験用 IR の CH-1 の 6 Step の入力方式・確認の種類・宛先が表と一致（ブラウザなし） | 合格 |
+| K1（CSP あり） | 完走。台帳 42 項目。マウス 0・監視 0・禁止のキー 0・raw 0・安全の計数 0 | 合格。キー Tab 84・Enter 10・Space 7・Shift+Enter 1・Escape 1 |
+| K1（CSP なし） | 同上 | 合格。キーの回数は同じ |
+| N1 | 受付の後に確認のキーを押さず Tab を 5 回押して 500ms 待つと、受付のまま・達成 0 件 | 合格 |
+| N2 | 監視した page の実クリックで、ドライバ側とページ内のマウスの計数が 1 以上になり、終わりの判定の 2 項目が失敗する | 合格 |
+
+ブラウザ試験は 5 件増える。Space の回数は文字入力の空白も含む（ページ内では区別できない）ので、押した回数の確かめはドライバ側を主とした。Tab の回数は観察として出すだけで判定しない（記録と判定は #979）。
+
+限界・未検証: 試験用の教材は CH-1 の形を写したもので、本物の教材（TASK-612〜620）はこの repo に無く、st-1-5・st-1-6 は本物の停止・チェックポイントの Step ではない。開始点の `effects` は空（5.199）。信頼されない click（detail 0）と `evaluate` の中の click は数えない（5.507 と同じ）。幅は 1280px だけ。Chromium だけ。node は v26（`npm ci --engine-strict=false`）で流した。`make test-browser` の全体と `scripts/expected-test-counts.txt` の更新は未実施。操作の順序は journey の CH-1 の写しで、重複を受け入れた（U1 が IR の変更によるずれを検出する）。
+
+範囲外: 拒否の後の入力の保持・処理中の停止・チェックポイントの復帰・Tab の回数の判定（#979）。配信する設定での CH-1 のキーボードだけの完走。本物の教材での流し直し。
