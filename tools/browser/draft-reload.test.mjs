@@ -9,7 +9,8 @@
 //     DR-6 配信する設定（IR 同梱・試験用の口なし）で DR-1・DR-3・DR-5 の要点を DOM と localStorage だけで確かめる
 // draft-sync（FEND-11）との違い: draft-sync は「欄の値＝状態の下書き」の観点で 4 場面を並べる。ここは SAVE-23 の列挙した
 // 下書きの種類と、拒否・貼り付け・送信後・pagehide の組を、再読み込みの前後で比べる。
-// 範囲外: 変換中の再読み込み（R-6）は ime-reload-flood が受け持つ（#968）。実 IME・人の確認は TASK-93。
+// 範囲外: 変換中の再読み込み（R-6）は ime-reload-flood（基本の形）と draft-reload-ime（SAVE-23 の場面との組。5.520。#968）が受け持つ。
+//   実 IME・人の確認は TASK-93。
 // DR-5 の作り方: 保留中のタイマーを全部消して以後のタイマーも捨ててから reload し、保存先へ届く道を pagehide だけにする。
 //   その直前に保存先へ下書きが入っていれば判別できないので別の文で最大 3 回試し直し、3 回とも判別できなければ失敗にする。
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）と FANDHE_WEB_AUTHOR_DIR（IR 同梱・口なし）。未設定・不在は skip にせず失敗にする。
