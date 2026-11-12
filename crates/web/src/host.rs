@@ -1309,7 +1309,7 @@ impl EngineHost {
         }
         let draft = self.input.draft().to_owned();
         if let Some(recorded) = self.model.recorded.as_mut() {
-            recorded.draft(draft.clone());
+            recorded.set_draft(draft.clone());
             self.history_changed = true;
         }
         self.draft_recorded = draft;
