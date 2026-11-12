@@ -13976,7 +13976,7 @@ scripts/check-frontend-bump.sh normalize browser <tap>
 
 | 試験 | 内容 | 結果 |
 |---|---|---|
-| U1 | 試験用 IR の CH-1 の 6 Step の入力方式・確認の種類・宛先が表と一致（ブラウザなし） | 合格 |
+| U1 | 試験用 IR の CH-1 の 6 Step の入力方式・確認の種類・宛先が表と一致（判定にブラウザは使わないが、ファイルの before が dist と Chromium を要するため前提は他の項目と共通） | 合格 |
 | K1（CSP あり） | 完走。台帳 42 項目。マウス 0・監視 0・禁止のキー 0・raw 0・安全の計数 0 | 合格。キー Tab 84・Enter 10・Space 7・Shift+Enter 1・Escape 1 |
 | K1（CSP なし） | 同上 | 合格。キーの回数は同じ |
 | N1 | 受付の後に確認のキーを押さず Tab を 5 回押して 500ms 待つと、受付のまま・達成 0 件 | 合格 |
