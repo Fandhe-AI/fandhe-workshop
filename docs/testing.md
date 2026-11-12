@@ -14033,3 +14033,32 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 | SAVE23-2 | 下書きを `ops` に記録しない | DETECTED |
 
 限界・未検証: ブラウザでの再読み込みの復元は #967・#968。2 つの根を持つ IR の作り方は `export_unsent_draft.rs`・`submit_drafts.rs` と重複している（共通化は範囲外）。
+
+### 5.519 再読み込みでの下書きの復元（TASK-328 2/3。SAVE-23。#967。5.518 の続き）
+
+目的: 未送信の下書きが再読み込みの後に 1 文字も変わらず欄と状態へ戻ることを、自動ブラウザ試験（PoC-2 の R-1〜R-5 に当たる）と native の試験で固定する。実装日 2026-11-12。本番のコードの変更は `host.rs` の `record_draft_change` が `recorded.set_draft` を呼ぶ名前の置き換えだけ（挙動は同じ）で、試験で落ちた場面は無かった。変換中の再読み込み（R-6）は #968（`ime-reload-flood`）の担当で、本節では扱わない。
+
+作ったもの:
+
+- `tools/browser/draft-reload.test.mjs`（60 件。CSP あり・なし）。試験の設定（`FANDHE_WEB_TEST_DIR`）と配信する設定（`FANDHE_WEB_AUTHOR_DIR`。IR 同梱・口なし。DOM と localStorage だけを観察する）の両方を使う。
+- `crates/web/tests/draft_reload_host.rs`（4 件）と変異 `crates/web/tests/mutations/SAVE23-3.mutation`。
+
+| ID | 場面 | 期待 |
+|---|---|---|
+| DR-1 | 文字の種類 8 通り（単一行・混合の複数行と Tab・先頭が改行・先頭が二つの改行・末尾が改行・空白だけ・Tab だけ・全角空白）を落ち着いた後と入力の直後で再読み込み | mount の直後に欄の値が一致し、落ち着いた後も欄の値＝状態の下書き＝入れた文 |
+| DR-2 | 貼り付けた複数行（試料 2 種。CRLF は LF に正規化した期待） | 貼り付けだけでは送信されず、再読み込みの後も戻る |
+| DR-3 | 拒否（未知のコマンド・複数行の自然文）を Enter・click で送り再読み込み | 欄と状態の下書きが送った本文のまま。拒否の受付も復元される |
+| DR-4 | 受け付けられる本文を送った後に打った下書き | 戻るのは後から打った文だけ |
+| DR-5 | 保留中のタイマーを全部消し、以後のタイマーも捨ててから再読み込み（保存先へ届く道を pagehide だけにする）。タブを閉じて開き直す変種も置く | 戻る。直前に保存済みなら別の文で最大 3 回試し直し、3 回とも判別できなければ失敗 |
+| DR-5c | 負の対照。pagehide・visibilitychange を止める init script を、対照のページの中だけに置く | 戻らない（DR-5 が pagehide によることの根拠） |
+| DR-6 | 配信する設定で DR-1 の要点・DR-3・DR-5（対照つき）を DOM と localStorage だけで確かめる | 同上 |
+
+変異（2026-11-12。`scripts/check-mutations.sh`。元のコミット 857f76c4 の上）:
+
+| ID | 内容 | 結果 |
+|---|---|---|
+| SAVE23-3 | 拒否の後に欄へ残る下書きの記録し直し（`submit` の `self.draft_recorded.clear()`）を外す | DETECTED（`拒否された下書きは欄に残り_保存の値から戻る`） |
+
+実行の記録（2026-11-12）: Linux x86_64・Chromium（Playwright）・`SKIP_WASM_OPT=1`・node v26。`node --test tools/browser/draft-reload.test.mjs` を 3 回流して 60 件が全て合格。DR-5・DR-5c・DR-6c は 1 回目の試行で判別できた。失敗の文・diagnostic には下書きの本文を出さず、長さと真偽だけを出す。
+
+限界・未検証: IndexedDB へ切り替えた後は pagehide での確定を保証しない（SAVE-9 の検討中の論点。`storage-leave` と同じ限界）。表示だけの間・保存の停止中・秘密情報らしい値・読み込みの上限を超える値は pagehide で書かない（既存の規則どおりで、ここでは確かめない）。Chromium だけで確かめた。実 IME と人の確認は TASK-93。変換中の再読み込みは #968。

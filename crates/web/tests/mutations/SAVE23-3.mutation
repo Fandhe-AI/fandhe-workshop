@@ -1,0 +1,8 @@
+id: SAVE23-3
+package: fandhe-workshop-web
+test: draft_reload_host
+target: crates/web/src/host.rs
+find:                     self.draft_recorded.clear();
+replace:                     {}
+expect-fail: 拒否された下書きは欄に残り_保存の値から戻る
+note: 拒否の後に欄へ残る下書きを記録し直さない（送信の記録が写しから除いた下書きが再読み込みで戻らない）
