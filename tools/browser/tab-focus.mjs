@@ -1,7 +1,7 @@
 // Tab による入力欄の出入りの観察の共通の部品（TASK-373。A11Y-16・JUDGE-19）。
 //
 // 呼び出し元: tab-exit.test.mjs（1/2。退出の判定 exitProblems）、tab-trap.test.mjs（Shift+Tab・先頭からの一巡・罠 0 件。2/2）、
-// tab-cycle.test.mjs（一巡の歩行と判定 walkCycle）、自己確認の tab-focus.test.mjs。#2124 で列挙と判定の重複をここへ集約した。
+// tab-cycle.test.mjs（一巡の歩行と判定 walkCycle）、tab-parts.test.mjs（部品がそろった画面。TASK-451。reverseProblems・completionProblems を含む）、自己確認の tab-focus.test.mjs。#2124 で列挙と判定の重複をここへ集約した。
 // 観察は DOM と defaultPrevented だけで行い、__fandheTest は読まない（試験用の口が無い画面でも使えるように）。
 // page へ渡すのは固定の関数と、文字列・配列の引数だけにする。DOM には属性を足さず、保持は window の変数で行う。
 import assert from 'node:assert/strict';
@@ -112,6 +112,28 @@ export function exitProblems({ before: from, after: to, prevented, value, expect
   if (prevented.length !== 1 || prevented[0] !== false) problems.push(`Tab was prevented or not seen: ${JSON.stringify(prevented)}`);
   if (typeof from !== 'number' || to !== from + 1) problems.push(`focus did not move to the next element: ${from} -> ${to}`);
   if (value !== expectedValue) problems.push('draft value changed');
+  if (value.includes('\t')) problems.push('tab character entered the draft');
+  return problems;
+}
+
+// 欄で Shift+Tab を 1 回押したときの問題の一覧を返す。空なら期待どおり（preventDefault なし・expectedAfter へ移動・値が不変）。
+export function reverseProblems({ before: from, after: to, prevented, value, expectedValue, expectedAfter }) {
+  const problems = [];
+  if (prevented.length !== 1 || prevented[0] !== false) problems.push(`Shift+Tab was prevented or not seen: ${JSON.stringify(prevented)}`);
+  if (typeof from !== 'number') problems.push(`focus did not start on a listed element: ${from}`);
+  else if (to !== expectedAfter) problems.push(`focus did not move to ${expectedAfter}: ${from} -> ${to}`);
+  if (value !== expectedValue) problems.push('draft value changed (completion?)');
+  if (value.includes('\t')) problems.push('tab character entered the draft');
+  return problems;
+}
+
+// 欄で Tab を 1 回押した結果が補完であるときの問題の一覧を返す（TASK-451）。空なら期待どおり
+// （preventDefault された 1 回・フォーカスは欄に残る・値が expectedValue・タブ文字なし）。
+export function completionProblems({ before: from, after: to, prevented, value, expectedValue }) {
+  const problems = [];
+  if (prevented.length !== 1 || prevented[0] !== true) problems.push(`completion Tab was not prevented exactly once: ${JSON.stringify(prevented)}`);
+  if (typeof from !== 'number' || to !== from) problems.push(`focus left the field on completion: ${from} -> ${to}`);
+  if (value !== expectedValue) problems.push('draft value is not the completed value');
   if (value.includes('\t')) problems.push('tab character entered the draft');
   return problems;
 }
