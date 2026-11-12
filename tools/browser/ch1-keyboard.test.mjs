@@ -125,7 +125,7 @@ async function finish({ page, rec, L, counter }, g, scene, { stopped = false } =
   L.check(scene, 'エンジンの警告が 0 件', e.log.filter((r) => r.kind === 'warning').length === 0);
   const ignored = e.log.filter((r) => r.kind === 'ignored').length;
   // 停止を挟む K2 では、止めた後に古い世代の進行が「無視」として届く。それ以外の無視は許さない（件数の上限は段数）。
-  if (stopped) L.check(scene, '無視が停止の後の古い世代の進行だけ（1 以上・段数以下）', ignored >= 1 && ignored <= STAGES && e.ignoredReasons.every((r) => r === e.ignoredReasons[0]));
+  if (stopped) L.check(scene, '無視が停止の後の古い世代の進行だけ（1 以上・段数以下）', ignored >= 1 && ignored <= STAGES && e.ignoredReasons.every((r) => r.reason === 'stale'));
   else L.check(scene, 'エンジンの無視が 0 件', ignored === 0);
   const status = e.stateWithoutLog.run.slices.main.status;
   L.check(scene, 'CH-1 の 6 Step がすべて達成', CH1.every((r) => status[r.uid] === 'achieved'));
