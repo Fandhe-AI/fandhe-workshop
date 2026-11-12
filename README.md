@@ -69,7 +69,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `testdata/` | 試験データの置き場。spec repo の試験データを出所付きで写したもの（出所・規則は `testdata/README.md`）。整形ツールの対象外 |
 | `rust-toolchain.toml`・`package.json`・`package-lock.json`・`.npmrc` | ツールチェーンの版の固定（Rust・Node・Playwright。値の正は `docs/toolchain.md`） |
 | `Makefile` | `scripts/` を呼ぶだけの薄い入口（`make help` で一覧） |
-| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-testdata-refs` / `test-check-testdata-refs` / `check-mutation-defs` / `check-ignored-tests` / `test-check-ignored-tests` / `test-check-mutation-defs` / `test-check-dom-reads` / `test-check-delivery` / `check-toolchain` / `test-check-toolchain` / `check-workflow-secrets` / `test-check-workflow-secrets` / `check-fork-ci` / `test-check-fork-ci` / `build-pack-release` / `test-build-pack-release` / `build-pack-preview` / `test-build-pack-preview` / `ci-rust-toolchain` / `check-mutations` / `test-check-mutations` / `test-check-generic-words` / `check-second-pack` / `test-check-second-pack` / `test-inventory-deps`）。Make なしでも直接実行できる |
+| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-testdata-refs` / `test-check-testdata-refs` / `check-mutation-defs` / `check-ignored-tests` / `test-check-ignored-tests` / `check-right-pane-suite` / `test-check-right-pane-suite` / `test-right-pane` / `test-check-mutation-defs` / `test-check-dom-reads` / `test-check-delivery` / `check-toolchain` / `test-check-toolchain` / `check-workflow-secrets` / `test-check-workflow-secrets` / `check-fork-ci` / `test-check-fork-ci` / `build-pack-release` / `test-build-pack-release` / `build-pack-preview` / `test-build-pack-preview` / `ci-rust-toolchain` / `check-mutations` / `test-check-mutations` / `test-check-generic-words` / `check-second-pack` / `test-check-second-pack` / `test-inventory-deps`）。Make なしでも直接実行できる |
 | `tools/` | spec が置き場を指定したスクリプト（`build-web.sh`・`check-deps.sh`・`serve.mjs`・`inventory-deps.mjs`・`upstream-impact.mjs`・`build-l2.mjs`・`update-l2.mjs`・`l2/`・`measure/`）。規約と shellcheck は `scripts/` と同じ |
 | `scripts/hooks/` | lefthook から呼ばれる Git hooks の実体 |
 | `lefthook.yml` | Git hooks 定義（pre-commit / commit-msg） |
@@ -191,6 +191,7 @@ Cargo ワークスペースは導入済みです。pack crate は `compile <pack
 - `make check-testdata`: repo の外（兄弟の `03-poc/`・`prototype/` など）への相対参照が 0 件であることを検査します（`make check` にも含まれます）。`make test-check-testdata` は、その検査自体の回帰テストです
 - `make check-mutation-defs`: 変異の定義の `find` が 1 回だけ現れ、`expect-fail` の名前が試験に実在することを静的に検査します（`make check` にも含まれます）。`make test-check-mutation-defs` は、その検査自体の回帰テストです
 - `make check-ignored-tests`: `tools/clean-room.sh` の無視してよい試験の一覧が `crates/` の `#[ignore]` の現物と一致することを静的に検査します（`make check` にも含まれます）。`make test-check-ignored-tests` は、その検査自体の回帰テストです
+- `make test-right-pane`: 右の画面の試験の束（`tools/browser/suites/right-pane.txt`。TERM-1〜TERM-14・TERM-23。TASK-458）だけを 1 つの回帰として流します。遅く、ブラウザが要ります。束の定義の整合は `make check-right-pane-suite`（`make check` にも含まれます）が静的に検査し、`make test-check-right-pane-suite` はその検査自体の回帰テストです
 
 ### wasm32 のビルド
 
@@ -269,6 +270,9 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-check-mutation-defs` | `scripts/test-check-mutation-defs.sh` | 上の静的検査自体の回帰テスト |
 | `make check-ignored-tests` | `scripts/check-ignored-tests.sh` | clean-room の無視してよい試験の一覧と `crates/` の `#[ignore]` の現物のずれの静的検査（`make check` に含む） |
 | `make test-check-ignored-tests` | `scripts/test-check-ignored-tests.sh` | 上の静的検査自体の回帰テスト |
+| `make check-right-pane-suite` | `scripts/check-right-pane-suite.sh` | 右の画面の試験の束の定義の静的検査（`make check` に含む。TASK-458） |
+| `make test-check-right-pane-suite` | `scripts/test-check-right-pane-suite.sh` | 上の静的検査自体の回帰テスト |
+| `make test-right-pane` | `scripts/test-right-pane.sh` | 右の画面の試験の束だけを流す回帰（遅く、ブラウザを要する。CI・フックには入れない） |
 | `make check-dom-reads` | `tools/check-deps.sh` | web crate が DOM の値を読まないこと（例外は件数固定）の検査 |
 | `make test-check-dom-reads` | `scripts/test-check-dom-reads.sh` | DOM 読み取りの検査自体の回帰テスト |
 | `make check-frontend-bump` | `scripts/check-frontend-bump.sh guard` | 版上げ PR の受け入れ確認 (4)(5)（FEND-17・D-63）の関門。`wasm-full` の `default-features = false` と `action-keydown` の明示を `cargo metadata` で確かめ、`CI_EVENT_NAME=pull_request` の版上げ PR では期待値・`tools/check-deps.sh`・`tools/build-web.sh`・関門自体が base と同じことを求める。(3) の WASM の gzip +10% は CI の `browser-test` が `wasm-gzip` で判定する |

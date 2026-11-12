@@ -13858,3 +13858,41 @@ EVT27-5 は `OpsRecorder::reload` が常に 1 件追記するため、処理中�
 限界: 処理中の一巡（進行の間隔 300ms 固定で時間に依存するため必須にしていない。`stop-btn` は全場面で一巡に入ることを確かめた）・幅 959px 以下（`shell-boundary`）・Chromium 以外・実 IME と人の確認（TASK-93・TASK-386）・TASK-374 の束への組み込み。
 
 範囲外: `scripts/expected-test-counts.txt` の更新（版上げ PR でだけ照合する）。
+
+### 5.513 右の画面の試験の 1 つの回帰としての束（TASK-458 1/3。TERM-40。#1003）
+
+目的: 入力欄のキー処理（Enter・Tab・Space の状態に応じた `preventDefault` と root の外の Esc）の受け持ちをどう変えても、右の画面の操作の結果（TERM-1〜TERM-14・TERM-23）が変わらないことを、1 つの回帰として流せるようにする。実装日 2026-11-12。製品のコードと `scripts/test-browser.sh` は変えない。
+
+定義: `tools/browser/suites/right-pane.txt`（一か所の正）。
+
+- 画面の試験（screen）11 件: 冒頭で TASK-438・439・440・441・442・450・451・452 のどれかを出所として名乗る試験。`submit-wiring`・`ime-screen`・`candidates`・`esc-outcomes`・`paste-notice`・`input-ports`・`input-field-hidden`・`ch0-3-run`・`tab-parts`・`esc-guide-st14`・`modifier-enter-paste-st14`
+- 部品の自己確認（helper）4 件: screen が直接 import する部品に自己確認があるもの。`harness`・`ime`・`tab-focus`・`e2-ir`。間接の import は追わない
+- 入れないもの: 8 タスクに触れるだけの試験（`enter-submit`・`esc-key`・`shift-tab`・`tab-cycle`・`tab-trap`・`reject-lines`・`run-status`・`log-lines-xss`・`restore-cancel`・`approval-flow`・`choice-answer`・`keyboard-confirm` など）と、不変条件の側の試験（`key-invariants`・`field-space`・`submit-disabled`。TASK-351・TASK-352 の持ち分）
+
+TERM の対応（`auto` は束のファイルが判定つきで確かめる。`proxy` は自動で確かめられる部分だけを束に入れる）:
+
+| 項目 | 種類 | 束の試験 | 束の外に残るもの |
+|---|---|---|---|
+| TERM-1・TERM-2 | auto | `submit-wiring` | なし |
+| TERM-3・TERM-6 | auto | `ime-screen` | なし |
+| TERM-4 | proxy | `ime-screen` | macOS の実 IME での人の確認（未実施。TASK-93） |
+| TERM-5 | proxy | `ime-screen` | Windows の実機の確認（未実施。TASK-286・TASK-460） |
+| TERM-7 | auto | `esc-outcomes` | なし |
+| TERM-8 | auto | `esc-outcomes`・`candidates` | なし |
+| TERM-9 | auto | `esc-guide-st14` | なし |
+| TERM-10 | auto | `tab-parts` | なし |
+| TERM-11 | auto | `candidates` | なし |
+| TERM-12 | proxy | `ch0-3-run` | 人がキーボードだけで CH-1 を完走する確認（未実施。TASK-386） |
+| TERM-13 | proxy | `ch0-3-run` | Tab の回数の判定（どの試験も判定していない。TASK-374） |
+| TERM-14 | auto | `modifier-enter-paste-st14` | なし |
+| TERM-23 | auto | `input-ports`・`input-field-hidden`・`ch0-3-run` | なし |
+
+実行: `make test-right-pane`（`scripts/test-right-pane.sh`。配信する設定・試験の設定・`fandhe-pack` を一時ディレクトリへビルドし、束のファイルだけを `node --test` に渡す。`FANDHE_TEST_TAP_OUT`・`FANDHE_TEST_JUNIT_OUT` は `test-browser.sh` と同じ形）。遅く、Playwright の Chromium・wasm-bindgen を要するため、CI・フックには入れない。束のファイルは全件が `scripts/test-browser.sh` に載っており、CI の `browser-test` が既に流す。
+
+静的な検査: `make check-right-pane-suite`（`make check` に含む。cargo・node 不要）。書式・ファイル名・実在・`test-browser.sh` に載っていること・8 タスクの網羅・部品の自己確認の過不足・TERM の 15 項目の網羅（必須の集合は検査スクリプトに固定）・`auto` のファイルに ID が数字の境界つきで現れること・`proxy` の補足・前段の環境変数の不足を確かめる。回帰テストは `make test-check-right-pane-suite`（42 件。CI の `check` ジョブが流す）。
+
+実測（2026-11-12）: 静的な検査と回帰テストは合格。`make test-right-pane` の実行は、この作業環境に `node_modules/playwright` が無く流せなかった（未検証）。
+
+限界: 件数の基準は 2/3、置き換えの前後の比較は 3/3 が行う。`modifier-enter-paste-st14.test.mjs` の Shift+Enter の観察のコメントは TERM-13 と書くが、中身は TERM-2 に当たる（束の根拠にはしていない）。人の確認と TERM-13 の判定は束の外。
+
+範囲外: `scripts/expected-test-counts.txt`（試験ファイルを足していないため合計は変わらない）。
