@@ -49,6 +49,7 @@ expect_stderr() {
 REPO="${TMP_DIR}/repo"
 BD="${REPO}/tools/browser"
 DEFF="${BD}/suites/right-pane.txt"
+BASEF="${BD}/suites/right-pane-baseline.txt"
 TB="${REPO}/scripts/test-browser.sh"
 
 # 見本の screen 8 件（TASK ごとに 1 件。本文に出所と TERM の ID を書く）と helper 1 件（部品 h.mjs・自己確認 h.test.mjs）。
@@ -84,6 +85,22 @@ build() {
   # shellcheck disable=SC2016 # 同上
   printf '  "${ROOT_DIR}/tools/browser/h.test.mjs" \\\n' >>"${TB}"
   write_def
+  write_baseline
+}
+
+# write_baseline: 見本の件数の基準（見本の定義は file 9 件・screen 8 件・helper 1 件）。
+write_baseline() {
+  cat >"${BASEF}" <<'EOB'
+# sample baseline
+# 記録日: 2026-01-02・元にしたコミット: abc1234
+suite|files=9|screen=8|helper=1
+browser|total|tests=10|pass=8|skipped=1|todo=1|cancelled=0
+EOB
+}
+
+# mutate_base <sed-expr>: 見本の基準を sed で書き換える。
+mutate_base() {
+  sed "$1" "${BASEF}" >"${BASEF}.new" && mv "${BASEF}.new" "${BASEF}"
 }
 
 # write_def: 見本の定義を書く（検査は必須の TERM 15 件を固定しているため、本物と同じ 15 件を並べる）。
@@ -247,6 +264,71 @@ echo 'bogus line' >>"${DEFF}"
 run_check
 expect "unknown line kind" 1 "${RC}"
 expect_stderr "unknown kind reported" "unknown line kind"
+
+# R8 件数の基準
+build
+rm "${BASEF}"
+run_check
+expect "R8 baseline missing" 1 "${RC}"
+expect_stderr "R8 missing reported" "baseline not found"
+
+build
+mutate_base 's/files=9/files=8/'
+run_check
+expect "R8 files mismatch" 1 "${RC}"
+expect_stderr "R8 files mismatch reported" "suite line does not match the definition"
+
+build
+mutate_base 's/screen=8/screen=7/'
+run_check
+expect "R8 screen mismatch" 1 "${RC}"
+
+build
+mutate_base 's/helper=1/helper=2/'
+run_check
+expect "R8 helper mismatch" 1 "${RC}"
+
+build
+echo 'browser|total|tests=10|pass=8|skipped=1|todo=1|cancelled=0' >>"${BASEF}"
+run_check
+expect "R8 duplicate browser line" 1 "${RC}"
+expect_stderr "R8 duplicate reported" "exactly one browser|total| line"
+
+build
+mutate_base 's/tests=10/tests=ten/'
+run_check
+expect "R8 non-numeric value" 1 "${RC}"
+expect_stderr "R8 malformed reported" "malformed browser|total line"
+
+build
+mutate_base 's/cancelled=0/cancelled=1/'
+run_check
+expect "R8 cancelled not zero" 1 "${RC}"
+expect_stderr "R8 cancelled reported" "cancelled must be 0"
+
+build
+mutate_base 's/pass=8/pass=7/'
+run_check
+expect "R8 tests != pass+skipped+todo" 1 "${RC}"
+expect_stderr "R8 sum reported" "pass+skipped+todo"
+
+build
+mutate_base 's/元にしたコミット: abc1234//'
+run_check
+expect "R8 missing commit" 1 "${RC}"
+expect_stderr "R8 commit reported" "lacks the source commit"
+
+build
+mutate_base 's/記録日: 2026-01-02//'
+run_check
+expect "R8 missing date" 1 "${RC}"
+expect_stderr "R8 date reported" "lacks the record date"
+
+build
+echo 'mystery|1' >>"${BASEF}"
+run_check
+expect "R8 unknown line" 1 "${RC}"
+expect_stderr "R8 unknown reported" "unknown baseline line"
 
 # 誤用・判定不能
 build

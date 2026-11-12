@@ -13891,8 +13891,41 @@ TERM の対応（`auto` は束のファイルが判定つきで確かめる。`p
 
 静的な検査: `make check-right-pane-suite`（`make check` に含む。cargo・node 不要）。書式・ファイル名・実在・`test-browser.sh` に載っていること・8 タスクの網羅・部品の自己確認の過不足・TERM の 15 項目の網羅（必須の集合は検査スクリプトに固定）・`auto` のファイルに ID が数字の境界つきで現れること・`proxy` の補足・前段の環境変数の不足を確かめる。回帰テストは `make test-check-right-pane-suite`（42 件。CI の `check` ジョブが流す）。
 
-実測（2026-11-12）: 静的な検査と回帰テストは合格。`make test-right-pane` の実行は、この作業環境に `node_modules/playwright` が無く流せなかった（未検証）。
+実測（2026-11-12）: 静的な検査と回帰テストは合格。`make test-right-pane` の実行は、この作業環境に `node_modules/playwright` が無く流せなかった（未検証）。実測は 5.514 で行った。
 
-限界: 件数の基準は 2/3、置き換えの前後の比較は 3/3 が行う。`modifier-enter-paste-st14.test.mjs` の Shift+Enter の観察のコメントは TERM-13 と書くが、中身は TERM-2 に当たる（束の根拠にはしていない）。人の確認と TERM-13 の判定は束の外。
+限界: 件数の基準は 5.514（2/3）で記録した。置き換えの前後の比較は 3/3 が行う。`modifier-enter-paste-st14.test.mjs` の Shift+Enter の観察のコメントは TERM-13 と書くが、中身は TERM-2 に当たる（束の根拠にはしていない）。人の確認と TERM-13 の判定は束の外。
 
 範囲外: `scripts/expected-test-counts.txt`（試験ファイルを足していないため合計は変わらない）。
+
+### 5.514 右の画面の試験の束の件数の基準（TASK-458 2/3。TERM-40。#1004。5.513 の続き）
+
+目的: 入力欄のキー処理の受け持ちを変える作業の前後で比べられるよう、現状の glue で 5.513 の束を流した件数を基準として固定する。現状の glue は D-42 の案 (c)（維持）の形で、上流の口への置き換えは起きない（5.92）。前後の比較は 3/3（#1005）が行う。実装日 2026-11-12。製品のコードと `scripts/expected-test-counts.txt` は変えない（変えると `check-frontend-bump.sh counts` が全体の件数の照合を始め、古い期待値との差で落ちるため）。
+
+基準の置き場: `tools/browser/suites/right-pane-baseline.txt`（束の定義の隣。一か所の正）。`suite|` の行（束のファイル数・screen・helper。定義とのずれを検出する）と `browser|total|` の行（`check-frontend-bump.sh normalize browser` の出力そのもの）の 2 行。静的な整合は `scripts/check-right-pane-suite.sh` の R8（`make check` に含む）が確かめ、回帰テストは `make test-check-right-pane-suite`（62 件）。
+
+記録の手順（再現できる）:
+
+```text
+FANDHE_TEST_TAP_OUT=<tap> make test-right-pane
+scripts/check-frontend-bump.sh normalize browser <tap>
+```
+
+試験が 1 件でも失敗・cancelled なら基準を書き直さない（fail-closed）。
+
+条件（2026-11-12）: 元にしたコミット `bce13df0`・Linux x86_64・node v24.16.0・Playwright 1.63.0（同梱の Chromium 153.0.8010.12。channel 未指定）・`SKIP_WASM_OPT=1`。所要は約 44 秒（前段のビルドを除く）。
+
+結果: `browser|total|tests=194|pass=194|skipped=0|todo=0|cancelled=0`。
+
+参考の内訳（同じ実行の junit の testcase をファイルごとに数えた。合計 194 は TAP の `tests` と一致した。基準のファイルには入れない）: `tab-parts` 47・`ime-screen` 23・`candidates` 18・`esc-outcomes` 16・`harness` 16・`tab-focus` 14・`e2-ir` 11・`paste-notice` 10・`submit-wiring` 10・`ime` 9・`ch0-3-run` 4・`esc-guide-st14` 4・`input-field-hidden` 4・`input-ports` 4・`modifier-enter-paste-st14` 4。TERM の 15 項目がすべて束の screen に対応していることは R6 が保証する（5.513）。
+
+3/3 での使い方: 置き換えの後に同じコマンドで出した `browser|total|` の行を、基準のファイルの同じ行と `diff` する。
+
+限界:
+
+- 件数は PoC-2 の 148 項目・PoC-1 の 52 項目そのものではない。PoC の試験は試作の側にあり、この repo では流せない（BUILD-14）。PoC のログの文面は写さず、項目単位の対応表も作らない。
+- PoC-1 の B-* に当たるエンジンの試験（`element-identity`・`confirm-burst`・`restore-cancel` など）と、PoC-2 の OS-*・FLOOD・R-19 に当たる試験（`modifier-key-hint`・`ime-reload-flood`・`draft-sync` など）は束の外である。
+- TERM-4・TERM-5・TERM-12・TERM-13 は proxy（5.513）。人の確認は束の外。
+- Chromium 以外と `wasm-opt` 適用後は未測定。
+- 作業環境の `/tmp`（tmpfs）で 1 回目の実行が `EIO`（入出力エラー）で 44 件失敗した。`TMPDIR` をディスク上に変えた 2 回目は全件合格した。基準は 2 回目の値。環境の問題で、試験の欠陥とは判断していない。
+
+範囲外: 束の拡張（上記の外の試験を入れるかの判断は 3/3 か別の Issue）。

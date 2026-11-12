@@ -3,7 +3,7 @@
 # 目的: 入力欄のキー処理（Enter・Tab・Space の状態に応じた preventDefault と、root の外の Esc）の受け持ちを
 #   どう変えても、右の画面の操作の結果（TERM-1〜TERM-14・TERM-23）が変わらないことを、1 つの回帰として流せるようにする。
 #   実行は scripts/test-right-pane.sh（make test-right-pane）。定義の静的な検査は scripts/check-right-pane-suite.sh
-#   （make check に含む）。件数の基準の記録は 2/3、置き換えの前後の比較は 3/3 が、このファイルの範囲で行う。
+#   （make check に含む）。件数の基準は right-pane-baseline.txt（2/3。docs/testing.md 5.514）、置き換えの前後の比較は 3/3 が行う。
 #
 # 入れる規則:
 #   screen = 冒頭で TASK-438・439・440・441・442・450・451・452 のどれかを出所として名乗る画面の試験。

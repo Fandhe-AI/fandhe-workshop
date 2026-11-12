@@ -18,6 +18,9 @@
 #   R6 term          ID の集合が必須の 15 件とちょうど一致。種類は auto・proxy。ファイル欄は束の screen。
 #                    auto の各ファイルの本文にその ID（数字の境界つき）がある。proxy は補足が空でない
 #   R7 前段の不足    束のファイルと直接 import する部品が読む FANDHE_* が、回帰の入口が渡す環境変数に収まる
+#   R8 件数の基準    suites/right-pane-baseline.txt が実在し、suite| 行が定義の件数（file・screen・helper）と一致し、
+#                    browser|total| 行の値が非負の整数で cancelled=0・tests>0・tests=pass+skipped+todo で、
+#                    ヘッダに記録日（YYYY-MM-DD）と元にしたコミット（16 進）がある（TASK-458 2/3）
 #
 # 終了コード: 0 = 一致 / 1 = ずれ / 2 = 誤用（引数あり）・判定不能（定義ファイル・test-browser.sh が無い等）。
 set -euo pipefail
@@ -205,6 +208,61 @@ for f in ${SCREENS} ${CHECKED} ${IMPORTED}; do
       err "R7: ${f} reads ${v}, which scripts/test-right-pane.sh does not provide"
   done
 done
+
+# --- R8 件数の基準 ---
+BASE="${BDIR}/suites/right-pane-baseline.txt"
+if [ ! -f "${BASE}" ]; then
+  err "R8: baseline not found: ${BASE}"
+else
+  nfiles=0
+  nscreen=0
+  nhelper=0
+  while IFS='|' read -r kind a b _; do
+    [ "${kind}" = file ] || continue
+    nfiles=$((nfiles + 1))
+    [ "${b}" = screen ] && nscreen=$((nscreen + 1))
+    [ "${b}" = helper ] && nhelper=$((nhelper + 1))
+    : "${a}"
+  done <"${DEF}"
+  nsuite=0
+  nbrowser=0
+  while IFS= read -r line || [ -n "${line}" ]; do
+    case "${line}" in
+      '' | '#'*) continue ;;
+      suite\|*)
+        nsuite=$((nsuite + 1))
+        if [ "${line}" != "suite|files=${nfiles}|screen=${nscreen}|helper=${nhelper}" ]; then
+          err "R8: suite line does not match the definition (expected files=${nfiles} screen=${nscreen} helper=${nhelper}): ${line}"
+        fi
+        ;;
+      browser\|total\|*)
+        nbrowser=$((nbrowser + 1))
+        if ! printf '%s' "${line}" | grep -Eq '^browser\|total\|tests=[0-9]+\|pass=[0-9]+\|skipped=[0-9]+\|todo=[0-9]+\|cancelled=[0-9]+$'; then
+          err "R8: malformed browser|total line: ${line}"
+        else
+          bt="$(printf '%s' "${line}" | sed -E 's/.*tests=([0-9]+).*/\1/')"
+          bp="$(printf '%s' "${line}" | sed -E 's/.*pass=([0-9]+).*/\1/')"
+          bs="$(printf '%s' "${line}" | sed -E 's/.*skipped=([0-9]+).*/\1/')"
+          bo="$(printf '%s' "${line}" | sed -E 's/.*todo=([0-9]+).*/\1/')"
+          bc="$(printf '%s' "${line}" | sed -E 's/.*cancelled=([0-9]+)$/\1/')"
+          [ "${#bt}" -le 9 ] && [ "${#bp}" -le 9 ] && [ "${#bs}" -le 9 ] && [ "${#bo}" -le 9 ] && [ "${#bc}" -le 9 ] ||
+            err "R8: baseline value too long: ${line}"
+          if [ "${#bt}" -le 9 ] && [ "${#bp}" -le 9 ] && [ "${#bs}" -le 9 ] && [ "${#bo}" -le 9 ] && [ "${#bc}" -le 9 ]; then
+            [ $((10#${bt})) -gt 0 ] || err "R8: baseline tests must be greater than 0"
+            [ $((10#${bc})) -eq 0 ] || err "R8: baseline cancelled must be 0"
+            [ $((10#${bt})) -eq $((10#${bp} + 10#${bs} + 10#${bo})) ] ||
+              err "R8: baseline tests (${bt}) != pass+skipped+todo ($((10#${bp} + 10#${bs} + 10#${bo})))"
+          fi
+        fi
+        ;;
+      *) err "R8: unknown baseline line: ${line}" ;;
+    esac
+  done <"${BASE}"
+  [ "${nsuite}" = 1 ] || err "R8: baseline needs exactly one suite| line (found ${nsuite})"
+  [ "${nbrowser}" = 1 ] || err "R8: baseline needs exactly one browser|total| line (found ${nbrowser})"
+  grep -Eq '記録日: [0-9]{4}-[0-9]{2}-[0-9]{2}' "${BASE}" || err "R8: baseline header lacks the record date"
+  grep -Eq '元にしたコミット: [0-9a-f]{7,40}' "${BASE}" || err "R8: baseline header lacks the source commit"
+fi
 
 if [ "${fail}" != 0 ]; then
   exit 1
