@@ -29,12 +29,11 @@ import {
 import {
   SIM_LABEL, loadSentences, openIme, assertFocused, imeCompose, imeCommit, imeCancel,
   imeEnterKey, imeEscKey, composeSentence, installKeyProbe, readKeyProbe, clearKeyProbe,
+  MIS_SEND_MARK, ESC_STOP_MARK, settle, misSendCount, missedCount, stopCount, cancelLogCount,
+  assertComposingKeydown, assertNoMisSend,
 } from './ime.mjs';
 
 const BASE = '/fandhe-ime-sentences/';
-const MIS_SEND_MARK = 'IME-MIS-SEND';
-// Esc を送った後の停止・世代・取り消しの件数の表明にだけ付ける印。Esc の前の表明（runStatus が busy 等）と集計には付けない。
-const ESC_STOP_MARK = 'IME-ESC-STOP';
 const INPUT = '[data-testid="draft-input"]';
 const ITEMS = '[data-testid="log-list"] > li';
 const RAW = '[data-testid="raw-trigger"]';
@@ -86,19 +85,10 @@ function assertClean(rec) {
   assert.equal(s.consoleErrors, 0, detail);
 }
 
-const settle = (page) => page.evaluate(() => new Promise((resolve) => {
-  setTimeout(() => setTimeout(resolve, 0), 0);
-}));
 const itemTexts = (page) => page.$$eval(ITEMS, (lis) => lis.map((li) => li.textContent));
 const keydowns = async (page) => (await readKeyProbe(page)).filter((r) => r.type === 'keydown');
 const engine = async (page) => JSON.parse(await page.evaluate(() => window.__fandheTest.stateJson())).engine;
 const waitValue = (page, v) => page.waitForFunction(([sel, x]) => document.querySelector(sel)?.value === x, [INPUT, v]);
-
-// 数え方。本番の行列と対照（C-1〜C-3）で同じ関数を使う。
-const misSendCount = (delta) => delta;
-const missedCount = (delta, lastText, expected) => (delta === 1 && lastText === expected ? 0 : 1);
-const stopCount = (e0, e1) => (e1.generation !== e0.generation || e1.runStatus === 'stopped' ? 1 : 0);
-const cancelLogCount = (l0, l1) => (l1 === l0 ? 0 : 1);
 
 // 下書きを入れる。複数行は 1 行目・Shift+Enter・2 行目（値に改行が入る）。
 async function setDraft(page, kind) {
@@ -125,21 +115,6 @@ async function composingEnterDelta(page, cdp) {
   await settle(page);
   const kd = await keydowns(page);
   return { kd, delta: (await itemTexts(page)).length - n0 };
-}
-
-// 誤送信の件数を文言そのものに入れ、固定の印 MIS_SEND_MARK を付ける。assertComposingKeydown より先に置くことで、
-// 変換中の判定を外す変異（M1）の失敗が defaultPrevented の表明でなく誤送信の件数として読める。
-// 呼び出し元の scripts/test-ime-composing-control.sh が印で「正しい理由の失敗」を判定する。
-function assertNoMisSend(delta, why) {
-  const n = misSendCount(delta);
-  assert.equal(n, 0, `${MIS_SEND_MARK} 誤送信 ${n} 件 ${why} ${SIM_LABEL}`);
-}
-
-function assertComposingKeydown(kd, why) {
-  assert.equal(kd.length, 1, `${why} ${SIM_LABEL}`);
-  assert.equal(kd[0].isComposing, true, `${why} ${SIM_LABEL}`);
-  assert.equal(kd[0].keyCode, 229, `${why} ${SIM_LABEL}`);
-  assert.equal(kd[0].defaultPrevented, false, `${why} ${SIM_LABEL}`);
 }
 
 // Enter 系の 1 文。誤送信（変換中の Enter）と送信漏れ（確定後の Enter）を数えて積む。

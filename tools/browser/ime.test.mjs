@@ -10,6 +10,7 @@ import {
   SIM_LABEL, loadSentences, openIme, assertFocused, imeCompose, imeCommit, imeCancel, imeEnterKey,
   installKeyProbe, readKeyProbe, clearKeyProbe,
   installValueWriteProbe, readValueWriteProbe, clearValueWriteProbe,
+  MIS_SEND_MARK, misSendCount, missedCount, stopCount, cancelLogCount, assertNoMisSend,
 } from './ime.mjs';
 
 const T = '#t';
@@ -116,4 +117,23 @@ test(`書き込みの器は対象の selector に合わない要素の書き込�
   await page.evaluate(() => { document.querySelector('#u').value = 'z'; });
   assert.deepEqual(await readValueWriteProbe(page), { composing: 0, idle: 0 }, SIM_LABEL);
   await context.close();
+});
+
+// 数え方の自己確認（ime-sentences・ime-screen が共有する関数。0 件が空振りでなく、1 件を数えられること）。
+test('数え方は誤送信・送信漏れ・停止・取り消しの記録を 1 件と数え、正常なら 0 を数える', () => {
+  assert.equal(misSendCount(0), 0);
+  assert.equal(misSendCount(1), 1);
+  assert.equal(missedCount(1, 'abc', 'abc'), 0);
+  assert.equal(missedCount(1, 'abd', 'abc'), 1);
+  assert.equal(missedCount(0, 'abc', 'abc'), 1);
+  assert.equal(stopCount({ generation: 1, runStatus: 'busy' }, { generation: 1, runStatus: 'busy' }), 0);
+  assert.equal(stopCount({ generation: 1, runStatus: 'busy' }, { generation: 2, runStatus: 'busy' }), 1);
+  assert.equal(stopCount({ generation: 1, runStatus: 'busy' }, { generation: 1, runStatus: 'stopped' }), 1);
+  assert.equal(cancelLogCount(3, 3), 0);
+  assert.equal(cancelLogCount(3, 4), 1);
+});
+
+test('誤送信の表明は印と件数を失敗の文言に出す', () => {
+  assertNoMisSend(0, 'x');
+  assert.throws(() => assertNoMisSend(1, 'x'), (e) => e.message.includes(`${MIS_SEND_MARK} 誤送信 1 件`));
 });

@@ -6,13 +6,13 @@
 #
 # 前提: 呼び出し側が lib.sh と lib-mutations.sh（REAL_ROOT 定義済み）を source している。
 
-# 固定の印。tools/browser/ime-sentences.test.mjs の MIS_SEND_MARK と合わせる。
+# 固定の印。tools/browser/ime.mjs の MIS_SEND_MARK と合わせる。
 # テスト名の「誤送信 0 件」に一致しないよう、件数が 1 以上の形まで要求する。
 # shellcheck disable=SC2034 # 呼び出し側（test-ime-composing-control.sh）も出力の抜き出しに使う
 IME_MIS_SEND_RE='IME-MIS-SEND 誤送信 [1-9][0-9]* 件'
 
 # M3 の検出の証拠: Esc を送った後の停止・取り消しの件数の表明に付く印（件数 1 以上）。
-# tools/browser/ime-sentences.test.mjs の ESC_STOP_MARK と合わせる。Esc の前の表明（runStatus が busy 等）・集計・試験名には出ない。
+# tools/browser/ime.mjs の ESC_STOP_MARK と合わせる。Esc の前の表明（runStatus が busy 等）・集計・試験名には出ない。
 # shellcheck disable=SC2034 # judge_m3 が使う
 IME_ESC_STOP_RE='IME-ESC-STOP 停止 [1-9][0-9]* 件'
 
