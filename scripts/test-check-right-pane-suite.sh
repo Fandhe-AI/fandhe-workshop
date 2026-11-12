@@ -10,6 +10,9 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${DIR}/lib.sh"
 
 reject_args "$(basename "$0")" "$@"
+require_cmd mkdir
+require_cmd mv
+require_cmd sed
 require_cmd rm
 require_cmd mktemp
 require_cmd cp
