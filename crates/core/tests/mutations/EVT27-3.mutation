@@ -1,0 +1,9 @@
+id: EVT27-3
+package: fandhe-workshop-core
+test: fast_forward_on_off
+target: crates/core/src/projection.rs
+find:         for i in self.consumed..events.len() {
+replace:         for i in self.consumed.max(events.len().saturating_sub(4))..events.len() {
+expect-fail: on_off_identity_property
+expect-fail: on_off_script_specs
+note: 増分の 1 回分が長いと先頭のイベントを読み飛ばし、区切り方で左の印が変わる

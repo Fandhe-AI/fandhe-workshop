@@ -1,0 +1,9 @@
+id: EVT27-2
+package: fandhe-workshop-core
+test: fast_forward_on_off
+target: crates/core/src/fast_forward.rs
+find:         out.events.extend(events);
+replace:         out.events.extend(events.into_iter().filter(|e| !matches!(e, Event::Progress { .. })));
+expect-fail: on_off_fixed_st1
+expect-fail: on_off_identity_property
+note: 連続適用の戻り値から進行イベントを落とし、状態は同じまま数だけ食い違わせる

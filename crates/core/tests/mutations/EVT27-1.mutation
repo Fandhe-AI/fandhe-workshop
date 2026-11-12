@@ -1,0 +1,9 @@
+id: EVT27-1
+package: fandhe-workshop-core
+test: fast_forward_on_off
+target: crates/core/src/fast_forward.rs
+find:         out.ticks.push(addr.clone());
+replace:         out.ticks.push(next_tick(target.state()).unwrap_or_else(|| addr.clone()));
+expect-fail: on_off_fixed_st1
+expect-fail: on_off_identity_property
+note: 適用した宛先の代わりに適用後の次の宛先を記録し、入と切の宛先を食い違わせる

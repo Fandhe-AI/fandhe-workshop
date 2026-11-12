@@ -22,6 +22,7 @@
 | 区分 | 試験ファイル | 主な試験関数 | ビヘイビア |
 |---|---|---|---|
 | 進行管理 | `crates/core/tests/fast_forward.rs` | `fast_forward_matches_tick_by_tick`・`fast_forward_records_same_ops`・`fast_forward_stop_midway_restores_entry`・`fast_forward_keeps_point_at_scene` | 進行の連続適用（EVT-17） |
+| 進行管理 | `crates/core/tests/fast_forward_on_off.rs` | `on_off_fixed_st1`・`on_off_identity_property`・`on_off_script_specs` | 早送りの入・切の同一性（EVT-27） |
 | 進行管理 | `crates/core/tests/tick_progress.rs` | `matching_tick_advances_once`・`duplicate_index_advances_once` | 進行の照合と重複の無視 |
 | 進行管理 | `crates/core/tests/generation_keep.rs` | `keep_on_accept`・`keep_on_confirm_achieve` | 世代の維持 |
 | 進行管理 | `crates/core/tests/busy_resend.rs` | `burst_of_20_accepts_once_and_rejects_19_as_busy` | 処理中の再送 |
@@ -13768,3 +13769,25 @@ K1・K2 は、承認・対象つきの「直す」・カード・差分の行・
 - 幅 960px 未満・信頼されない click・`page.evaluate` の中の click は 5.507 と同じ限界。
 - 2 周目の境目（CH-9→CH-10）と `use` の Step で終わる章の越え方は、本物の教材では未確認。
 - `make test-browser` の全体と `scripts/expected-test-counts.txt` の更新（5.507 の +11 と本件の +8）は行っていない（`make update-test-counts` で別に扱う）。
+
+### 5.509 早送りの入・切の状態・進行の数・左の変化・宛先の同一性の試験と変異注入（TASK-228 1/2。EVT-27。#942）
+
+実行日: 2026-11-12。元にしたコミット: `7136408e`（作業ツリーの変更つき）。開発機（Linux x86_64）。
+
+目的は、同じ操作列を早送りの入（進行の連続適用）と切（タイマー相当の 1 件ずつの適用）で流したとき、各操作の後に状態・進行イベント（`Progress`）の数・進行の宛先・左の最終的な変化が一致することを固定することである。変わるのは進行の間隔だけである。
+
+- 試験: `crates/core/tests/fast_forward_on_off.rs`（7 件。性質テスト 5 本、固定例 1 本、固定列 1 本）。生成器は `op_specs`・`guided_op_specs` とそれぞれの再読み込みつき、および全 Step の `confirm` を `none` にした IR の写し（連続適用が達成・遷移をまたぐ）。
+- 左の最終的な変化は、世界状態と `Projection` の印・復習の一覧と、戻り値から取り出した `Changed` の列で比べる。増分の導出（切は進行 1 件ごと、入は連続適用 1 回分ごと）が、一括の導出と一致することも確かめる。
+- 空振りの確認として、連続適用が進行を適用した操作と印が出た確認が 1 件以上あることを、各性質テストの終わりに `assert!` する。
+
+| 変異 | 対象 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|
+| EVT27-1 | `fast_forward.rs`: 適用した宛先の代わりに適用後の次の宛先を記録 | `on_off_fixed_st1`・`on_off_identity_property` ほか | 検出 |
+| EVT27-2 | `fast_forward.rs`: 戻り値から進行イベントを落とす | `on_off_fixed_st1`・`on_off_identity_property` ほか | 検出 |
+| EVT27-3 | `projection.rs`: 増分の 1 回分が長いと先頭を読み飛ばす | `on_off_identity_property`・`on_off_script_specs` ほか | 検出 |
+
+EVT27-3 は当初 `on_off_fixed_st1` も期待したが、固定例では読み飛ばされる先頭 4 件に印を変えるイベントが含まれず失敗しなかった（SURVIVED）。期待を、実際に失敗する試験に合わせた。契約の版（`CONTRACT_VERSION`）と `scripts/expected-test-counts.txt` は変えていない。
+
+限界: core に時刻が無いため間隔そのものの比較は扱わない。web の `artifact_rows` までの左の行は core では扱わない。
+
+範囲外: 履歴の `ops` の一致と列の途中の入・切の切り替え（TASK-228 2/2）、画面を通した確認（TASK-542）、進行の間隔の既定（TASK-229）。
