@@ -1,0 +1,52 @@
+# 右の画面の試験の束の定義（TASK-458 1/3。TERM-40）。一か所の正。
+#
+# 目的: 入力欄のキー処理（Enter・Tab・Space の状態に応じた preventDefault と、root の外の Esc）の受け持ちを
+#   どう変えても、右の画面の操作の結果（TERM-1〜TERM-14・TERM-23）が変わらないことを、1 つの回帰として流せるようにする。
+#   実行は scripts/test-right-pane.sh（make test-right-pane）。定義の静的な検査は scripts/check-right-pane-suite.sh
+#   （make check に含む）。件数の基準の記録は 2/3、置き換えの前後の比較は 3/3 が、このファイルの範囲で行う。
+#
+# 入れる規則:
+#   screen = 冒頭で TASK-438・439・440・441・442・450・451・452 のどれかを出所として名乗る画面の試験。
+#   helper = screen が直接 import する部品 X.mjs に自己確認 X.test.mjs があるもの（部品が壊れて画面の試験が空振りするのを防ぐ）。
+#            間接の import は追わない。
+# 入れないもの: 8 タスクに触れるだけの試験（enter-submit・esc-key・shift-tab・tab-cycle・tab-trap・reject-lines・
+#   run-status・log-lines-xss・restore-cancel・approval-flow・choice-answer・keyboard-confirm など）と、
+#   不変条件の側の試験（key-invariants・field-space・submit-disabled。TASK-351・TASK-352 の持ち分）。
+#
+# 必須の集合（TERM-1〜TERM-14・TERM-23 と 8 タスク）は検査スクリプト側に固定してある。ここの行を消しても要件は消えない。
+#
+# 書式（区切りは |）:
+#   file|<試験ファイル名>|<screen|helper>|<出所。screen は TASK-nnn、helper は部品の .mjs 名>
+#   term|<TERM の ID>|<auto|proxy>|<束の screen の試験ファイル（, 区切り）>|<補足。proxy は必須>
+#   auto  = 束のファイルが、その項目を判定つきで確かめる。
+#   proxy = 自動で確かめられる部分（模擬・自動操作・観察）だけを束に入れる。人の確認や判定の無い部分は束の外。
+file|submit-wiring.test.mjs|screen|TASK-438
+file|ime-screen.test.mjs|screen|TASK-439
+file|candidates.test.mjs|screen|TASK-440
+file|esc-outcomes.test.mjs|screen|TASK-441
+file|paste-notice.test.mjs|screen|TASK-442
+file|input-ports.test.mjs|screen|TASK-450
+file|input-field-hidden.test.mjs|screen|TASK-450
+file|ch0-3-run.test.mjs|screen|TASK-450
+file|tab-parts.test.mjs|screen|TASK-451
+file|esc-guide-st14.test.mjs|screen|TASK-452
+file|modifier-enter-paste-st14.test.mjs|screen|TASK-452
+file|harness.test.mjs|helper|harness.mjs
+file|ime.test.mjs|helper|ime.mjs
+file|tab-focus.test.mjs|helper|tab-focus.mjs
+file|e2-ir.test.mjs|helper|e2-ir.mjs
+term|TERM-1|auto|submit-wiring.test.mjs|
+term|TERM-2|auto|submit-wiring.test.mjs|
+term|TERM-3|auto|ime-screen.test.mjs|
+term|TERM-4|proxy|ime-screen.test.mjs|CDP の模擬だけ。実 IME での人の確認は未実施（TASK-93）
+term|TERM-5|proxy|ime-screen.test.mjs|模擬の経路は同じ。Windows の実機の確認は未実施（TASK-286・TASK-460）
+term|TERM-6|auto|ime-screen.test.mjs|
+term|TERM-7|auto|esc-outcomes.test.mjs|
+term|TERM-8|auto|esc-outcomes.test.mjs,candidates.test.mjs|
+term|TERM-9|auto|esc-guide-st14.test.mjs|
+term|TERM-10|auto|tab-parts.test.mjs|
+term|TERM-11|auto|candidates.test.mjs|
+term|TERM-12|proxy|ch0-3-run.test.mjs|自動操作でのキーボードだけの CH-1 の完走。人の確認は未実施（TASK-386）
+term|TERM-13|proxy|ch0-3-run.test.mjs|キーボードだけの CH-1 の通しの中で観察するだけ。Tab の回数は判定していない（TASK-374）
+term|TERM-14|auto|modifier-enter-paste-st14.test.mjs|
+term|TERM-23|auto|input-ports.test.mjs,input-field-hidden.test.mjs,ch0-3-run.test.mjs|

@@ -164,6 +164,11 @@ jobs:
       - name: make test-check-ignored-tests
         run: make test-check-ignored-tests
 
+      # 右の画面の試験の束の定義の静的検査（make check に入っている）自体の回帰テスト。cargo 不要で数秒。
+      # 既存ジョブへの step 追加で、必須チェックは変わらない。
+      - name: make test-check-right-pane-suite
+        run: make test-check-right-pane-suite
+
       - name: make check-toolchain
         run: |
           set -euo pipefail

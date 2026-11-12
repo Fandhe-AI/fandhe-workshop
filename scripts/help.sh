@@ -36,6 +36,9 @@ cat <<'EOF'
   test-check-mutation-defs     scripts/test-check-mutation-defs.sh     変異の定義の静的検査自体の回帰テスト
   check-ignored-tests          scripts/check-ignored-tests.sh          clean-room の無視してよい試験の一覧と #[ignore] の現物のずれを静的に検査する
   test-check-ignored-tests     scripts/test-check-ignored-tests.sh     上の静的検査自体の回帰テスト
+  check-right-pane-suite       scripts/check-right-pane-suite.sh       右の画面の試験の束の定義を静的に検査する
+  test-check-right-pane-suite  scripts/test-check-right-pane-suite.sh  上の静的検査自体の回帰テスト
+  test-right-pane              scripts/test-right-pane.sh              右の画面の試験の束を 1 つの回帰として流す（遅い。ブラウザが要る）
   check-dom-reads              tools/check-deps.sh                     web crate が DOM の値を読まないこと（例外は件数固定）を検査する
   test-check-dom-reads         scripts/test-check-dom-reads.sh         DOM 読み取りの検査自体の回帰テスト
   check-frontend-bump          scripts/check-frontend-bump.sh          版上げ PR の受け入れ確認 (4)(5) の関門（feature の明示・変えてはいけないファイル）を検査する（(3) は CI の wasm-gzip）
