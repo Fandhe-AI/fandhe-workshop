@@ -13728,3 +13728,43 @@ K1・K2 は、承認・対象つきの「直す」・カード・差分の行・
 - 処理中の Esc による停止が先頭以外の Step で警告になる限界（5.3 系）は、本件の `esc`（取り消しの経路）では確かめていない（未検証）。
 - 全周（CH-0〜CH-15）と教材 repo の通し・期待の判定・結果の記録は 2/2（#929）。K2 は本物の CH-4 以降ではなく形を写した試験用の教材である。
 - `make test-browser` の全体と `scripts/expected-test-counts.txt` の件数の更新は、本件では行っていない（未検証。件数の期待値は触っていない）。
+
+### 5.508 教材の通しをキーボードだけで画面に流す部品と入口（#929。TASK-92 2/2。BUILD-17。5.507 の続き）
+
+実行日: 2026-11-11。開発機（Linux x86_64）・Playwright 同梱の Chromium。配信する設定（`TEST_HOOKS` なし・`IR_FILE` あり）のビルド（`SKIP_WASM_OPT=1` と wasm-opt 適用の両方で動作を確認）。
+
+教材パックの通し（`tests/playthrough.yaml` の 1 本）を、配信する設定の画面で、Tab・Enter・Space・Shift+Enter・Esc と文字の入力だけで最後まで流し、各操作の期待と終わりの条件を DOM の観察で判定する部品と、教材 repo の教材をそのまま読み込める入口を作った。エンジンは教材の知識を持たず、通しの ID は引数で受ける（既定値なし）。
+
+#### 作ったもの
+
+- `crates/pack/tests/playthrough_emit.rs`: `fandhe-pack` の読み込み器（`source::load`・`play_script::read`）を通した通し 1 本を `playthrough.json` にする（`emit_playthrough_for_browser`。`#[ignore]`。`tools/clean-room.sh` の `ALLOWED_IGNORED` に 5 件目として追加）。YAML の依存を npm に足さないための経路。ID の一致が 1 件でなければ止まる。出力のファイル名は固定。
+- `tools/browser/keyboard-playthrough.mjs`: `runPlaythrough`（区間の流し・各操作の期待の判定・区間の境目・終わりの条件）。操作は `keyOnlyDriver`・`playStep`（5.507）で行う。観察は DOM の属性と件数だけ（ログの行の `data-kind`・`data-category`、題、状態の語、`run-status`、「次の章へ進む」の `data-payload`）。区間 2 以降は、「次の章へ進む」がちょうど 1 個出て `data-payload` が区間の `start` と一致することを確かめ、Enter で越える（`?start=` へは逃げない）。selector に入れる ID は形を確かめてから使う。
+- `tools/browser/keyboard-playthrough-run.mjs`: 計数（`installInputCounter`・`guardPage`）つきで通しを流し、項目の合否と件数だけを出す入口。
+- `scripts/check-keyboard-playthrough.sh`（`make check-keyboard-playthrough PACK=<dir> PLAYTHROUGH=<id>`）: validate → compile → 配信する設定のビルド → 通しの JSON → 流す。遅いので `make test-browser`・PR の CI には入れない。回帰テストは `scripts/test-check-keyboard-playthrough.sh`（誤用の拒否。CI の `check` ジョブ）。
+- `crates/web/tests/data/ch0_3_pack/tests/playthrough.yaml`: 試験用教材（架空）の通し `pt-ch0-3-keys`（4 区間・53 操作）。`fandhe-pack test` が全件合格し、20 Step すべてに入る（R-22 は確認の操作で達成 16 件・省くと明示 4 件・確認なし 0 件）。`asserts` は `fandhe-pack test` が未対応のため置かない。
+
+#### 結果
+
+| 試験 | 内容 | 結果 |
+|---|---|---|
+| U1・U2 | 結果の分類・期待の語・ID の形の拒否・`asserts` が未判定として数えられる（ブラウザなし） | 合格 |
+| P0 | 同じ教材で `fandhe-pack test` が全件合格 | 合格 |
+| P1 | キーボードだけで 4 区間 53 操作を最後まで流す。CSP あり・なし | 各 14 項目合格。操作 53 件一致・「次の章へ進む」3 回。マウス 0・禁止のキー 0・監視 0・ページ内エラー 0・CSP 違反 0・外部通信 0・安全の計数 0。Tab 544・Enter 49・Space 10・Shift+Enter 2・Esc 1（CSP あり） |
+| N1 | 期待を 1 件書き換える | 区間 2・操作 1 の不一致（期待 `accepted`・観察 `rejected:unknown_command`）で止まる |
+| N2 | 区間 2 の開始点を書き換える | `data-payload` の不一致で止まる |
+| N3 | 制限なしのドライバ（実クリック）で流す | マウスの計数が 1 以上 |
+
+`scripts/check-keyboard-playthrough.sh crates/web/tests/data/ch0_3_pack pt-ch0-3-keys` も同じ結果で合格した。ブラウザ試験は 8 件増える。
+
+#### 教材 repo の CH-4 以降の確認の状況（未実施）
+
+2026-11-11 に教材 repo（private）の origin/main（`b877c20`）を `git ls-tree` で確かめた結果、`packs/bbs-tutorial/chapters/` は CH-0〜CH-3 の 4 章だけで、通し `pt-ch0-15`（TASK-87）も CH-4〜CH-15 の教材も無い。このため、全周（CH-0〜CH-15。1 周目と 2 周目）の流しと、CH-4 以降をブラウザで確かめた結果は未実施である。教材が揃えば `make check-keyboard-playthrough PACK=<教材の dir> PLAYTHROUGH=pt-ch0-15` で流せる。結果は項目の名前・件数・ID・合否だけを、ここに追記する（文面・入力値は写さない）。仕様 repo の試作の教材は、BUILD-14 と `check-sibling-free` に反し、今のエンジンの `validate` が断るため使っていない。
+
+#### 限界・未検証
+
+- tick は 1 つずつ照合せず、連続する tick を 1 まとまりにして、直前の操作以降に進行の行が 1 件以上出て処理が終わったことで見る。
+- `asserts` は DOM から範囲ごとの状態を読めないので判定しない（件数を返し、合格に数えない）。`fandhe-pack test` も未対応（TASK-87・TASK-197 の側）。
+- 受付と達成は、操作の前が確認待ちかどうかで分ける。自然文の注記（`accepted:free_text_unjudged`）は受付として扱い、注記の有無は見ない。`ignored` など画面の現れ方が決まらない期待は未知として止める。
+- 幅 960px 未満・信頼されない click・`page.evaluate` の中の click は 5.507 と同じ限界。
+- 2 周目の境目（CH-9→CH-10）と `use` の Step で終わる章の越え方は、本物の教材では未確認。
+- `make test-browser` の全体と `scripts/expected-test-counts.txt` の更新（5.507 の +11 と本件の +8）は行っていない（`make update-test-counts` で別に扱う）。

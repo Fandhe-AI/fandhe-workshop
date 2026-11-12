@@ -29,4 +29,4 @@ CH-0〜CH-3 の形の 20 Step を、形式 B（YAML と Markdown）の教材パ�
 
 ## 写していないもの
 
-`../ch0_3/README.md` の「写していないもの」と同じです。加えて、教材テスト（`tests/playthrough.yaml`）は置いていません。
+`../ch0_3/README.md` の「写していないもの」と同じです。加えて、教材テスト（`tests/playthrough.yaml`）は通し 1 本（`pt-ch0-3-keys`。4 区間・53 操作）だけで、誤入力（`error_inputs`）と `asserts` は置いていません。キーボードだけの通し（`tools/browser/keyboard-playthrough.test.mjs`。`docs/testing.md` の 5.508）の自己確認に使います。IR には載らないため、`author-preview` のバイト一致は変わりません。
