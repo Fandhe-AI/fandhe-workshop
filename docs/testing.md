@@ -14185,3 +14185,29 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 限界: 試験と実装の作成者が同じ AI であること。人の試行は 0 件。web の表示は、`step_body::step_text` が `run.guidance_level` だけを読むことを既存の `step_body_host` が確かめており、本節では専用の web 試験を足していない。
 
 範囲外: 契約の版上げ（#956。D-55 の下では要らない見込み）、ブラウザでの表示、案内レベルの切り替えのイベント化（GUIDE-16）、本文への引数の差し込み（GUIDE-15）。
+
+### 5.524 案内レベルの契約が変わらないことの適合試験（TASK-303 2/2。GUIDE-13・D-55。#956。5.523 の続き）
+
+実行日: 2026-11-13。元にしたコミット: 0272f2c5。
+
+目的は、D-55（案内レベルは実行全体で 1 つのまま維持し、実体ごとの水準は持たない）の下で、契約が変わらないことを適合試験で固定することである。実体ごとに持つ決定ではないため、`GUIDANCE_CONTRACT_VERSION`（1）・`CONTRACT_VERSION`（8）は据え置いた（版上げの条件に当たらない）。
+
+足した試験:
+
+| 試験 | 固定すること |
+|---|---|
+| `guidance_contract` の `instance_rejects_guidance_field` | 契約の `Instance` が `guidance` 欄を未知の欄として断る。外すと読める対照つき |
+| `run_wide_guidance` の `guide13_state_shape_has_only_run_level_after_round1_move` | 保存を挟んだ 2 周目の後の状態で、名前に `guidance` を含む鍵が `run` の下の `guidance_level` だけ |
+| `run_wide_guidance` の `guide13_instance_args_named_guidance_do_not_change_level` | 実体の引数に `guidance` を入れても水準は開始点の宣言（B）のまま。表示も B |
+
+コマンドと結果:
+
+- `cargo test --locked -p fandhe-workshop-contract --test guidance_contract`（11 件合格）
+- `cargo test --locked -p fandhe-workshop-core --test run_wide_guidance`（8 件合格）
+- 既存の適合試験の全件が版を変えずに合格した: core の `guidance_api`（19 件）・`session_contract`（6 件）・`engine_api_doc`（2 件）・`contract_conformance`（8 件）・`contract_sample`（14 件）、pack の `per_instance_guidance_gap`（4 件）・`run_wide_guidance_rounds`（2 件）
+
+変異: 足していない。`Instance` に欄を足す変異は、他の試験が `Instance` を構造体リテラルで作るためコンパイルが通らず、検出に数えられない。
+
+限界: 試験と実装の作成者が同じ AI であること。web の画面層は対象外。
+
+範囲外: `Restore` が写しの水準へ戻す点（MOD-9）の spec 側での明記、GUIDE-15・GUIDE-16、将来実体ごとの水準を持つ決定に変わった場合の版上げ。

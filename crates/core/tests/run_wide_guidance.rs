@@ -5,6 +5,7 @@
 //! 状態の形は変えない。`use` に `guidance` を書けないことは pack の `pack45_` が持つ。
 //! チェックポイントへの `Restore` が写しの水準へ戻すのは MOD-9 の別の規則で、GUIDE-13 の「移る」には含めない
 //! （`set_guidance.rs`・`docs/testing.md` 5.494）。変異は `GUIDE13-1`・`GUIDE13-2`。
+//! TASK-303 2/2 で、中身のある状態の鍵の形と、実体の引数が水準を変えないことを足した。
 //! 試験では `unwrap` を使ってよい。
 
 mod common;
@@ -223,4 +224,64 @@ fn guide13_level_after_round1_move_survives_replay() {
     let replayed = replay(&ir, initial, rec.ops()).expect("replay");
     assert_eq!(first_difference(&st, &replayed), None);
     assert_eq!(replayed.run.guidance_level, B);
+}
+
+/// 木を辿り、名前に `guidance` を含む鍵を (親の欄名, 鍵) の組で集める。
+fn guidance_keys(v: &Value, parent: &str, out: &mut Vec<(String, String)>) {
+    match v {
+        Value::Object(m) => {
+            for (k, c) in m {
+                if k.contains("guidance") {
+                    out.push((parent.to_string(), k.clone()));
+                }
+                guidance_keys(c, k, out);
+            }
+        }
+        Value::Array(a) => a.iter().for_each(|c| guidance_keys(c, parent, out)),
+        _ => {}
+    }
+}
+
+#[test]
+fn guide13_state_shape_has_only_run_level_after_round1_move() {
+    let ir = ir();
+    let (st, _) = run(
+        &ir,
+        start_state(),
+        vec![
+            begin("s-a"),
+            Op::Control(Control::Save),
+            begin("s-b"),
+            Op::Control(Control::Save),
+            goto("main/a0"),
+        ],
+    );
+    assert!(!st.checkpoints.is_empty());
+    let v = serde_json::to_value(&st).unwrap();
+    let mut found = Vec::new();
+    guidance_keys(&v, "", &mut found);
+    assert!(!found.is_empty());
+    for (parent, key) in &found {
+        assert_eq!(key, "guidance_level", "{found:?}");
+        assert_eq!(parent, "run", "根ごとの写しの下に水準が現れた: {found:?}");
+    }
+    assert_eq!(v["run"]["guidance_level"], json!("B"));
+}
+
+#[test]
+fn guide13_instance_args_named_guidance_do_not_change_level() {
+    // 基の IR は ir() と同じ。args だけ差し替える。
+    let base = ir();
+    let mut v = serde_json::to_value(&base).unwrap();
+    for inst in v["instances"].as_array_mut().unwrap() {
+        if inst["id"] == json!("m@b") {
+            inst["args"] = json!({"guidance": "C"});
+        }
+    }
+    let ir = load_ir(&serde_json::to_vec(&v).unwrap()).unwrap();
+    let (st, _) = run(&ir, start_state(), vec![begin("s-a"), begin("s-b")]);
+    assert_eq!(st.run.guidance_level, B);
+    let (st, _) = run(&ir, st, vec![goto("main/a0")]);
+    assert_eq!(st.run.guidance_level, B);
+    shows(&ir, &st, B);
 }
