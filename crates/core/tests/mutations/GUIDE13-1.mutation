@@ -1,0 +1,8 @@
+id: GUIDE13-1
+package: fandhe-workshop-core
+test: run_wide_guidance
+target: crates/core/src/go_to.rs
+find:     state.run.busy = None;
+replace:     state.run.busy = None; state.run.guidance_level = fandhe_workshop_contract::guidance::GuidanceLevel::A;
+expect-fail: guide13_goto_main_step_of_round1_chapter_keeps_b
+note: 移動で案内レベルが既定の A へ戻る（実行全体で 1 つの水準を保たない）

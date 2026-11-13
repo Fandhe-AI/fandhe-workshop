@@ -14155,3 +14155,33 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 - 読み上げの証拠ではない（TASK-381）。幅は 1280px だけ。文言の規則（A11Y-15）・最終の配置（TASK-534）は未決。
 - 「0 件変わりました」の文は出さない（0 件の間は空。PoC の「残った点」1 と同じく Phase 4 の判断）。
 - 試験用の教材の st-1-5 は処理中の効果で左が変わる。停止で件数は空に戻り、送り直しで再び要約が出る（停止の直後の空は束の後の文字として観察するが、停止場面の件数は固定していない）。
+
+### 5.523 案内レベルが実行全体で 1 つであることの観察の固定と変異注入（TASK-303 1/2。GUIDE-13・D-55。#955。5.493・5.494 の続き）
+
+実行日: 2026-11-13。元にしたコミット: 6887115f。
+
+目的は、D-55（案内レベルは実行全体で 1 つのまま維持し、実体ごとの `use.guidance` は足さない）の現状を自動テスト（native）で固定することである。状態の形・契約・`CONTRACT_VERSION` は変えない。5.493 が範囲外とした「`module-reuse-rounds` での受け入れ試験（pack 側）」は本節で受け持つ。
+
+コマンドと結果:
+
+- `cargo test -p fandhe-workshop-core --test run_wide_guidance`（6 件合格）
+- `cargo test -p fandhe-workshop-pack --test run_wide_guidance_rounds`（2 件合格）
+- `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE13-1.mutation crates/core/tests/mutations/GUIDE13-2.mutation`（2 件とも DETECTED）
+
+観察した経路（2 周目の `Begin` の後に 1 周目へ移る 4 経路）:
+
+1. 閉じた 1 周目の実体の Step・呼び出しの Step への `GoTo` は `ClosedRound` で拒否され、状態は変わらず水準は B のまま。表示（ヒント・`do`・本文）も B。
+2. 1 周目の章の `main` の通常の Step への `GoTo` は成功し、水準は B のまま。表示も B。再読み込みと履歴の適用し直しの後も B。
+3. 1 周目の開始点（宣言なし）への `Begin` の結果にかかわらず、水準は B のまま。
+4. 1 周目のチェックポイントへの `Restore` は写しの水準 A へ戻る。これは MOD-9 の規則（5.494）で、GUIDE-13 の「移る」とは別の経路であり、変えない。
+
+変異:
+
+| ID | 内容 | 結果 |
+|---|---|---|
+| GUIDE13-1 | `go_to.rs` の移動で水準を A へ戻す | DETECTED |
+| GUIDE13-2 | `go_to.rs` の閉じた周回の拒否で水準を A へ戻す | DETECTED |
+
+限界: 試験と実装の作成者が同じ AI であること。人の試行は 0 件。web の表示は、`step_body::step_text` が `run.guidance_level` だけを読むことを既存の `step_body_host` が確かめており、本節では専用の web 試験を足していない。
+
+範囲外: 契約の版上げ（#956。D-55 の下では要らない見込み）、ブラウザでの表示、案内レベルの切り替えのイベント化（GUIDE-16）、本文への引数の差し込み（GUIDE-15）。
