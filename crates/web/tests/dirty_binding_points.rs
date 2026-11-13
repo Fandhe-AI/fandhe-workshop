@@ -298,6 +298,8 @@ const NEEDS_OTHER_FIXTURES: &[&str] = &[
     "next_chapter",
     // 書き出しの結果は、書き出しの操作（`export-history`）の後に立つ。`history_ops.rs` が dirty を確かめる（TASK-531 1/2）。
     "export_result",
+    // `live-left` は値が常に空で、dirty に積まない。左の画面の変化の要約は #972（A11Y-8）が足し、そのとき外す（TASK-370 1/2）。
+    "live_left",
     // 33 回の列の教材が宣言していない種類のビューの list。選ばれない種類は空・`hidden` で描かれるだけで、
     // dirty にするには種類ごとの宣言を持つ教材が要る。
     "view_app_demo",

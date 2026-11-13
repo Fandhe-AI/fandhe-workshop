@@ -1,0 +1,8 @@
+id: A11Y6-2
+package: fandhe-workshop-web
+test: live_response_host
+target: crates/web/src/live_region.rs
+find:     format!("{RESPONSE_PREFIX}{seq}: {summary}")
+replace:     format!("{RESPONSE_PREFIX}: {summary}")
+expect-fail: 拒否は_1_回だけ更新し_同じ拒否が続いても通し番号で値が変わる
+note: 通し番号を外す（同じ拒否が続くと値が変わらず束縛点が書かない。A11Y-6）

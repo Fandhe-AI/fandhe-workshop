@@ -21,8 +21,8 @@
 //!   描画の後に `aria-selected="true"` のタブへ `focus()` する。クリックでは移さない。置き方の細部は A11Y-21 が未決である
 //!   （`docs/known-gaps.md`）。
 //!
-//! TASK-450 への申し送り: ライブの欄（`live-response`・`live-left`）は tabpanel の外（root の直下）に置く。
-//! tabpanel の中に置くと a11y の `live-in-tabpanel` に違反する。
+//! ライブの欄（`live-response`・`live-left`）は tabpanel の外（root の直下）に置く（TASK-370 1/2 で `host::EngineHost::view` が
+//! `live_region::live_nodes` を `panes` の後ろに置く）。tabpanel の中に置くと a11y の `live-in-tabpanel` に違反する。
 
 use fandhe_frontend_core::{el, text, Node};
 

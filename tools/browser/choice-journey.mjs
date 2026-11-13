@@ -313,7 +313,7 @@ const countRejected = (page) => page.locator(REJECTED_ROWS).count();
 
 /**
  * 拒否の行が before + 1 件になり、処理が idle に戻るのを待ち、最後の拒否の行を読む。待てなければ null。
- * 上部の「応答」（live-response）は製品の画面にまだ描かれない（docs/known-gaps.md）ので、件数と文面の有無を観察として返すだけにする。
+ * 上部の見える「応答」は製品の画面にまだ無い（docs/known-gaps.md）。読み上げ用の欄 `live-response` は視覚的に隠して描かれる（TASK-370 1/2）が、合否には使わず、件数と文面の有無を観察として返すだけにする。
  */
 async function readRejection(page, before, timeout) {
   try {

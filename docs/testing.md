@@ -14087,3 +14087,31 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 - IndexedDB に切り替わった後の経路は確かめていない（`pagehide` での確定は SAVE-9 の検討中の論点。落ち着いた後の IndexedDB の復元は未試験）。
 - Chromium だけで確かめた。実 IME と人の確認は TASK-93（未実施）。作成者と実装者が同じ AI である。
 - 補助関数（`freezeTimers`・`storageHas`・`draftOps`）は `draft-reload`・`ime-reload-flood` と共通化していない。`scripts/expected-test-counts.txt` は版上げ PR でだけ照合するため更新していない。
+
+### 5.521 ライブの欄の更新回数を応答ごとに観察すること（TASK-370 1/2。A11Y-6。#971。5.495 の続き）
+
+目的: 新しい応答が右のログに出たら、読み上げ用の欄 `live-response` を、その応答の行を含めて応答ごとにちょうど 1 回更新し、受領（`received`）・進捗（`progress`）だけが増えた更新では触らないことを、実際の画面で固定する。2 つの欄（`live-response`・`live-left`）は `aria-live="polite"`・`aria-atomic="true"` を `view()` に直接書いた属性として持つ（F-2）。実装日 2026-11-12。
+
+作ったもの・判断:
+
+- `crates/web/src/live_region.rs`（欄の描画と文の導出）と `host.rs` の結線。応答の単位は `Session` を 1 段進める 1 回（`step_engine`）で伸びたログの行のうち、契約 `a11y::counts_for_live_response` が真の行を 1 つ以上含むもの。更新は `bind_text` の束縛点 `live_response` で、行の数にかかわらず 1 回である。
+- 欄の文は「応答 N: 要約」。N は応答ごとに 1 増える通し番号で、同じ拒否が続いても値が変わり束縛点が書かれるようにする。接頭辞の文言は A11Y-15 が未決のため仮置き。履歴の差し替えでは初期値に戻し、`ops`・履歴・保存先には書かない。
+- 見え方は `static/app.css` の `.a11y-live`（視覚的にだけ隠す。`hidden` は AX ツリーから消えるため使わない）。置き場所は `workshop-root` の直下で `panes` の後（仮置き。最終の配置は TASK-534）。`live-left` は属性つきの要素だけで文は空のまま（要約は #972）。
+- native の試験 `crates/web/tests/live_response_host.rs`（欄の位置と属性・拒否の更新 1 回・同じ拒否の通し番号・受領だけで 0 回・問い返し・HTML 風の文字列）と、変異 A11Y6-1・2・3（いずれも DETECTED）。`dirty_binding_points` の「一度は dirty になる」の除外に `live_left` を足した（#972 で外す）。
+
+ブラウザの試験 `tools/browser/live-response.test.mjs`（5 件。CSP あり・なし）。`workshop-root` に MutationObserver を 1 つ付け、コールバック 1 回を 1 つの更新の束として、`live-response` の記録の数・束の後の文字・足されたログの行の種類と部品の文字を判定する。
+
+| ID | 場面 | 期待 |
+|---|---|---|
+| R1 | 試験用 IR の CH-1 を実クリックで通す | 数える種類の行が足された束は更新がちょうど 1 件で、文字が「応答 」で始まり行の部品の文字を含む。received・progress だけの束は 0 件。応答の総数と更新の総数が一致。2 つの欄の属性は束ごとに合格。AX ツリー（CDP）で live=polite・atomic=true で文字が DOM と一致 |
+| N1 | 同じタスクで 2 回書く | 観察器が 2 件と数える |
+| N2 | 合成した束の列（2 回・0 回・received だけでの更新） | 判定が不合格にする |
+| N3 | 写した属性から `aria-atomic` を外す | 属性の判定が失敗する |
+
+実行の記録（2026-11-12）: Linux x86_64・Chromium（Playwright）・`SKIP_WASM_OPT=1`・node v26。CH-1 の通しで束 23・応答 5（rejected 2・clarified 1・stopped 1・自由文の注記の応答 1）・received だけの束 9・progress だけの束 5・`live-response` の更新 5 回で、CSP あり・なしの結果が一致した。`live-attrs`（5.495）は、2 つの欄が 1 個ずつで polite・atomic であることを assert に強めても差 0 のまま合格した。 `make test-browser` 全体で崩れたのは `reload-notice`（TASK-536）だけで、再読み込みの行が応答として `live-response` にも入るため、その欄を「枠が二重に知らせない」の数え方（読み上げの欄・行の外の葉）から除いた（契約どおりの 1 回は live-response.test.mjs が数える）。
+
+限界・未検証:
+
+- 読み上げの証拠ではない（VoiceOver での読まれ方は TASK-381）。幅は 1280px だけ。応答の数は固定しない（試験用の教材の CH-1 は 6 Step）。
+- 注記の無い受付（`Accepted(None)`）は契約どおり行にならず応答に数えない。PoC-12 の観察の分母（29 回と 30 回）との差の理由の記録は #972。
+- 見える「上の『応答』」の配置（SECOND-12）・欄の文言の規則（A11Y-15）・最終の配置（TASK-534）は未決。

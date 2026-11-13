@@ -34,6 +34,9 @@
 //! 開かないときは状態・導出した値・dirty のどれにも触れない（SAVE-19）。ファイルの選択と読み取りは DOM の値を読むため、
 //! Rust ではなく試験の設定だけの `static/test-hooks.js` が行う（`make check-dom-reads`）。可視の画面は TASK-531 の担当である。
 //!
+//! ライブの欄（`live-response`・`live-left`。A11Y-6・TASK-370 1/2）は `view()` が root の直下に置き、`step_engine` が 1 回の応答で伸びた行から
+//! `live-response` の文と通し番号を求めて dirty に積む（`live_region`）。表示の状態で、`ops`・履歴・保存先には書かない。
+//!
 //! [`DisplayPart`]: crate::parts::DisplayPart
 
 // native ビルドでは glue が無く、試験以外から使われない。
@@ -104,6 +107,7 @@ use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
 use crate::hint_ops::{hint_section, HintOffer, HINT_OPS_FIELD};
 use crate::history_export::ExportGate;
 use crate::history_ops::{history_ops, ExportResult, EXPORT_RESULT_FIELD};
+use crate::live_region::{LIVE_LEFT_FIELD, LIVE_RESPONSE_FIELD};
 use crate::next_chapter::{next_chapter, next_chapter_list, NextChapter, NEXT_CHAPTER_FIELD};
 use crate::parts::{FieldKind, PartRegistry};
 use crate::profile::{InputField, LeftPane};
@@ -736,6 +740,8 @@ pub struct EngineHost {
     boot_corrupt: Option<LoadReason>,
     /// チェックポイントの復帰ボタンのページ（新しい側が 0。FEND-22）。表示の状態で、履歴・保存先には書かない。ページ数を超える値は提示の導出で丸める。
     checkpoint_page: usize,
+    /// `live-response` の応答の通し番号と文（A11Y-6。TASK-370 1/2）。表示の状態で、`ops`・履歴・保存先には書かない。履歴の差し替えで初期値に戻す。
+    live_response: (u64, String),
     /// 直近の `update` で変わった field。
     dirty: Vec<&'static str>,
     /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
@@ -894,6 +900,7 @@ impl EngineHost {
             refused_notice: None,
             boot_corrupt: None,
             checkpoint_page: 0,
+            live_response: (0, String::new()),
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -1021,6 +1028,8 @@ impl EngineHost {
                 || f.name == TOP_PLACE_FIELD.name
                 || f.name == STEP_BODY_FIELD.name
                 || f.name == EXPORT_RESULT_FIELD.name
+                || f.name == LIVE_RESPONSE_FIELD.name
+                || f.name == LIVE_LEFT_FIELD.name
         }) {
             return Err(HostError::FieldCollision(f.name));
         }
@@ -1056,6 +1065,7 @@ impl EngineHost {
             refused_notice: None,
             boot_corrupt: None,
             checkpoint_page: 0,
+            live_response: (0, String::new()),
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -2327,6 +2337,11 @@ impl EngineHost {
         self.fresh_start = false;
         self.command_prefix = d.command_prefix;
         self.dirty = self.registry.fields().map(|f| f.name).collect();
+        // 前の履歴の応答を欄に残さない。文が変わったときだけ積む（`live_left` は常に空で積まない）。
+        if self.live_response != (0, String::new()) {
+            self.live_response = (0, String::new());
+            self.dirty.push(LIVE_RESPONSE_FIELD.name);
+        }
         // 変換して開いた通知は前の実行環境のものなので、持ち越さない（立て直すのは呼び出し側）。dirty の作り直しの後に消す。
         self.version_notice = false;
         self.refused_notice = None;
@@ -2491,6 +2506,25 @@ impl EngineHost {
         let from = self.model.world_consumed.min(log.len());
         replay_changes(&mut self.model.world, &log[from..]);
         self.model.world_consumed = log.len();
+        // 1 回の応答で伸びた行から `live-response` の文を求める。数える行（契約 `a11y`）が 1 つ以上なら、
+        // 行の数にかかわらず通し番号を 1 進めて 1 回だけ更新する（A11Y-6）。`received`・`progress` だけなら触らない。
+        let from_event = len_before.min(log.len());
+        let lines: Vec<_> = log[from_event..]
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| {
+                let idx = u32::try_from(from_event + i).ok()?;
+                let t = self.model.judged_texts.get(&idx).map(String::as_str);
+                crate::log_lines::line_from_event(e, t)
+            })
+            .collect();
+        if let Some(summary) = crate::live_region::response_summary(&lines) {
+            let seq = self.live_response.0.saturating_add(1);
+            self.live_response = (seq, crate::live_region::response_text(seq, &summary));
+            if !self.dirty.contains(&LIVE_RESPONSE_FIELD.name) {
+                self.dirty.push(LIVE_RESPONSE_FIELD.name);
+            }
+        }
         // 今の Step が選んだときの Step と違えば、ビューの選択を捨てる（ART-12。移動すると宣言の先頭に戻る）。
         // 読まないだけで残すと、元の Step へ戻ったときに以前の選択が戻ってしまう。Step を変える口はすべてここを通り、
         // 差し替え（`install_recorded`）と構築は選択を持たずに始める。dirty は下の `changed` が list をすべて積む。
@@ -3301,6 +3335,8 @@ impl Component for EngineHost {
             tablist,
             panes,
         ];
+        // 読み上げ用のライブの欄は panes の後ろに置く（仮置き。最終の配置は TASK-534）。tabpanel の外にある（A11Y-6）。
+        children.extend(crate::live_region::live_nodes(&self.live_response.1));
         // 試験の設定だけ: `raw` の action を送る見えないボタン。hidden のため Tab の巡回に入らない。
         // 試験は `data-payload` を書き換えて click する。
         #[cfg(feature = "test-hooks")]
@@ -3550,6 +3586,13 @@ impl BindingSource for EngineHost {
     fn bound_value(&self, field: &str) -> Option<BoundValue> {
         if HELLO_FIELDS.contains(&field) {
             return self.input.bound_value(field);
+        }
+        if field == LIVE_RESPONSE_FIELD.name {
+            return Some(BoundValue::Text(self.live_response.1.clone()));
+        }
+        if field == LIVE_LEFT_FIELD.name {
+            // 要約は #972（A11Y-8）が足す。それまでは常に空。
+            return Some(BoundValue::Text(String::new()));
         }
         self.registry.bound_value(field, &self.model)
     }

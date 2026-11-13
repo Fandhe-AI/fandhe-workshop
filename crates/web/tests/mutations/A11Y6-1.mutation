@@ -1,0 +1,8 @@
+id: A11Y6-1
+package: fandhe-workshop-web
+test: live_response_host
+target: crates/web/src/live_region.rs
+find:     if !counts_for_live_response(line.kind().as_str()) {
+replace:     if matches!(line, LogLine::Received { .. } | LogLine::Approval { .. } | LogLine::Progress { .. }) { return Some(String::from("受領")); } if false {
+expect-fail: 受領だけの更新では欄を触らない
+note: 受領・承認・進捗の行が Some の要約を返すようにする（先頭の判定だけでなく後続の match 分岐の None も実際に変わり、受領だけの更新でも欄が変わる。A11Y-6）

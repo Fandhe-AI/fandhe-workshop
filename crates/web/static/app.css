@@ -347,3 +347,19 @@ input:not([type="hidden"]),
 [data-view="app_demo"] > li { margin-left: 0; overflow-wrap: anywhere; }
 
 /* ==== ここまで app_demo ==== */
+
+/* ==== 読み上げ用のライブの欄（live-response・live-left。A11Y-6）==== */
+/* 視覚的にだけ隠す。`hidden`・`display: none` は AX ツリーから消えて読み上げられないため使わない。 */
+/* 見える「上の『応答』」の配置は未決（docs/known-gaps.md SECOND-12）。 */
+.a11y-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
