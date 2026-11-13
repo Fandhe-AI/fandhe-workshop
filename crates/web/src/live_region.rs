@@ -12,7 +12,6 @@
 use fandhe_frontend_core::{bind_text, Node};
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::NextAction;
-use fandhe_workshop_core::addr::StepUid;
 use fandhe_workshop_core::event::{Cause, Event};
 use fandhe_workshop_core::projection::ReviewItem;
 
@@ -115,15 +114,11 @@ pub fn left_text(title: &str, count: usize) -> String {
 /// 1 回の更新で伸びたイベント列 `events` から、`live-left` の文を求める（A11Y-8）。
 ///
 /// 対象の Step は、原因が入力の変化のうち最後のものの Step とする。確認を省く Step では変化と次の Step への
-/// 移動が同じ更新に入るため、変えた側の題で知らせる。入力の変化が無く基準点（入った・開始・移動・停止・復帰）が
-/// あれば空にする（古い件数を言わない）。どちらでもなければ今の Step の件数に追随する。
+/// 移動が同じ更新に入るため、変えた側の題で知らせる。入力の変化が無く基準点（入った・開始・移動・停止・復帰・
+/// 再読み込み）があれば空にする（古い件数を言わない）。どちらでもなければ `None`（今の欄をそのまま保つ。
+/// 今の Step の復習件数から文を作り直さない。復帰後の拒否で過去の変化を新しい要約として読み上げないため）。
 /// 節点・項目が見つからないときは空に倒す。
-pub fn left_summary(
-    events: &[Event],
-    review: &[ReviewItem],
-    ir: &Ir,
-    current: Option<&StepUid>,
-) -> String {
+pub fn left_summary(events: &[Event], review: &[ReviewItem], ir: &Ir) -> Option<String> {
     let changed_by_input = events.iter().rev().find_map(|e| match e {
         Event::Changed {
             at,
@@ -132,33 +127,28 @@ pub fn left_summary(
         } => Some(&at.step),
         _ => None,
     });
-    let target = match changed_by_input {
-        Some(step) => step,
-        None => {
-            let reset = events.iter().any(|e| {
-                matches!(
-                    e,
-                    Event::Entered { .. }
-                        | Event::Begun { .. }
-                        | Event::Moved { .. }
-                        | Event::Stopped { .. }
-                        | Event::Restored { .. }
-                )
-            });
-            match (reset, current) {
-                (false, Some(step)) => step,
-                _ => return String::new(),
-            }
-        }
+    let Some(target) = changed_by_input else {
+        let reset = events.iter().any(|e| {
+            matches!(
+                e,
+                Event::Entered { .. }
+                    | Event::Begun { .. }
+                    | Event::Moved { .. }
+                    | Event::Stopped { .. }
+                    | Event::Restored { .. }
+                    | Event::Reloaded { .. }
+            )
+        });
+        return reset.then(String::new);
     };
     let Some(node) = ir.nodes.iter().find(|n| n.uid == target.0) else {
-        return String::new();
+        return Some(String::new());
     };
     let count = review
         .iter()
         .find(|item| &item.step == target)
         .map_or(0, |item| item.changes.len());
-    left_text(&node.step.title, count)
+    Some(left_text(&node.step.title, count))
 }
 
 /// 2 つのライブの欄（`live-response`・`live-left`）。順に応答・左の変化で、root の直下に置く。

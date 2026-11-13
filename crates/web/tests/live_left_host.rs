@@ -14,7 +14,7 @@ use fandhe_frontend_interactive::DirtyTracked;
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::addr::StepUid;
-use fandhe_workshop_core::input::{Control, Input, Op};
+use fandhe_workshop_core::input::{CheckpointId, Control, Input, Op};
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::session::{RunState, Session, SessionState, Slice};
 use fandhe_workshop_core::step_status::StepStatus;
@@ -180,4 +180,33 @@ fn 題の_html_風の文字列は文字ノードのまま() {
     let mut imgs = Vec::new();
     find_all(&view, "img", &mut imgs);
     assert!(imgs.is_empty());
+}
+
+#[test]
+fn 復帰の後の拒否は過去の変化を要約として出さない() {
+    let mut h = host_at("main/st-1-1");
+    h.update(cmd("/help"));
+    assert!(!left_value(&h).is_empty());
+    h.update(HostAction::Engine(Op::Control(Control::Save)));
+    h.update(HostAction::Engine(Op::Control(Control::GoTo(StepUid(
+        "main/st-1-4".to_owned(),
+    )))));
+    h.update(HostAction::Engine(Op::Control(Control::Restore(
+        CheckpointId(0),
+    ))));
+    assert_eq!(left_value(&h), "", "復帰で空に戻る");
+    h.update(cmd("/hepl"));
+    assert_eq!(left_value(&h), "", "左を変えない拒否で件数を言い直さない");
+}
+
+#[cfg(feature = "test-hooks")]
+#[test]
+fn 再読み込みは左の変化を読み上げず_拒否の後も空のまま() {
+    let mut h = host_at("main/st-1-1");
+    h.update(cmd("/help"));
+    assert!(!left_value(&h).is_empty());
+    h.update(HostAction::Reload);
+    assert_eq!(left_value(&h), "", "再読み込みは基準点");
+    h.update(cmd("/hepl"));
+    assert_eq!(left_value(&h), "");
 }

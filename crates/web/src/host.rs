@@ -2536,16 +2536,15 @@ impl EngineHost {
         // 左の変化の要約（A11Y-8）。同じ文なら積まず、DOM に書かない。
         // `session` が `model.recorded` を借用中のため、`projection` は欄で直接借りる（別の欄で衝突しない）。
         let proj = &self.model.projection;
-        let left = crate::live_region::left_summary(
-            &log[from_event..],
-            proj.review(),
-            session.ir(),
-            session.state().run.current.as_ref(),
-        );
-        if left != self.live_left {
-            self.live_left = left;
-            if !self.dirty.contains(&LIVE_LEFT_FIELD.name) {
-                self.dirty.push(LIVE_LEFT_FIELD.name);
+        // 入力の変化も基準点も無い更新では `None`（今の文を保つ）。
+        if let Some(left) =
+            crate::live_region::left_summary(&log[from_event..], proj.review(), session.ir())
+        {
+            if left != self.live_left {
+                self.live_left = left;
+                if !self.dirty.contains(&LIVE_LEFT_FIELD.name) {
+                    self.dirty.push(LIVE_LEFT_FIELD.name);
+                }
             }
         }
         // 今の Step が選んだときの Step と違えば、ビューの選択を捨てる（ART-12。移動すると宣言の先頭に戻る）。
