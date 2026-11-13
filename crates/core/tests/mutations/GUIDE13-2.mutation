@@ -1,0 +1,8 @@
+id: GUIDE13-2
+package: fandhe-workshop-core
+test: run_wide_guidance
+target: crates/core/src/go_to.rs
+find:     if closed_round::is_closed(ir, state, &to) {
+replace:     if closed_round::is_closed(ir, state, &to) { state.run.guidance_level = fandhe_workshop_contract::guidance::GuidanceLevel::A;
+expect-fail: guide13_goto_into_closed_round1_is_refused_and_keeps_b
+note: 閉じた周回への移動の拒否で案内レベルが A へ戻る
