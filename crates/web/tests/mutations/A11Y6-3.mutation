@@ -1,0 +1,8 @@
+id: A11Y6-3
+package: fandhe-workshop-web
+test: live_response_host
+target: crates/web/src/host.rs
+find:     if !self.dirty.contains(&LIVE_RESPONSE_FIELD.name) {
+replace:     if false {
+expect-fail: 拒否は_1_回だけ更新し_同じ拒否が続いても通し番号で値が変わる
+note: 応答の更新を dirty に積まない（欄が更新されない。A11Y-6）

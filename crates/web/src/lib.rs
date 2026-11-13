@@ -85,6 +85,7 @@ pub mod key_route;
 pub mod learner_text;
 pub mod limit_notice;
 pub mod list_policy;
+pub mod live_region;
 pub mod log_lines;
 pub mod modifier_key;
 pub mod motion;

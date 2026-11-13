@@ -1,0 +1,8 @@
+id: A11Y6-1
+package: fandhe-workshop-web
+test: live_response_host
+target: crates/web/src/live_region.rs
+find:     if !counts_for_live_response(line.kind().as_str()) {
+replace:     if counts_for_live_response("") {
+expect-fail: 受領だけの更新では欄を触らない
+note: 数える判定を常に真にする（受領・進捗の行も応答に数えて欄を更新する。A11Y-6）

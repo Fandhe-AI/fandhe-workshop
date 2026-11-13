@@ -262,7 +262,16 @@ fn engine_の操作の_dirty_は登録済みで_値の変わらない_bound_は�
         "/make-note Bad_Name".to_owned(),
     ))));
     let dirty: Vec<&'static str> = host.dirty_fields().to_vec();
-    assert!(host.registry().check_dirty(&dirty).is_ok(), "{dirty:?}");
+    // `live_response` は registry の外の host 直下の束縛点（TASK-370 1/2）。registry の照合からは除く。
+    let registered: Vec<&'static str> = dirty
+        .iter()
+        .copied()
+        .filter(|f| *f != "live_response")
+        .collect();
+    assert!(
+        host.registry().check_dirty(&registered).is_ok(),
+        "{dirty:?}"
+    );
     assert!(dirty.contains(&"log_len"), "{dirty:?}");
     assert!(dirty.contains(&"log_rows"), "{dirty:?}");
     assert!(!dirty.contains(&"log_const"), "{dirty:?}");

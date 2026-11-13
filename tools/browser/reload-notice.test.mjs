@@ -11,7 +11,7 @@
 // 「再読み込みしました」が入らない。ページ内に MutationObserver を据え、その欄とその子孫への文字の変化を全件記録する。
 // 「読み上げが 1 回だけ届く」は、現時点で観察できる範囲（行が回数と同数・他の欄に出ない）と、
 // `terminal_area_contract` の native 試験（行が応答の読み上げの単位に数えられる）で固定する。
-// 限界: ライブの欄（`live-response`）は実画面にまだ描かれておらず、その更新回数の観察は TASK-370、
+// 限界: ライブの欄（`live-response`）の更新回数の観察は live-response.test.mjs（TASK-370 1/2）、
 // 支援技術での読まれ方は TASK-381 の範囲である。本試験は読み上げそのものの証拠ではない。
 //
 // 注意: 実際の `page.reload()` ではなく、ページ内の模擬の再読み込みである（reload-ignore.test.mjs と同じ理由。
@@ -37,8 +37,10 @@ const RELOAD_PAYLOAD = '{"reload":{}}';
 const NOTICE = '再読み込みしました';
 const TOTAL_TICKS = 5;
 const NOTICE_ITEM = '[data-testid="shell-notice-item"]';
-// 読み上げに使われる欄（aria-live="off" は読まれないので除く）。
-const SPOKEN = '[role="status"], [role="alert"], [aria-live]:not([aria-live="off"])';
+// 読み上げに使われる欄（aria-live="off" は読まれないので除く）。応答の欄 `live-response` は除く: 再読み込みの行は応答として
+// その欄に 1 回入るのが契約（A11Y-6。TASK-370 1/2）で、更新回数は live-response.test.mjs が数える。ここで見るのは枠が二重に知らせないこと。
+const LIVE_RESPONSE = '[data-testid="live-response"]';
+const SPOKEN = `[role="status"], [role="alert"], [aria-live]:not([aria-live="off"]):not(${LIVE_RESPONSE})`;
 
 let browser;
 
@@ -140,9 +142,10 @@ async function installSpokenObserver(page) {
 }
 
 // 「再読み込みしました」を含む要素の置き場所を数える。右のログの行の外・読み上げの欄の中の件数が 0 でなければならない。
-const noticeSites = (page) => page.evaluate(([spoken, notice, row, noticeItem]) => {
+const noticeSites = (page) => page.evaluate(([spoken, notice, row, noticeItem, liveResponse]) => {
   const leaves = [...document.querySelectorAll('body *')].filter(
-    (el) => (el.textContent || '').includes(notice) && ![...el.children].some((c) => (c.textContent || '').includes(notice)),
+    (el) => (el.textContent || '').includes(notice) && ![...el.children].some((c) => (c.textContent || '').includes(notice))
+      && !el.closest(liveResponse),
   );
   return {
     leaves: leaves.length,
@@ -152,7 +155,7 @@ const noticeSites = (page) => page.evaluate(([spoken, notice, row, noticeItem]) 
     noticeKinds: document.querySelectorAll('[data-testid="shell-notice"] [data-notice-kind], [data-testid="shell-notice"][data-notice-kind]').length,
     spokenHits: window.__spokenHits.length,
   };
-}, [SPOKEN, NOTICE, ROW, NOTICE_ITEM]);
+}, [SPOKEN, NOTICE, ROW, NOTICE_ITEM, LIVE_RESPONSE]);
 
 async function openTestPage(srv) {
   const opened = await openPage(browser, { origin: srv.origin });

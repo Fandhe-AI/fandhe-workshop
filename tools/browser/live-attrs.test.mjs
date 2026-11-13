@@ -18,9 +18,9 @@
 // あわせて観察点ごとに、log-list と part-log-list がライブリージョン（role=status・alert・log・aria-live が off 以外）の祖先を
 // DOM でも AX でも持たないことを確かめる。
 //
-// 限界（2026-11-09 の HEAD で実測）: 画面には live-response・live-left（aria-live の専用の欄）・view-notice・右の領域の aria-label が
-// まだ無い（TASK-370 の担当）。本試験はそれらを「無い」状態のまま差 0 として数え、無いことは assert しない。あれば aria-live=polite・
-// aria-atomic=true であることだけを確かめる。読み上げそのものの証拠ではない（支援技術での確認は TASK-381 の人の確認）。幅は 1280px だけ。
+// 限界（2026-11-12 の HEAD で実測）: live-response・live-left（aria-live の専用の欄）は読み上げ用に視覚的にだけ隠して描かれる（TASK-370 1/2。
+// 更新回数の観察は live-response.test.mjs）。本試験は 2 つが 1 個ずつあり aria-live=polite・aria-atomic=true であることを assert する。
+// view-notice・右の領域の aria-label はまだ無く（TASK-370 2/2 以降）、「無い」状態のまま差 0 として数え、無いことは assert しない。読み上げそのものの証拠ではない（支援技術での確認は TASK-381 の人の確認）。幅は 1280px だけ。
 //
 // 空振りの防止: 描かれているはずの最小の要素（通知欄 3 つの role・成果物のラベル・tablist のラベル・2 つのログの一覧）の存在を assert し、
 // 負の対照 N1（属性の欠落・書き換え・ライブの欄の追加を 3 つの写しが差として数える）・N2（log-list の祖先に aria-live を付けると
@@ -248,7 +248,7 @@ async function assertMinimum(page) {
   assert.deepEqual(m.lists, [1, 1], 'both log lists are drawn');
 }
 
-// ライブの専用の欄は今の画面に無い。あるなら aria-live=polite・aria-atomic=true であること（個数は診断に残す）。
+// ライブの専用の欄（live-response・live-left）は 1 個ずつあり、aria-live=polite・aria-atomic=true であること（TASK-370 1/2）。
 async function liveRegionReport(page) {
   return page.evaluate(() => ['live-response', 'live-left'].map((id) => {
     const els = [...document.querySelectorAll(`[data-testid="${id}"]`)];
@@ -318,7 +318,7 @@ for (const csp of [true, false]) {
         assert.deepEqual({ dom: outside.dom, ax: outside.ax }, { dom: 0, ax: 0 }, `${label}: log lists inside a live region`);
         assert.ok(outside.axUnseen <= 1, `${label}: AX node of a log list unseen at ${outside.axUnseen} points`);
         const live = await liveRegionReport(page);
-        assert.deepEqual(live.filter((l) => l.bad !== 0), [], `${label}: live fields that exist are polite and atomic`);
+        assert.deepEqual(live.map((l) => [l.id, l.count, l.bad]), [['live-response', 1, 0], ['live-left', 1, 0]], `${label}: live fields are drawn once, polite and atomic`);
         await assertMinimum(page);
         await assertQuiet(page, rec, label);
         assertNetwork(rec, srv, label);
