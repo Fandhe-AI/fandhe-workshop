@@ -5,12 +5,19 @@
 //! 「どの行が応答か」の判定は契約 `a11y::counts_for_live_response` に任せ、ここで種類を数え直さない。
 //! 属性は `a11y::LIVE_REGION_ATTRS` を `view()` の直接の属性として付ける（束縛で aria を書かない。F-2）。
 //! 欄は文字ノード 1 つだけを持ち、生の HTML の経路は使わない（SAFE-11）。
-//! `live-left` は 2/2（#972）が文を導く。ここでは属性つきの要素を置き、文は空のままにする。
+//! `live-left` の文は [`left_summary`] が導く（A11Y-8。TASK-370 2/2）。ある Step の間に左の成果物が 1 件以上
+//! 変わったとき「「<題>」: 左の画面が N 件変わりました」を知らせる。件数の文で、変化の中身は含めない。
+//! 変化の有無は契約 `a11y::live_left_should_update` に任せる。
 
 use fandhe_frontend_core::{bind_text, Node};
+use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::NextAction;
+use fandhe_workshop_core::event::{Cause, Event};
+use fandhe_workshop_core::projection::ReviewItem;
 
-use crate::a11y::{counts_for_live_response, LiveRegion, LIVE_REGION_ATTRS};
+use crate::a11y::{
+    counts_for_live_response, live_left_should_update, LiveRegion, LIVE_REGION_ATTRS,
+};
 use crate::log_lines::{
     checkpoint_limit_heading, limit_body, LogLine, CHECKPOINT_LIMIT_BODY, LIMIT_HEADING,
     RELOADED_TEXT, STOPPED_TEXT,
@@ -23,7 +30,7 @@ pub const LIVE_RESPONSE_FIELD: PartField = PartField {
     kind: FieldKind::Bound,
 };
 
-/// `live-left` の束縛点。値は常に空で、要約は #972（A11Y-8）が足す。
+/// `live-left` の束縛点。値は左の変化の要約で、変化が無い間は空（A11Y-8）。
 pub const LIVE_LEFT_FIELD: PartField = PartField {
     name: "live_left",
     kind: FieldKind::Bound,
@@ -32,6 +39,13 @@ pub const LIVE_LEFT_FIELD: PartField = PartField {
 /// 欄の文の接頭辞。文言は A11Y-15 が未決のため仮置きである（変えるときはこの定数だけを直す）。
 /// 通し番号を付けるのは、同じ拒否が続いても値が変わり、束縛点が確実に 1 回書くようにするため。
 pub const RESPONSE_PREFIX: &str = "応答 ";
+
+/// `live-left` の通し番号の接頭辞。`live-response` の「応答 N: 」と同じ理由で付ける。
+const LEFT_PREFIX: &str = "左 ";
+
+/// `live-left` の文の中間と末尾。文言は A11Y-15 が未決のため仮置きである（変えるときはこの 2 つだけを直す）。
+const LEFT_MIDDLE: &str = "」: 左の画面が ";
+const LEFT_SUFFIX: &str = " 件変わりました";
 
 /// 視覚的にだけ隠す CSS のクラス名（`static/app.css`）。`hidden` は AX ツリーから消えるため使わない。
 pub const VISUALLY_HIDDEN_CLASS: &str = "a11y-live";
@@ -90,8 +104,89 @@ pub fn response_summary(lines: &[LogLine]) -> Option<String> {
     (!parts.is_empty()).then(|| parts.join(LINE_SEPARATOR))
 }
 
-/// 2 つのライブの欄（`live-response`・`live-left`）。順に応答・残りの欄で、root の直下に置く。
-pub fn live_nodes(response_text: &str) -> [Node; 2] {
+/// `live-left` の文。`title` は教材由来の未信頼の文字列で、文字ノードとしてだけ出す（SAFE-11）。
+/// 件数が 0 なら空（契約 `live_left_should_update`）。
+pub fn left_text(title: &str, count: usize) -> String {
+    if live_left_should_update(count) {
+        format!("「{title}{LEFT_MIDDLE}{count}{LEFT_SUFFIX}")
+    } else {
+        String::new()
+    }
+}
+
+/// 1 回の更新で伸びたイベント列 `events` から、`live-left` の文を求める（A11Y-8）。
+///
+/// 対象の Step は、原因が入力の変化のうち最後のものの Step とする。確認を省く Step では変化と次の Step への
+/// 移動が同じ更新に入るため、変えた側の題で知らせる。入力の変化が無く基準点（入った・開始・移動・停止・復帰・
+/// 再読み込み）があれば空にする（古い件数を言わない）。どちらでもなければ `None`（今の欄をそのまま保つ。
+/// 今の Step の復習件数から文を作り直さない。復帰後の拒否で過去の変化を新しい要約として読み上げないため）。
+/// 節点・項目が見つからないときは空に倒す。
+pub fn left_summary(events: &[Event], review: &[ReviewItem], ir: &Ir) -> Option<LeftSummary> {
+    let changed_by_input = events.iter().rev().find_map(|e| match e {
+        Event::Changed {
+            at,
+            cause: Cause::Input,
+            ..
+        } => Some(&at.step),
+        _ => None,
+    });
+    let Some(target) = changed_by_input else {
+        let reset = events.iter().any(|e| {
+            matches!(
+                e,
+                Event::Entered { .. }
+                    | Event::Begun { .. }
+                    | Event::Moved { .. }
+                    | Event::Stopped { .. }
+                    | Event::Restored { .. }
+                    | Event::Reloaded { .. }
+            )
+        });
+        return reset.then(|| LeftSummary {
+            step: None,
+            text: String::new(),
+        });
+    };
+    let Some(node) = ir.nodes.iter().find(|n| n.uid == target.0) else {
+        return Some(LeftSummary {
+            step: None,
+            text: String::new(),
+        });
+    };
+    let count = review
+        .iter()
+        .find(|item| &item.step == target)
+        .map_or(0, |item| item.changes.len());
+    Some(LeftSummary {
+        step: Some(target.0.clone()),
+        text: left_text(&node.step.title, count),
+    })
+}
+
+/// [`left_summary`] の結果。`step` は知らせる対象の Step（空の文では `None`）。
+///
+/// 題の一意性は教材に求めない。同じ題・同じ件数の連続する 2 Step でも別の通知にするため、
+/// 呼び出し側は文だけでなく `step` も含めて前回と比べる。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LeftSummary {
+    /// 知らせる対象の Step の uid。空の文では `None`。
+    pub step: Option<String>,
+    /// 番号を付ける前の文。
+    pub text: String,
+}
+
+/// `live-left` の欄に書く文。非空の文の前に通し番号「左 N: 」を付け、同じ文でも通知のたびに DOM の文字が変わるようにする。
+/// 空の文は空のまま（件数 0 の間は何も言わない）。
+pub fn left_numbered(seq: u64, text: &str) -> String {
+    if text.is_empty() {
+        String::new()
+    } else {
+        format!("{LEFT_PREFIX}{seq}: {text}")
+    }
+}
+
+/// 2 つのライブの欄（`live-response`・`live-left`）。順に応答・左の変化で、root の直下に置く。
+pub fn live_nodes(response_text: &str, left_text: &str) -> [Node; 2] {
     let node = |region: LiveRegion, field: &PartField, value: &str| {
         let mut attrs: Vec<(&str, &str)> = vec![
             ("data-testid", region.testid()),
@@ -102,7 +197,7 @@ pub fn live_nodes(response_text: &str) -> [Node; 2] {
     };
     [
         node(LiveRegion::Response, &LIVE_RESPONSE_FIELD, response_text),
-        node(LiveRegion::Left, &LIVE_LEFT_FIELD, ""),
+        node(LiveRegion::Left, &LIVE_LEFT_FIELD, left_text),
     ]
 }
 
@@ -160,6 +255,25 @@ mod tests {
             response_summary(&lines).as_deref(),
             Some("停止しました／再読み込みしました")
         );
+    }
+
+    #[test]
+    fn left_text_names_title_and_count() {
+        assert_eq!(left_text("題", 2), "「題」: 左の画面が 2 件変わりました");
+        assert_eq!(left_text("題", 0), "");
+    }
+
+    #[test]
+    fn left_text_keeps_markup_as_characters() {
+        let t = left_text("<b>x</b>", 1);
+        assert!(t.contains("<b>x</b>"));
+    }
+
+    #[test]
+    fn left_numbered_changes_for_same_text() {
+        assert_ne!(left_numbered(1, "a"), left_numbered(2, "a"));
+        assert_eq!(left_numbered(3, "a"), "左 3: a");
+        assert_eq!(left_numbered(3, ""), "");
     }
 
     #[test]

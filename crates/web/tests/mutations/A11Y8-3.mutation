@@ -1,0 +1,8 @@
+id: A11Y8-3
+package: fandhe-workshop-web
+test: live_left_host
+target: crates/web/src/live_region.rs
+find:     let Some(target) = changed_by_input else {
+replace:     let Some(target) = changed_by_input.filter(|_| false) else {
+expect-fail: 確認を省く_step_は変えた側の題で知らせる
+note: 入力の変化を対象に取らない（確認を省く Step で変えた側の題が出ない。A11Y-8）

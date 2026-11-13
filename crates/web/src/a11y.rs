@@ -98,7 +98,7 @@ impl Region {
 pub enum LiveRegion {
     /// 入力への応答の欄。
     Response,
-    /// 残りの手数などの欄。
+    /// 左の画面の変化の要約の欄（A11Y-8）。
     Left,
 }
 

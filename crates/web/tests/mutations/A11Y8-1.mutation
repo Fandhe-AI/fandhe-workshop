@@ -1,0 +1,8 @@
+id: A11Y8-1
+package: fandhe-workshop-web
+test: live_left_host
+target: crates/web/src/live_region.rs
+find:     if live_left_should_update(count) {
+replace:     if false {
+expect-fail: 左を変える受付は題と件数の文を_1_回だけ積む
+note: 件数が 1 以上でも文を出さない（左の変化の要約が出ない。A11Y-8）
