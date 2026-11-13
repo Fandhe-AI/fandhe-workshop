@@ -135,7 +135,7 @@ export function judgeBatches(batches) {
 
 // `live-left` の判定（A11Y-8）。`titles` は Step の uid から題、`changedSteps` は左が変わった Step、`unchangedSteps` は変わらなかった Step。
 // 更新は「束の中の `live-left` の書き込みが 1 回以上で、束の後の文字が要約の形」の束。題は出力に載せず、Step の uid だけを載せる。
-const LEFT_RE = /^「(.+)」: 左の画面が (\d+) 件変わりました$/;
+const LEFT_RE = /^(?:左 \d+: )?「(.+)」: 左の画面が (\d+) 件変わりました$/;
 export function leftUpdates(batches) {
   const out = [];
   batches.forEach((b, i) => {

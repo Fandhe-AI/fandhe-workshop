@@ -40,6 +40,9 @@ pub const LIVE_LEFT_FIELD: PartField = PartField {
 /// 通し番号を付けるのは、同じ拒否が続いても値が変わり、束縛点が確実に 1 回書くようにするため。
 pub const RESPONSE_PREFIX: &str = "応答 ";
 
+/// `live-left` の通し番号の接頭辞。`live-response` の「応答 N: 」と同じ理由で付ける。
+const LEFT_PREFIX: &str = "左 ";
+
 /// `live-left` の文の中間と末尾。文言は A11Y-15 が未決のため仮置きである（変えるときはこの 2 つだけを直す）。
 const LEFT_MIDDLE: &str = "」: 左の画面が ";
 const LEFT_SUFFIX: &str = " 件変わりました";
@@ -118,7 +121,7 @@ pub fn left_text(title: &str, count: usize) -> String {
 /// 再読み込み）があれば空にする（古い件数を言わない）。どちらでもなければ `None`（今の欄をそのまま保つ。
 /// 今の Step の復習件数から文を作り直さない。復帰後の拒否で過去の変化を新しい要約として読み上げないため）。
 /// 節点・項目が見つからないときは空に倒す。
-pub fn left_summary(events: &[Event], review: &[ReviewItem], ir: &Ir) -> Option<String> {
+pub fn left_summary(events: &[Event], review: &[ReviewItem], ir: &Ir) -> Option<LeftSummary> {
     let changed_by_input = events.iter().rev().find_map(|e| match e {
         Event::Changed {
             at,
@@ -139,16 +142,47 @@ pub fn left_summary(events: &[Event], review: &[ReviewItem], ir: &Ir) -> Option<
                     | Event::Reloaded { .. }
             )
         });
-        return reset.then(String::new);
+        return reset.then(|| LeftSummary {
+            step: None,
+            text: String::new(),
+        });
     };
     let Some(node) = ir.nodes.iter().find(|n| n.uid == target.0) else {
-        return Some(String::new());
+        return Some(LeftSummary {
+            step: None,
+            text: String::new(),
+        });
     };
     let count = review
         .iter()
         .find(|item| &item.step == target)
         .map_or(0, |item| item.changes.len());
-    Some(left_text(&node.step.title, count))
+    Some(LeftSummary {
+        step: Some(target.0.clone()),
+        text: left_text(&node.step.title, count),
+    })
+}
+
+/// [`left_summary`] の結果。`step` は知らせる対象の Step（空の文では `None`）。
+///
+/// 題の一意性は教材に求めない。同じ題・同じ件数の連続する 2 Step でも別の通知にするため、
+/// 呼び出し側は文だけでなく `step` も含めて前回と比べる。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LeftSummary {
+    /// 知らせる対象の Step の uid。空の文では `None`。
+    pub step: Option<String>,
+    /// 番号を付ける前の文。
+    pub text: String,
+}
+
+/// `live-left` の欄に書く文。非空の文の前に通し番号「左 N: 」を付け、同じ文でも通知のたびに DOM の文字が変わるようにする。
+/// 空の文は空のまま（件数 0 の間は何も言わない）。
+pub fn left_numbered(seq: u64, text: &str) -> String {
+    if text.is_empty() {
+        String::new()
+    } else {
+        format!("{LEFT_PREFIX}{seq}: {text}")
+    }
 }
 
 /// 2 つのライブの欄（`live-response`・`live-left`）。順に応答・左の変化で、root の直下に置く。
@@ -233,6 +267,13 @@ mod tests {
     fn left_text_keeps_markup_as_characters() {
         let t = left_text("<b>x</b>", 1);
         assert!(t.contains("<b>x</b>"));
+    }
+
+    #[test]
+    fn left_numbered_changes_for_same_text() {
+        assert_ne!(left_numbered(1, "a"), left_numbered(2, "a"));
+        assert_eq!(left_numbered(3, "a"), "左 3: a");
+        assert_eq!(left_numbered(3, ""), "");
     }
 
     #[test]

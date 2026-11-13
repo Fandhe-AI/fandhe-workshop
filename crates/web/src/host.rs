@@ -744,6 +744,10 @@ pub struct EngineHost {
     live_response: (u64, String),
     /// `live-left` の文（A11Y-8。TASK-370 2/2）。表示の状態で、`ops`・履歴・保存先には書かない。履歴の差し替えで空に戻す。
     live_left: String,
+    /// `live_left` の元になった（対象の Step, 番号なしの文）。文が同じでも Step が違えば別の通知にするための比較用。
+    live_left_key: (Option<String>, String),
+    /// `live_left` の通し番号。非空の文を積むたびに 1 進める。
+    live_left_seq: u64,
     /// 直近の `update` で変わった field。
     dirty: Vec<&'static str>,
     /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
@@ -904,6 +908,8 @@ impl EngineHost {
             checkpoint_page: 0,
             live_response: (0, String::new()),
             live_left: String::new(),
+            live_left_key: (None, String::new()),
+            live_left_seq: 0,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -1070,6 +1076,8 @@ impl EngineHost {
             checkpoint_page: 0,
             live_response: (0, String::new()),
             live_left: String::new(),
+            live_left_key: (None, String::new()),
+            live_left_seq: 0,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -2346,6 +2354,7 @@ impl EngineHost {
             self.live_left = String::new();
             self.dirty.push(LIVE_LEFT_FIELD.name);
         }
+        self.live_left_key = (None, String::new());
         if self.live_response != (0, String::new()) {
             self.live_response = (0, String::new());
             self.dirty.push(LIVE_RESPONSE_FIELD.name);
@@ -2540,8 +2549,15 @@ impl EngineHost {
         if let Some(left) =
             crate::live_region::left_summary(&log[from_event..], proj.review(), session.ir())
         {
-            if left != self.live_left {
-                self.live_left = left;
+            let key = (left.step, left.text);
+            if key != self.live_left_key {
+                if key.1.is_empty() {
+                    self.live_left = String::new();
+                } else {
+                    self.live_left_seq = self.live_left_seq.saturating_add(1);
+                    self.live_left = crate::live_region::left_numbered(self.live_left_seq, &key.1);
+                }
+                self.live_left_key = key;
                 if !self.dirty.contains(&LIVE_LEFT_FIELD.name) {
                     self.dirty.push(LIVE_LEFT_FIELD.name);
                 }

@@ -117,7 +117,8 @@ fn 左を変える受付は題と件数の文を_1_回だけ積む() {
     assert_eq!(left_value(&h), "");
     h.update(cmd("/help"));
     assert_eq!(left_dirty(&h), 1);
-    assert_eq!(left_value(&h), left_text(&title_of("main/st-1-1"), 1));
+    assert!(left_value(&h).ends_with(&left_text(&title_of("main/st-1-1"), 1)));
+    assert!(left_value(&h).starts_with("左 1: "));
     assert!(left_value(&h).ends_with("左の画面が 1 件変わりました"));
     assert!(!left_value(&h).contains("cards/"), "経路は文に入れない");
 }
@@ -140,9 +141,8 @@ fn 確認を省く_step_は変えた側の題で知らせる() {
     let mut h = host_at("main/st-1-2");
     h.update(cmd("/help"));
     assert_eq!(left_dirty(&h), 1);
-    assert_eq!(
-        left_value(&h),
-        left_text(&title_of("main/st-1-2"), 1),
+    assert!(
+        left_value(&h).ends_with(&left_text(&title_of("main/st-1-2"), 1)),
         "次の Step に入っても空にならない"
     );
 }
