@@ -2,6 +2,8 @@
 //!
 //! 直列化の綴り、`visible_hints` の規則（fail-closed）、全域性を、`tests/data/guidance_1/` のサンプルで固定する。
 //! サンプルの書き換えは契約の変更であり、`GUIDANCE_CONTRACT_VERSION` の版上げの判断が要る（spec を先に直す）。
+//! 案内レベルは実行全体で 1 つのまま維持する決定（D-55・GUIDE-13）の下で、契約の `Instance` が `guidance` 欄を
+//! 持たないこと（TASK-303 2/2）もここで固定する。版は上げない。
 //! 試験は作業ツリーを書き換えない。試験では `unwrap` を使ってよい。
 
 use std::collections::BTreeMap;
@@ -149,4 +151,19 @@ fn order_follows_the_step_not_the_table() {
     let ir = ir_with(vec![("a", json!({})), ("b", json!({}))]);
     let step = step_with(&["b", "a"]);
     assert_eq!(visible_hints(&ir, &step, GuidanceLevel::A), vec!["b", "a"]);
+}
+
+/// D-55: 実体ごとの案内レベルは持たない。`instances[]` の `guidance` は未知の欄として断る（fail-closed）。
+#[test]
+fn instance_rejects_guidance_field() {
+    let mut v: Value = serde_json::from_slice(&data("hints-ir.json")).unwrap();
+    let ok = serde_json::from_value::<Ir>(v.clone());
+    assert!(ok.is_ok(), "{:?}", ok.err());
+    let mut inst = json!({"id": "main", "module": null, "args": {}, "caller": null});
+    v["instances"] = json!([inst.clone()]);
+    assert!(serde_json::from_value::<Ir>(v.clone()).is_ok());
+    inst["guidance"] = json!("B");
+    v["instances"] = json!([inst]);
+    let err = serde_json::from_value::<Ir>(v).unwrap_err().to_string();
+    assert!(err.contains("guidance"), "{err}");
 }
