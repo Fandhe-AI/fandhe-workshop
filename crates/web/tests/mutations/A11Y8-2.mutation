@@ -1,0 +1,8 @@
+id: A11Y8-2
+package: fandhe-workshop-web
+test: live_left_host
+target: crates/web/src/host.rs
+find:         if !self.dirty.contains(&LIVE_LEFT_FIELD.name) {
+replace:         if false {
+expect-fail: 左を変える受付は題と件数の文を_1_回だけ積む
+note: 左の要約を dirty に積まない（欄が更新されない。A11Y-8）

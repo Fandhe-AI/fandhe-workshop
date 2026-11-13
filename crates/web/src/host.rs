@@ -742,6 +742,8 @@ pub struct EngineHost {
     checkpoint_page: usize,
     /// `live-response` の応答の通し番号と文（A11Y-6。TASK-370 1/2）。表示の状態で、`ops`・履歴・保存先には書かない。履歴の差し替えで初期値に戻す。
     live_response: (u64, String),
+    /// `live-left` の文（A11Y-8。TASK-370 2/2）。表示の状態で、`ops`・履歴・保存先には書かない。履歴の差し替えで空に戻す。
+    live_left: String,
     /// 直近の `update` で変わった field。
     dirty: Vec<&'static str>,
     /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
@@ -901,6 +903,7 @@ impl EngineHost {
             boot_corrupt: None,
             checkpoint_page: 0,
             live_response: (0, String::new()),
+            live_left: String::new(),
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -1066,6 +1069,7 @@ impl EngineHost {
             boot_corrupt: None,
             checkpoint_page: 0,
             live_response: (0, String::new()),
+            live_left: String::new(),
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -2337,7 +2341,11 @@ impl EngineHost {
         self.fresh_start = false;
         self.command_prefix = d.command_prefix;
         self.dirty = self.registry.fields().map(|f| f.name).collect();
-        // 前の履歴の応答を欄に残さない。文が変わったときだけ積む（`live_left` は常に空で積まない）。
+        // 前の履歴の応答・左の要約を欄に残さない。文が変わったときだけ積む。
+        if !self.live_left.is_empty() {
+            self.live_left = String::new();
+            self.dirty.push(LIVE_LEFT_FIELD.name);
+        }
         if self.live_response != (0, String::new()) {
             self.live_response = (0, String::new());
             self.dirty.push(LIVE_RESPONSE_FIELD.name);
@@ -2523,6 +2531,21 @@ impl EngineHost {
             self.live_response = (seq, crate::live_region::response_text(seq, &summary));
             if !self.dirty.contains(&LIVE_RESPONSE_FIELD.name) {
                 self.dirty.push(LIVE_RESPONSE_FIELD.name);
+            }
+        }
+        // 左の変化の要約（A11Y-8）。同じ文なら積まず、DOM に書かない。
+        // `session` が `model.recorded` を借用中のため、`projection` は欄で直接借りる（別の欄で衝突しない）。
+        let proj = &self.model.projection;
+        let left = crate::live_region::left_summary(
+            &log[from_event..],
+            proj.review(),
+            session.ir(),
+            session.state().run.current.as_ref(),
+        );
+        if left != self.live_left {
+            self.live_left = left;
+            if !self.dirty.contains(&LIVE_LEFT_FIELD.name) {
+                self.dirty.push(LIVE_LEFT_FIELD.name);
             }
         }
         // 今の Step が選んだときの Step と違えば、ビューの選択を捨てる（ART-12。移動すると宣言の先頭に戻る）。
@@ -3336,7 +3359,10 @@ impl Component for EngineHost {
             panes,
         ];
         // 読み上げ用のライブの欄は panes の後ろに置く（仮置き。最終の配置は TASK-534）。tabpanel の外にある（A11Y-6）。
-        children.extend(crate::live_region::live_nodes(&self.live_response.1));
+        children.extend(crate::live_region::live_nodes(
+            &self.live_response.1,
+            &self.live_left,
+        ));
         // 試験の設定だけ: `raw` の action を送る見えないボタン。hidden のため Tab の巡回に入らない。
         // 試験は `data-payload` を書き換えて click する。
         #[cfg(feature = "test-hooks")]
@@ -3591,8 +3617,7 @@ impl BindingSource for EngineHost {
             return Some(BoundValue::Text(self.live_response.1.clone()));
         }
         if field == LIVE_LEFT_FIELD.name {
-            // 要約は #972（A11Y-8）が足す。それまでは常に空。
-            return Some(BoundValue::Text(String::new()));
+            return Some(BoundValue::Text(self.live_left.clone()));
         }
         self.registry.bound_value(field, &self.model)
     }

@@ -1,4 +1,5 @@
-// ライブの欄 `live-response` の更新回数を、応答ごとに DOM の観察で数える試験（A11Y-6。TASK-370 1/2。#971）。
+// ライブの欄 `live-response` の更新回数を、応答ごとに DOM の観察で数える試験（A11Y-6。TASK-370 1/2。#971）と、
+// 左の変化の要約 `live-left` が左の変わる Step で更新される試験（A11Y-8。TASK-370 2/2。#972）。
 //
 // 役割: 新しい応答が右のログに出たら、読み上げ用の欄 `live-response` を、その応答の行を含めて「応答ごとにちょうど 1 回」更新し、
 // 利用者自身の入力の写し（`received`）と処理の途中経過（`progress`）だけが増えた更新では触らない、という契約（`a11y::counts_for_live_response`）を
@@ -14,11 +15,18 @@
 //       を満たす。2 つの欄（`live-response`・`live-left`）の属性（aria-live=polite・aria-atomic=true・role なし・子は文字だけ（空の間は 0 個）・親は
 //       workshop-root・tabpanel の外）は、マウントの直後・束ごと・終わりに判定する。アクセシビリティツリー（CDP）では、拒否・問い返し・停止・終わりの各時点で
 //       2 つの欄が live=polite・atomic=true の性質を持ち、`live-response` の部分木の文字が DOM と一致する。CSP あり・なし。
+//   L1  R1 と同じ通しで、エンジンの事実（`stateJson` の `review[].changeCount > 0`）で左が変わった Step のどれについても、題を含む要約
+//       「「<題>」: 左の画面が N 件変わりました」への `live-left` の更新が 1 回以上ある（A11Y-8 の ST-1.1・ST-1.3・ST-1.5・ST-1.6a は試験用の教材の
+//       st-1-1・st-1-3・st-1-5・st-1-6 に当たり、名前を挙げて別に断言する）。文は件数の文で、経路の名前（`cards/`）を含まない。AX ツリー（CDP）の
+//       `live-left` の文字が DOM と一致する。
+//   L2  CH-0（`?start=s-0-1`）を通し、左を変えない Step（st-0-2b・st-0-2c）の題を名指す要約の更新が 0 回で `changeCount` も 0 であること。
+//       空振りを防ぐため、左を変える st-0-2a の要約は 1 回以上あることも断言する。
 //   N1  同じタスクの中で `live-response` を 2 回書くと、観察器が 2 件と数える（判定が失敗する）。
 //   N2  合成した束の列（2 回・0 回・received だけの束での更新）は判定が不合格にする。
 //   N3  写した属性から `aria-atomic` を外すと、属性の判定が失敗する。
+//   N4  合成した束の列（左が変わったのに更新 0 回・形の違う文・変わらない Step を名指す文）は `live-left` の判定が不合格にする。
 //
-// 確かめないこと: 読み上げそのもの（VoiceOver での読まれ方は TASK-381）。`live-left` の文（#972・A11Y-8）。幅は 1280px だけ。
+// 確かめないこと: 読み上げそのもの（VoiceOver での読まれ方は TASK-381）。`live-left` の文の言い回し（A11Y-15 が未決）。幅は 1280px だけ。
 // 応答の数は固定しない（試験用の教材の CH-1 は 6 Step で、本物の教材は別の repo にある）。注記の無い受付（Accepted(None)）は契約どおり応答に数えない。
 // 出力に入力した値と欄の文は出さず、件数と種類だけを出す。
 //
@@ -92,7 +100,8 @@ const OBSERVER = ({ regions, excluded }) => {
       }
     }
     const el = document.querySelector('[data-testid="live-response"]');
-    state.batches.push({ live, left, after: el?.textContent ?? null, added, attrsOk: attrsOk(), counting: added.filter((a) => !excluded.includes(a.kind)).length });
+    const leftEl = document.querySelector('[data-testid="live-left"]');
+    state.batches.push({ live, left, after: el?.textContent ?? null, leftAfter: leftEl?.textContent ?? null, added, attrsOk: attrsOk(), counting: added.filter((a) => !excluded.includes(a.kind)).length });
   });
   obs.observe(root, { subtree: true, childList: true, characterData: true });
   state.attrsOk = attrsOk;
@@ -123,6 +132,46 @@ export function judgeBatches(batches) {
   if (responses !== liveTotal) problems.push(`応答の総数 ${responses} と更新の総数 ${liveTotal} が違う`);
   return problems;
 }
+
+// `live-left` の判定（A11Y-8）。`titles` は Step の uid から題、`changedSteps` は左が変わった Step、`unchangedSteps` は変わらなかった Step。
+// 更新は「束の中の `live-left` の書き込みが 1 回以上で、束の後の文字が要約の形」の束。題は出力に載せず、Step の uid だけを載せる。
+const LEFT_RE = /^「(.+)」: 左の画面が (\d+) 件変わりました$/;
+export function leftUpdates(batches) {
+  const out = [];
+  batches.forEach((b, i) => {
+    const m = b.left >= 1 ? LEFT_RE.exec(b.leftAfter ?? '') : null;
+    if (m) out.push({ batch: i, title: m[1], count: Number(m[2]) });
+  });
+  return out;
+}
+
+export function judgeLeft(batches, { titles, changedSteps, unchangedSteps = [] }) {
+  const problems = [];
+  const known = new Set(Object.values(titles));
+  batches.forEach((b, i) => {
+    const t = b.leftAfter ?? '';
+    if (b.left >= 1 && t !== '') {
+      const m = LEFT_RE.exec(t);
+      if (!m) problems.push(`束 ${i}: live-left の文の形が違う`);
+      else if (!known.has(m[1])) problems.push(`束 ${i}: live-left の題が教材のどの Step の題でもない`);
+      else if (/cards\//.test(t)) problems.push(`束 ${i}: live-left の文に経路の名前が入っている`);
+    }
+  });
+  const ups = leftUpdates(batches);
+  for (const uid of changedSteps) {
+    if (!ups.some((u) => u.title === titles[uid] && u.count >= 1)) problems.push(`${uid}: 左が変わったのに要約の更新が 0 回`);
+  }
+  for (const uid of unchangedSteps) {
+    if (ups.some((u) => u.title === titles[uid])) problems.push(`${uid}: 左が変わらないのに要約が更新された`);
+  }
+  return problems;
+}
+
+const IR_TITLES = (() => {
+  const ir = JSON.parse(fs.readFileSync(new URL('../../crates/web/tests/data/ch0_3/ir.json', import.meta.url), 'utf8'));
+  return Object.fromEntries(ir.nodes.map((n) => [n.uid, n.step.title]));
+})();
+const SPEC_LEFT_STEPS = ['main/st-1-1', 'main/st-1-3', 'main/st-1-5', 'main/st-1-6'];
 
 // 属性の写しの判定。写しは OBSERVER の attrsOk と同じ条件を、要素ごとの値で持つ。
 const snapAttrs = (page) => page.evaluate((regions) => {
@@ -181,12 +230,12 @@ async function axOf(cdp, page) {
   return out;
 }
 
-async function openCh1(csp, fn) {
+async function openCh1(csp, fn, query = QUERY) {
   let L;
   await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
     const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport: { width: 1280, height: 900 } });
     L = ledger();
-    await page.goto(`${srv.url}${QUERY}`);
+    await page.goto(`${srv.url}${query}`);
     await waitMounted(page);
     assert.equal(await page.evaluate(() => typeof window.__fandheTest?.stateJson), 'function', 'test hooks are missing');
     const cdp = await context.newCDPSession(page);
@@ -294,6 +343,18 @@ for (const csp of [true, false]) {
       led.check(S, '束の判定が合格', problems.length === 0);
       led.check(S, '終わりの属性の写しが合格', attrProblems(await snapAttrs(page)).length === 0);
 
+      // L1: 左が変わった Step の要約。
+      const eng = await engine(page);
+      const changedSteps = eng.review.filter((r) => r.changeCount > 0).map((r) => r.step);
+      const unchangedSteps = eng.review.filter((r) => r.changeCount === 0).map((r) => r.step);
+      const leftProblems = judgeLeft(bs, { titles: IR_TITLES, changedSteps, unchangedSteps });
+      for (const p of leftProblems) led.check('L1', p, false);
+      led.check('L1', 'live-left の判定が合格', leftProblems.length === 0);
+      for (const uid of SPEC_LEFT_STEPS) led.check('L1', `${uid} は左が変わった Step で要約が出る`, changedSteps.includes(uid) && leftUpdates(bs).some((u) => u.title === IR_TITLES[uid]));
+      const axLeft = await axOf(cdp, page);
+      const domLeft = await page.evaluate(() => document.querySelector('[data-testid="live-left"]').textContent);
+      led.check('L1', 'AX ツリーの live-left の文字が DOM と一致', axLeft['live-left']?.text === domLeft);
+
       // 空振りの防止。種類ごとの束の数。
       const kindsOf = (b) => b.added.map((a) => a.kind);
       const responses = bs.filter((b) => b.counting > 0);
@@ -306,7 +367,7 @@ for (const csp of [true, false]) {
       const progressOnly = bs.filter((b) => b.added.length > 0 && b.added.every((a) => a.kind === 'progress'));
       led.check(S, 'received だけの束が 1 回以上で、どれも更新 0 回', receivedOnly.length >= 1 && receivedOnly.every((b) => b.live === 0));
       led.check(S, 'progress だけの束が 1 回以上で、どれも更新 0 回', progressOnly.length >= 1 && progressOnly.every((b) => b.live === 0));
-      led.check(S, 'live-left は文を持たず更新 0 回（#972 まで）', bs.every((b) => b.left === 0));
+      led.check('L1', '左の変化の要約の更新が 1 回以上', leftUpdates(bs).length >= 1);
 
       const counts = await collectSafety(page, rec);
       for (const k of nonZero(counts)) led.check(S, `安全の計数 ${k} が 0`, false);
@@ -317,6 +378,7 @@ for (const csp of [true, false]) {
       // 実測の記録（入力・欄の文は出さない。件数と種類だけ）。
       const perKind = {};
       for (const b of responses) for (const k of new Set(kindsOf(b))) perKind[k] = (perKind[k] ?? 0) + 1;
+      console.log(`L1 (${mode}): 左が変わった Step ${changedSteps.length} 件・要約の更新 ${leftUpdates(bs).length} 回・変わらない Step ${unchangedSteps.length} 件`);
       console.log(`R1 (${mode}): 束 ${bs.length}・応答 ${responses.length}（種類別 ${JSON.stringify(perKind)}）・received だけ ${receivedOnly.length}・progress だけ ${progressOnly.length}・live-response の更新 ${bs.reduce((s, b) => s + b.live, 0)}・AX 確認 ${axChecks.length} 回`);
     });
     console.log(`R1 (${mode}): ${L.summary()} 項目`);
@@ -324,8 +386,52 @@ for (const csp of [true, false]) {
   });
 }
 
+for (const csp of [true, false]) {
+  const mode = `CSP ${csp ? 'あり' : 'なし'}`;
+  test(`L2: 左を変えない Step では要約が更新されない（${mode}）`, { timeout: 300000 }, async () => {
+    const L = await openCh1(csp, async ({ page, L: led }) => {
+      const S = 'L2';
+      await at(page, 'main/st-0-1', 'entered');
+      await page.evaluate(OBSERVER, { regions: REGIONS, excluded: EXCLUDED });
+      const d = mouseDriver(page);
+      await d.choose('opt-right');
+      await at(page, 'main/st-0-1', 'accepted');
+      await d.point('cards/notice');
+      await at(page, 'main/st-0-2a', 'entered');
+      await d.choose('opt-read-a');
+      await at(page, 'main/st-0-2a', 'accepted');
+      await d.choose('ans-a-ok');
+      await at(page, 'main/st-0-2b', 'entered');
+      await d.choose('opt-read-b');
+      await at(page, 'main/st-0-2b', 'accepted');
+      await d.choose('ans-b-ok');
+      await at(page, 'main/st-0-2c', 'entered');
+      await d.choose('opt-read-c');
+      await at(page, 'main/st-0-2c', 'accepted');
+      await d.choose('ans-c-ok');
+      await at(page, 'main/st-0-2c', 'achieved');
+      await settle(page);
+      const bs = await batches(page);
+      const eng = await engine(page);
+      const count = (uid) => eng.review.find((r) => r.step === uid)?.changeCount;
+      led.check(S, 'st-0-2b・st-0-2c の changeCount が 0', count('main/st-0-2b') === 0 && count('main/st-0-2c') === 0);
+      led.check(S, 'st-0-2a の changeCount が 1 以上', count('main/st-0-2a') >= 1);
+      const problems = judgeLeft(bs, {
+        titles: IR_TITLES,
+        changedSteps: ['main/st-0-1', 'main/st-0-2a'],
+        unchangedSteps: ['main/st-0-2b', 'main/st-0-2c'],
+      });
+      for (const p of problems) led.check(S, p, false);
+      led.check(S, '判定が合格（変わらない Step の更新 0 回・変わる Step の更新 1 回以上）', problems.length === 0);
+      console.log(`L2 (${mode}): 要約の更新 ${leftUpdates(bs).length} 回・changeCount st-0-2a=${count('main/st-0-2a')}・st-0-2b=${count('main/st-0-2b')}・st-0-2c=${count('main/st-0-2c')}`);
+    }, '?fixture=ch0-3-chapters&start=s-0-1');
+    console.log(`L2 (${mode}): ${L.summary()} 項目`);
+    assert.deepEqual(L.failed(), []);
+  });
+}
+
 // ---- 負の対照 ----
-const synth = (added, live, after = '応答 1: x', attrsOk = true) => ({ live, left: 0, after, added, attrsOk, counting: added.length });
+const synth = (added, live, after = '応答 1: x', attrsOk = true) => ({ live, left: 0, leftAfter: '', after, added, attrsOk, counting: added.length });
 
 test('N1: 同じタスクで live-response を 2 回書くと、観察器が 2 件と数える', { timeout: 120000 }, async () => {
   let two;
@@ -367,4 +473,17 @@ test('N3: 写した属性から aria-atomic を外すと、属性の判定が失
   assert.ok(attrProblems(bad).some((p) => p.includes('aria-atomic')));
   assert.ok(attrProblems(ok.map((s) => ({ ...s, role: 'status' }))).length > 0, 'role が付くと失敗');
   assert.ok(attrProblems(ok.map((s) => ({ ...s, inTabpanel: true }))).length > 0, 'tabpanel の中は失敗');
+});
+
+test('N4: 合成した束の列は live-left の判定が不合格にする', () => {
+  const titles = { 'main/a': '題 A', 'main/b': '題 B' };
+  const base = { titles, changedSteps: ['main/a'], unchangedSteps: ['main/b'] };
+  const upd = (text) => ({ ...synth([], 0), left: 1, leftAfter: text });
+  assert.deepEqual(judgeLeft([upd('「題 A」: 左の画面が 2 件変わりました')], base), [], '基準は合格');
+  assert.ok(judgeLeft([synth([], 0)], base).length > 0, '左が変わったのに更新 0 回');
+  assert.ok(judgeLeft([upd('左が変わりました')], base).length > 0, '形の違う文');
+  assert.ok(judgeLeft([upd('「題 A」: 左の画面が cards/x 件変わりました')], base).length > 0, '件数でない文');
+  assert.ok(judgeLeft([upd('「題 A」: 左の画面が 1 件変わりました'), upd('「題 B」: 左の画面が 1 件変わりました')], base).length > 0, '変わらない Step を名指す');
+  assert.ok(judgeLeft([upd('「別の題」: 左の画面が 1 件変わりました')], base).length > 0, '教材にない題');
+  assert.ok(judgeLeft([{ ...synth([], 0), left: 0, leftAfter: '「題 A」: 左の画面が 1 件変わりました' }], base).length > 0, '書き込みが無い束の文は更新に数えない');
 });
