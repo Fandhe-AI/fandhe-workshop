@@ -24,8 +24,10 @@
 //! 1 周目を終えた後の同じボタンが 2 周目を新しい実体の根で始める。2 周目専用の案内文・確認は ROUND2-2（検討中）の決定まで
 //! 足さず、SHELL-10 の「ボタン 1 つ・確認なし」のままにする（仮置き）。開始点の案内レベル（`guidance`）は `Begin` が反映する（TASK-294 1/2）。
 //!
-//! 出す開始点は、`effects` が空で、開始条件（`requires`）が今の状態で成り立つものだけに絞る。`effects` を持つ開始点は
-//! 開始用の状態を置き直す入口で、前の周回から引き継いだ世界状態を上書きするので続けて始める入口として選ばない。
+//! 出す開始点は、開始条件（`requires`）が今の状態で成り立つものだけに絞り、`effects` が空のものを優先する（#2162。2026-11-16）。
+//! 空のものが無い章（全章の開始点が開始用の状態を置く教材）では `effects` を持つ開始点を出し、押下は `Begin` が `effects` を適用する。
+//! 引き継いだ世界状態を `effects` が上書きしないようにするのは教材の責務で（MOD-8 の実体の引数による経路の分離）、ここでは裁かない。
+//! 空を優先するので、続けて始める入口と置き直す入口を両方持つ章（2 周目の `s-r2`・`s-r2-fresh`）は続けて始める入口を出す。
 //! 条件が成り立たない開始点は `Begin` が断るので、断られるボタンを最初から出さない（fail-closed）。
 //!
 //! 教材由来の文字列（題・開始点の ID）は文字ノードと属性値にだけ入れ、既定のエスケープを通す（SAFE-11）。
@@ -103,14 +105,18 @@ pub fn next_chapter(ir: &Ir, state: &SessionState) -> Option<NextChapter> {
         .iter()
         .find(|n| n.scope == "main" && n.unit == next_unit)?;
     // 先頭の Step を指す開始点だけを選ぶ。途中の Step を指す開始点は章の冒頭を飛ばす入口なので、代わりに使わない。
-    // `effects` つき（前の周回の世界状態を上書きする入口）と、開始条件が成り立たない開始点（`Begin` が断る）も選ばない。
-    let start = ir
+    // 開始条件が成り立たない開始点（`Begin` が断る）も選ばない。候補のうち `effects` が空のものを優先する。
+    let candidates: Vec<_> = ir
         .starts
         .iter()
         .filter(|s| !s.id.contains('#'))
-        .filter(|s| s.effects.is_empty())
         .filter(|s| check_start(ir, &state.run, &s.id).is_ok())
-        .find(|s| s.node == first.uid)?;
+        .filter(|s| s.node == first.uid)
+        .collect();
+    let start = candidates
+        .iter()
+        .find(|s| s.effects.is_empty())
+        .or_else(|| candidates.first())?;
     let node = ir.nodes.iter().find(|n| n.uid == start.node)?;
     Some(NextChapter {
         start_id: start.id.clone(),

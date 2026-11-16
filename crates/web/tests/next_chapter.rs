@@ -3,7 +3,8 @@
 //! 試験用の教材 `tests/data/ch0_3/ir.json` は章の境目を無条件の `next` でつなぐため、試験の中で変種を作る。
 //! 各章の最後の Step を `final` にし、開始点を並べ替えて `#` つきの開始点を混ぜる。
 //! 2/2 では押下の結線（今の提示と完全一致したときだけ次の章の入口を `Control::Begin` で始める。TASK-254 1/2 で `GoTo` から替えた）と、
-//! CH-0 から CH-3 の通し、記録（`ops`）からの復元を固定する。`effects` つき・開始条件が成り立たない開始点は提示しない（末尾の節）。
+//! CH-0 から CH-3 の通し、記録（`ops`）からの復元を固定する。開始条件が成り立たない開始点は提示せず、`effects` が空の開始点を優先し、
+//! 無ければ `effects` つきを提示して押下で適用する（末尾の節。#2163）。
 //! 変種の作り方はブラウザ用の教材（`test_fixture::ch03_chapters_ir_bytes`）と同じで、2 か所を揃えて保つ。
 //! 範囲外の章へ進まないこと（SHELL-12・D-67。TASK-527）は末尾の節で固定する。CH-4 のノードを IR に残し、開始点だけを CH-0〜CH-3 の先頭 4 件にした絞った IR
 //! （`test_fixture::ch03_trial_ir_bytes` と同じ作り方で、2 か所を揃えて保つ）を使う。
@@ -862,17 +863,59 @@ fn offer_with_starts(starts: Value) -> Option<String> {
     offer(&ir, "main/st-0-2c", StepStatus::Achieved).map(|o| o.0)
 }
 
+/// 次の章の先頭（`main/st-1-1`）を指し、`cards/next` を置く開始点。
+fn fresh_start() -> Value {
+    json!({"id": "s-1-fresh", "node": "main/st-1-1", "effects": [
+        {"put": {"path": "cards/next", "attrs": {"state": "shown"}}}
+    ]})
+}
+
 #[test]
-fn effects_つきの開始点は選ばず_続けて始める開始点を選ぶ() {
-    let fresh = json!({"id": "s-1-fresh", "node": "main/st-1-1", "effects": [{"put": {}}]});
+fn effects_が空の開始点を優先し_無ければ_effects_つきを出す() {
     let plain = json!({"id": "s-1-1", "node": "main/st-1-1", "effects": []});
     assert_eq!(
-        offer_with_starts(json!([fresh.clone()])),
-        None,
-        "effects つきだけなら出さない"
+        offer_with_starts(json!([fresh_start()])).as_deref(),
+        Some("s-1-fresh"),
+        "effects つきだけなら出す"
     );
     assert_eq!(
-        offer_with_starts(json!([fresh, plain])).as_deref(),
-        Some("s-1-1")
+        offer_with_starts(json!([fresh_start(), plain])).as_deref(),
+        Some("s-1-1"),
+        "空のものがあれば空を選ぶ"
     );
+}
+
+#[test]
+fn effects_つきの開始点の押下は_effects_を適用し前の章の要素を残して先頭へ入る() {
+    let ir = ir_of(&variant_json(json!([fresh_start()])));
+    let mut s = at("main/st-0-2c", StepStatus::Achieved);
+    let prev = fandhe_workshop_core::world::Element {
+        fixture: None,
+        attrs: [("state".to_owned(), "done".to_owned())].into(),
+    };
+    s.run.world.insert("cards/prev".to_owned(), prev.clone());
+    let gen_before = s.run.generation;
+    let mut h = EngineHost::with_session(Session::from_state(ir, s), standard_registry()).unwrap();
+    h.update(act(ACTION_NEXT_CHAPTER, "s-1-fresh"));
+    assert_eq!(cur(&h), ("main/st-1-1".to_owned(), StepStatus::Entered));
+    let s = h.model().session().unwrap().state();
+    assert_eq!(
+        s.run.generation,
+        fandhe_workshop_core::addr::Generation(gen_before.0 + 1),
+        "世代が +1"
+    );
+    assert_eq!(
+        s.run
+            .world
+            .get("cards/next")
+            .and_then(|e| e.attrs.get("state")),
+        Some(&"shown".to_owned()),
+        "開始点の effects が世界状態に入る"
+    );
+    assert_eq!(
+        s.run.world.get("cards/prev"),
+        Some(&prev),
+        "前の章の要素が残る"
+    );
+    assert_eq!(count_next(&h.view()), 0, "押した後は提示が消える");
 }

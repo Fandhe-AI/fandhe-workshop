@@ -1,0 +1,8 @@
+id: SHELL10-5
+package: fandhe-workshop-web
+test: next_chapter
+target: crates/web/src/next_chapter.rs
+find: .find(|s| s.effects.is_empty())
+replace: .find(|s| !s.effects.is_empty())
+expect-fail: effects_が空の開始点を優先し_無ければ_effects_つきを出す
+note: 空の開始点があっても effects つきを選び、引き継いだ世界状態を置き直す（SHELL-10・MOD-5・#2163）
