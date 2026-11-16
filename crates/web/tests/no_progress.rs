@@ -5,6 +5,7 @@
 //! 状態の型を直に使うことを禁止する。動的な確認（core の純関数との一致）は `host_contract.rs` が持つ。
 //! 解析は、コメントを除き、空白と `r#` を除いた文字列で照合する（`common::glue_code` と同じ）。
 //! 後続のタスクが `Op::Tick` を作ること（時刻は web が持ち、判定は core が持つ）は禁止しない。
+//! 早送りの連続適用（core の `RecordedSession::fast_forward`。EVT-17・SHELL-24）は `host.rs` の `fast_forward_engine` の 1 箇所だけに許す。
 
 mod common;
 
@@ -51,6 +52,9 @@ const APPLY_FN: &str = "apply_engine";
 /// `.reload(` が許される唯一の関数と、その直前に必要な属性（正規化後）。
 const RELOAD_FN: &str = "reload_engine";
 const RELOAD_CFG: &str = "#[cfg(feature=\"test-hooks\")]";
+
+/// `.fast_forward(`（core の連続適用）が許される唯一の関数（`APPLY_FILE` の中）。
+const FAST_FORWARD_FN: &str = "fast_forward_engine";
 
 /// `Session::from_state` が 1 箇所だけ許されるファイル（試験の設定だけの開始状態。`lib.rs` が feature で囲む）。
 const FROM_STATE_FILE: &str = "test_fixture.rs";
@@ -110,6 +114,34 @@ fn violations(files: &[(String, String)]) -> Vec<String> {
         ));
     }
     v.extend(reload_violations(files));
+    v.extend(fast_forward_violations(files));
+    v
+}
+
+/// 早送りの連続適用（`RecordedSession::fast_forward`）の呼び出しの違反。`.fast_forward(` は `host.rs` の
+/// `fast_forward_engine` の 1 箇所だけ（`step_engine` を通して `apply_engine` と同じ後処理に乗せる。SHELL-24）。
+fn fast_forward_violations(files: &[(String, String)]) -> Vec<String> {
+    let mut v = Vec::new();
+    let mut sites = 0usize;
+    for (name, src) in files {
+        let code = glue_code(src);
+        let method = count(&code, ".fast_forward(");
+        sites += method;
+        if method == 0 {
+            continue;
+        }
+        let in_fn = fn_body(&code, FAST_FORWARD_FN).map_or(0, |b| count(b, ".fast_forward("));
+        if name != APPLY_FILE || in_fn != 1 || method != 1 {
+            v.push(format!(
+                "{name}: .fast_forward( が {method} 箇所（{APPLY_FILE} の {FAST_FORWARD_FN} の 1 箇所だけ）"
+            ));
+        }
+    }
+    if sites != 1 {
+        v.push(format!(
+            ".fast_forward( が全体で {sites} 箇所（1 箇所のはず）"
+        ));
+    }
     v
 }
 
@@ -185,6 +217,9 @@ fn apply_engine(&mut self, op: Op) {
 fn reload_engine(&mut self) {
     let events = session.reload();
 }
+fn fast_forward_engine(&mut self) {
+    self.step_engine(|s| s.fast_forward(4));
+}
 "#;
 
 #[test]
@@ -232,7 +267,8 @@ fn 実ソースの_reload_は_test_hooks_の背後の_1_箇所だけ() {
     assert_eq!(reload_violations(&found), Vec::<String>::new());
 }
 
-const NO_RELOAD_HOST: &str = "fn apply_engine() { s.apply(op); }";
+const NO_RELOAD_HOST: &str =
+    "fn apply_engine() { s.apply(op); } fn fast_forward_engine() { s.fast_forward(4); }";
 
 #[test]
 fn 負例_reload_の良い例は違反なし() {
@@ -267,4 +303,31 @@ fn 負例_コメント内の禁止の形は数えない() {
         violations(&files(&[("host.rs", GOOD_HOST), ("a.rs", src)])),
         Vec::<String>::new()
     );
+}
+
+#[test]
+fn 実ソースの_fast_forward_は_fast_forward_engine_の_1_箇所だけ() {
+    let found = web_src_sources();
+    let host = found.iter().find(|(n, _)| n == APPLY_FILE).unwrap();
+    assert_eq!(count(&glue_code(&host.1), ".fast_forward("), 1);
+    assert_eq!(fast_forward_violations(&found), Vec::<String>::new());
+}
+
+#[test]
+fn 負例_fast_forward_を別の場所で呼ぶと検出する() {
+    // 別のファイル。
+    let other = files(&[
+        ("host.rs", GOOD_HOST),
+        ("a.rs", "fn y() { s.fast_forward(4); }"),
+    ]);
+    assert!(!violations(&other).is_empty());
+    // 同じ関数で 2 回。
+    let twice = GOOD_HOST.replace("s.fast_forward(4)", "s.fast_forward(4); s.fast_forward(4)");
+    assert!(!violations(&files(&[("host.rs", &twice)])).is_empty());
+    // 別の関数。
+    let moved = GOOD_HOST.replace("fn fast_forward_engine", "fn other_engine");
+    assert!(!violations(&files(&[("host.rs", &moved)])).is_empty());
+    // 呼び出しが無くなっても全体の件数が合わず検出する。
+    let none = GOOD_HOST.replace("s.fast_forward(4)", "s.other(4)");
+    assert!(!violations(&files(&[("host.rs", &none)])).is_empty());
 }

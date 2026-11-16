@@ -471,7 +471,7 @@ fn recording_host() -> (EngineHost, Rc<RefCell<Vec<Option<TickAddr>>>>) {
     let mut host = begun_host();
     let seen: Rc<RefCell<Vec<Option<TickAddr>>>> = Rc::default();
     let sink = Rc::clone(&seen);
-    host.set_tick_request(Box::new(move |next| sink.borrow_mut().push(next)));
+    host.set_tick_request(Box::new(move |next, _| sink.borrow_mut().push(next)));
     (host, seen)
 }
 

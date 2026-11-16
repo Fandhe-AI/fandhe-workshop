@@ -1,0 +1,8 @@
+id: SHELL24-3
+package: fandhe-workshop-web
+test: fast_forward_host
+target: crates/web/src/host.rs
+find:                     notify(self.next_tick(), self.fast_forward);
+replace:                     notify(self.next_tick(), false);
+expect-fail: 切り替えのたびに予約を捨て今の宛先を新しい印で通知する
+note: 切り替えで今の宛先を通知し直すときに待たない印を落とす（処理中の切→入で 300ms を待つ。SHELL-24）

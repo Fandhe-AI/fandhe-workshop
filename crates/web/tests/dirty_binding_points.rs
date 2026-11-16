@@ -264,6 +264,15 @@ fn run_pane() -> Run {
     r
 }
 
+/// 早送りの入・切の切り替えの列（SHELL-24）。33 回の列は早送りを切のまま流すので、`fast_forward` は別に流す。
+/// 各回で束縛点への対応・目印の集合の不変・値を答えない束縛点なしを確かめる。
+fn run_fast_forward() -> Run {
+    let mut r = Run::new(multi_view_host());
+    r.step(HostAction::ToggleFastForward, "toggle-fast-forward");
+    r.step(HostAction::ToggleFastForward, "toggle-fast-forward");
+    r
+}
+
 /// 33 回の更新で、dirty になったことを確かめる 11 種の field。空振り（何も dirty にならない列）を検出する。
 const EXPECTED_SEEN: &[&str] = &[
     "input_notice",
@@ -328,6 +337,8 @@ fn 描画される_field_はすべて一度は_dirty_になる_他の教材が�
     assert!(os.seen.contains("op_guide"), "{:?}", os.seen);
     let pane = run_pane();
     assert!(pane.seen.contains("pane_tabs"), "{:?}", pane.seen);
+    let ff = run_fast_forward();
+    assert!(ff.seen.contains("fast_forward"), "{:?}", ff.seen);
     let missing: Vec<String> = r
         .mount
         .all()
@@ -336,6 +347,7 @@ fn 描画される_field_はすべて一度は_dirty_になる_他の教材が�
             !r.seen.contains(f.as_str())
                 && !os.seen.contains(f.as_str())
                 && !pane.seen.contains(f.as_str())
+                && !ff.seen.contains(f.as_str())
                 && !NEEDS_OTHER_FIXTURES.contains(&f.as_str())
         })
         .collect();

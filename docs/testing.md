@@ -5144,7 +5144,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 604`（2026-11-11 に #2121 の `focusout` の処理を描画中の二重借用で panic しないよう分け、印はすぐ下ろして書き戻しだけタイマーに回したことで 590 から上げた。その前は同日に #2121 の `focusout` のリスナーと共有の `end_composition_marker` で 581 から上げた。5.502。その前は 2026-11-09 に TASK-356 2/2 の `mount_host` の直後の書き戻し（初回マウントが捨てる先頭の改行を欄へ戻す。FEND-11）で 577 から上げた。その前は 2026-11-08 に TASK-355 1/2 の試験用の口 `draft_set_count`（下書きの配送の回数の読み取り。`test-hooks` のときだけ）で 574 から上げた。その前は 2026-10-30 に TASK-546 の `mount_app` の引数 `ir_not_found`（取得の 404 の旗。SHELL-32）で 573 から上げた。その前は 2026-10-29 に TASK-191 2/2 の試験用の口 `receptor_activation_probe`（受け口の有効・無効の読み取り。`test-hooks` のときだけ）で 567 から上げた。その前は 2026-10-29 に TASK-156 の試験用の口 `boot_kind`（起動の種類だけの読み取り。`test-hooks` のときだけ）で 563 から上げた。その前は 2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 605`（2026-11-16 に SHELL-24（TASK-540 1/2）の早送りの入の間に進行を遅延 0 で予約する分岐（`on_tick_request` の `fast`）で 604 から上げた。5.526。その前は 2026-11-11 に #2121 の `focusout` の処理を描画中の二重借用で panic しないよう分け、印はすぐ下ろして書き戻しだけタイマーに回したことで 590 から上げた。その前は同日に #2121 の `focusout` のリスナーと共有の `end_composition_marker` で 581 から上げた。5.502。その前は 2026-11-09 に TASK-356 2/2 の `mount_host` の直後の書き戻し（初回マウントが捨てる先頭の改行を欄へ戻す。FEND-11）で 577 から上げた。その前は 2026-11-08 に TASK-355 1/2 の試験用の口 `draft_set_count`（下書きの配送の回数の読み取り。`test-hooks` のときだけ）で 574 から上げた。その前は 2026-10-30 に TASK-546 の `mount_app` の引数 `ir_not_found`（取得の 404 の旗。SHELL-32）で 573 から上げた。その前は 2026-10-29 に TASK-191 2/2 の試験用の口 `receptor_activation_probe`（受け口の有効・無効の読み取り。`test-hooks` のときだけ）で 567 から上げた。その前は 2026-10-29 に TASK-156 の試験用の口 `boot_kind`（起動の種類だけの読み取り。`test-hooks` のときだけ）で 563 から上げた。その前は 2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -14235,3 +14235,30 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 限界: 古い保存済みの履歴は開けない見込み（`docs/known-gaps.md` の START-BEGIN）。試験用の設定（`test_fixture`）の起動は `entered_at` のまま。
 
 再凍結（2026-11-16。#2164）: 5.525 の変更で起動時の世代が 1 から 2 になり、固定の列 `fixed_sequence_ch0_1` の `expected_ops` の `tick` 4 件の `generation` が 1 から 2 にずれた。凍結の手順（`FANDHE_FREEZE_SEQUENCE`）で作り直した出力と旧版の差分は、`frozen_on` と この 4 件だけで、列・IR・`content_hash` は同じだった。`l1-l2-fixed` は pass 19・fail 0（手元の macOS。`l2-run` の非 loopback の接続の試験 3 件は手元の環境で失敗するため、手元では流せていない）。
+
+### 5.526 早送りの入・切の切り替えと状態の文字（TASK-540 1/2。SHELL-24・SHELL-27。#1042。5.491・5.492 の続き）
+
+実行日: 2026-11-16。
+
+- 目的: 停止ボタンの近くに早送りの切り替えを置き、状態を「早送り: 入」「早送り: 切」の文字で常に出し、入の間の処理中だけ「早送り中」を出す（SHELL-24）。入では core の連続適用（`RecordedSession::fast_forward`。EVT-17）を web に結線し、入・切で進行の数・`ops`・最後の状態が変わらないこと（SHELL-27）を固定する。
+- 実装:
+  - `crates/web/src/fast_forward_ops.rs`（定数・提示 `FastForwardOffer`・描画 `fast_forward_section`）。区画 `shell-fast-forward` の中に状態の文字 `fast-forward-status`（`data-fast-forward="on|off"`）・ボタン `fast-forward-toggle`（`data-action="toggle-fast-forward"`。`data-payload` なし。表示だけの間は出さない）・「早送り中」`fast-forward-active` を keyed list（field `fast_forward`）で置く。`aria-pressed` は a11y の閉じた一覧に無いので使わない。
+  - `host.rs`: 入・切はホストの欄 `fast_forward`（初期値は切。保存・`ops`・書き出しに触れない。D-54）。`HostAction::ToggleFastForward` は処理中でなくても切り替え、`tick_reset` で予約済みのタイマーを捨ててから今の宛先を通知し直す。入の間に今の宛先の進行が届くと `fast_forward_engine` が `step_engine` 経由で `fast_forward(FAST_FORWARD_LIMIT)` を 1 区切り適用する。古い宛先は従来どおり `apply_engine` で `Ignored`。dirty はヒントと同じく `update` の前後の提示で比べ、`install_recorded`・`enter_view_only` は明示して積む。表示だけの間は allowlist に足さない（押下を捨てる）。区画の置き場は `self.input.view()` の直後（停止ボタンと `run-status` の間。仮置き。最終は TASK-534・TASK-548）。
+  - `TickRequest` を `Fn(Option<TickAddr>, bool)` にし、第 2 引数を「待たない」の印にした。glue の `on_tick_request` は真なら遅延 0 で予約する。0 は間隔の値を決めたことにはならず、区切りの間に event loop へ戻って停止を受けるための予約である（D-113）。
+  - `FAST_FORWARD_LIMIT = 4`（提案値。実測していない）。20 件の進行は 5 区切り、試験の教材の `/make-note`（5 件）は 4 + 1 の 2 区切りになる。
+  - `glue_scale.rs` の `MAX_GLUE_CODE_LINES` を 604 から 605 に上げた（遅延 0 の分岐の 1 行。5.166 の表も更新）。
+- 試験:
+
+| 試験 | 固定すること |
+|---|---|
+| native `crates/web/tests/fast_forward_host.rs`（11 件） | 復号は空の payload だけ。開いた直後は切・ボタン 1 個・「早送り中」0 個で `check_complete_v2`・a11y の検査を通る。切り替えの dirty は `fast_forward` だけ。切り替えは `ops`・保存に出ない。入で 1 件届くと 4 件進み次で終わる。通常の速さ・入・途中の切り替えの 3 通りで最後の状態（ログを含む）と保存する履歴が一致する。区切りの間の停止（停止ボタン・Esc）が通常の速さと同じ結果になる。切り替えのたびに `tick_reset` が呼ばれ通知が新しい印を持つ。入でも古い宛先は `Ignored` 1 件だけ。「早送り中」は入かつ処理中だけ。表示だけの間は切り替えを捨てボタンを出さない |
+| `fast_forward_ops` の単体（3 件） | 切・入・表示だけの描画と検査器 |
+| `no_progress.rs`（2 件追加） | `.fast_forward(` は `host.rs` の `fast_forward_engine` の 1 箇所だけ。別のファイル・2 回・別の関数・0 回の負例 |
+| `dirty_binding_points.rs` | 切り替えの列を足し、`fast_forward` が束縛点のある field として一度は dirty になる |
+| ブラウザ `tools/browser/fast-forward-toggle.test.mjs`（10 件。CSP あり・なし） | A 状態の文字と区画の位置（`shell-right` の中・停止ボタンの後・`run-status` の前）、B click・Enter・Space で切り替わりノードとフォーカスが保たれ読み込み直さない、C 入で「早送り中」が出て消え（MutationObserver で記録）、送ってから待機中まで 1000ms 未満、D 入と切で最後の状態（ログを除く）・進行の記録・書き出しの `ops` と `snapshot` が一致、E 処理中の切→入で残りが 300ms × 残りの件数未満で終わり `ignored` が 0、F 配信する設定（IR を同梱した写し）でも A・B が動き試験用の口が無い |
+
+- 変異注入（2026-11-16。`scripts/check-mutations.sh crates/web/tests/mutations/SHELL24-2.mutation crates/web/tests/mutations/SHELL24-3.mutation crates/web/tests/mutations/SHELL27-1.mutation`）: SHELL24-2（「早送り中」の処理中の条件を外す）・SHELL24-3（切り替えの通知で待たない印を落とす）・SHELL27-1（入の間は古い宛先も連続適用に回す）の 3 件がすべて DETECTED。
+- 実行結果（2026-11-16。base は `f7d49df8`。手元の macOS・Chromium）: `make test` は 4,301 件合格・失敗 0。`make test-browser` は 2,310 件中 2,308 件合格で、`fast-forward-toggle` の 10 件は合格。失敗の 2 件は `input-limit.test.mjs` の `JUDGE-23 K-3`（CSP あり・なし）で、本変更を入れない base（`f7d49df8`）の配信物でも同じく失敗した（本変更と無関係）。`tools/check-delivery.sh` は RESULT: ok。
+- 件数の期待値: `scripts/expected-test-counts.txt` は本変更で動いた 3 行（`fast_forward_host` の追加・`no_progress`・web の単体）だけを実測に合わせた。ほかの行・合計・ブラウザの合計は本変更より前からずれており、ブラウザに失敗が残るため `make update-test-counts` は流していない。
+- 範囲外: 処理中の進行そのものが学習内容の Step での無効化と「この場面は通常の速さです」（SHELL-26。#1043）、初期値の教材の設定と `?speed=fast`（SHELL-25・SHELL-28・SESS-3。#1045）、`reduce` との組み合わせ（SHELL-29）、`tick_schedule::next_tick` と core の重複の解消、教材の書き手への案内（長さは件数 × 300ms。#1043 と一緒に足す）。
+- 限界: `FAST_FORWARD_LIMIT = 4` は実測していない。区画の置き場は仮置き。履歴の読み込み・「捨てて始める」では入・切を戻さない（読み込み直すと切に戻る）。場面 C の 1000ms は CI で揺れたら時刻の差の判定に替える。本物の教材・L2・Chrome の原本では未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。
