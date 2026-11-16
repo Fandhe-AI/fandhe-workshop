@@ -93,8 +93,7 @@ fn author6_missed_steps_are_shown_and_not_a_failure() {
 
 #[test]
 fn author6_start_step_is_counted_as_entered() {
-    // 誤入力の開始点 s-3 だけが st-3 に入る。`Session::entered_at` は入場のイベントを出さないため、
-    // 開始の節点を数えないと st-3 は入らなかったままになる。
+    // 誤入力の開始点 s-3 だけが st-3 に入る。開始点の入場は `begun_at` が返す `Entered` から数える（#2164）。
     let mut tests = to_st2("main/st-2");
     tests.extend(
         [

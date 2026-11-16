@@ -1,0 +1,8 @@
+id: BEGUN-AT-1
+package: fandhe-workshop-core
+test: begun_at
+target: crates/core/src/session.rs
+find:         if !begun || (session.state.run.current.is_none() && !halted) {
+replace:         if false && (!begun || (session.state.run.current.is_none() && !halted)) {
+expect-fail: 読めない効果と読めない案内の水準は断る
+note: Begin が警告で止まって成立しなかったときの断りを外す（効果・案内が読めない開始点で Session を返す。fail-closed。#2164）

@@ -54,10 +54,11 @@ fn fresh_host(ir: &Ir) -> HostDrive {
     HostDrive(EngineHost::with_session(session, standard_registry()).unwrap())
 }
 
-/// 配信する設定の起動と同じ作り方のホスト（開始点の節点に入った直後。`persist` の起動と同じ）。
+/// 配信する設定の起動と同じ作り方のホスト（クエリなしの既定の開始点に `Control::Begin` と同じ規則で入った直後。
+/// `open_bundled_ir`・`persist` の起動と同じ最初の状態。#2164）。ブラウザ試験へ渡す履歴はこの最初の状態から再生される。
 fn browser_host(ir: &Ir) -> HostDrive {
-    let node = ir.starts.first().expect("starts").node.clone();
-    let session = Session::entered_at(ir.clone(), &node);
+    let id = ir.starts.first().expect("starts").id.clone();
+    let (session, _) = Session::begun_at(ir.clone(), &id).expect("begun_at");
     HostDrive(EngineHost::with_session(session, standard_registry()).unwrap())
 }
 

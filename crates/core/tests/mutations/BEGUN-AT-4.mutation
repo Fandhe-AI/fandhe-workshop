@@ -1,0 +1,8 @@
+id: BEGUN-AT-4
+package: fandhe-workshop-core
+test: begun_at
+target: crates/core/src/session.rs
+find:         if !begun || (session.state.run.current.is_none() && !halted) {
+replace:         if !begun || session.state.run.current.is_none() {
+expect-fail: 遷移の上限で止まる開始は断らず止まった状態で返す
+note: 遷移の上限で止まった開始（巡回する IR）も断る（読み込みの時点では断らない規則 SHELL-31・SAFE-23 に反する。#2164）

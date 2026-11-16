@@ -11825,7 +11825,7 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 
 #### 限界
 
-- `test` も画面も開始点の `effects` を適用しない（`Session::entered_at`）。畳み込みはこの検査の側の写しで、`test` の実行時の世界状態とは一致しない。5.434 の記述（「CLI の `test` は適用する」）はコード（`play_run.rs`）と食い違うので、コードを正とする
+- 2026-11-16 以降、`test` も画面も開始点の `effects` を適用する（`Session::begun_at`。#2164）。それまでは適用しなかった（`Session::entered_at`）。畳み込みはこの検査の側の写しで、`test` の実行時の世界状態との一致は 5.525 の後に再確認する。5.434 の記述（「CLI の `test` は適用する」）は 2026-11-16 より前はコードと食い違っていた
 - `world_list: hidden` は行を作らない（PACK-22）。画面での 5 行・変化の印の確認は TASK-749 が行い、今のエンジンでは成り立たない見込みである（未検証）
 - `test` が `asserts` を判定するようになったら、`row-asserts.json` を `tests/playthrough.yaml` の `asserts` へ移す
 - 誤答・拒否の 8 場面は TASK-746 が担当する。試験と実装の作成者が同じ AI である
@@ -14212,3 +14212,26 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 限界: 試験と実装の作成者が同じ AI であること。web の画面層は対象外。
 
 範囲外: `Restore` が写しの水準へ戻す点（MOD-9）の spec 側での明記、GUIDE-15・GUIDE-16、将来実体ごとの水準を持つ決定に変わった場合の版上げ。
+
+### 5.525 起動の入口が開始点に `Control::Begin` と同じ規則で入ること（#2164。#2161 2/2。5.524 の続き）
+
+実行日: 2026-11-16。
+
+目的は、`?start=<開始点>` とクエリなしの起動、`fandhe-pack test` が、開始点の `effects`・案内の水準・飛ばした Step の省略を `Control::Begin` と同じ規則で反映することである。入口は core の `Session::begun_at`。返った状態が履歴の最初の状態（`initial`）になり、`ops` に `begin` は積まない（開いただけでは保存しない。SAVE-28）。`Session::entered_at` は試験用に残す。
+
+足した試験:
+
+| 試験 | 固定すること |
+|---|---|
+| core `begun_at` | 状態が `Session::new` + `Begin` と一致する。無い開始 ID・開始条件の不成立・読めない効果と案内は断る |
+| web `start_begin_host` | effects が起動の状態に出る。未操作は保存しない。操作の後は再読み込み・履歴の読み込みで同じ状態に戻る。開始条件が成り立たない開始点は `start_unmet` で断る |
+| core `begun_at` の上限 | 巡回する IR の開始（`cycle-enter-self`）は断らず、現在の Step が空の止まった状態で返す（SAFE-23・SHELL-31。読み込みの時点では断らない） |
+| pack `test` の観察の語 | 開始点に入れないとき、無い開始点は `unknown_start`、開始条件の不成立は `start_unmet`、それ以外は `start_blocked` |
+
+変異: `BEGUN-AT-1`（core の断りを外す）・`BEGUN-AT-2`（`Begin` の前を `entered_at` にする）・`BEGUN-AT-3`（web の返り値を `entered_at` に替える）・`BEGUN-AT-4`（上限で止まった開始も断る）。
+
+ブラウザ試験の追従（2026-11-16）: 第 2 教材の派生版の設定（`review-request-derived*.json`・`-body-shown`・`-reject-scenes`）は、開始点の effects を二重に置く回避の edit を外し、最初の受付の印を `review/status` の change だけにした。`choice-journey.test.mjs` の G・K の対照は、印が付く行を変えた 1 行（`change`）に合わせた。`round_begin_host.rs` の `browser_host` は `begun_at` に替え、配信する設定の最初の状態から履歴を書き出す。`ir-unloadable` の C（巡回する IR）は、上限で止まる開始を断らない扱いで通る。`modifier-key-right-pane` の (C) は本変更と無関係に不安定で、本変更を外した状態でも 2 回中 1 回失敗した。
+
+限界: 古い保存済みの履歴は開けない見込み（`docs/known-gaps.md` の START-BEGIN）。試験用の設定（`test_fixture`）の起動は `entered_at` のまま。
+
+再凍結（2026-11-16。#2164）: 5.525 の変更で起動時の世代が 1 から 2 になり、固定の列 `fixed_sequence_ch0_1` の `expected_ops` の `tick` 4 件の `generation` が 1 から 2 にずれた。凍結の手順（`FANDHE_FREEZE_SEQUENCE`）で作り直した出力と旧版の差分は、`frozen_on` と この 4 件だけで、列・IR・`content_hash` は同じだった。`l1-l2-fixed` は pass 19・fail 0（手元の macOS。`l2-run` の非 loopback の接続の試験 3 件は手元の環境で失敗するため、手元では流せていない）。

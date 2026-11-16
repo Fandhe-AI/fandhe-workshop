@@ -9,7 +9,8 @@
 //! （`Debug`・`Display` にも出ない。SAFE-7・SAFE-33）。
 
 use fandhe_workshop_contract::ir::{Ir, Start};
-use fandhe_workshop_core::{load_ir, IrLoadError, Session};
+use fandhe_workshop_core::event::RefuseReason;
+use fandhe_workshop_core::{load_ir, BeginAtRefusal, IrLoadError, Session};
 
 /// 同梱の IR の受信で読むバイト数の上限（`MAX_IR_BYTES + 1`）。`app.js` が応答の本体をここまでだけ読み、超えたら読み取りを
 /// 中止する（メモリ確保の前に止める）。上限を 1 超える長さを渡すので、大きさの断りは `load_ir` が出す。定数を JS に二重に持たない（wasm への公開は `glue::ir_read_limit`）。
@@ -29,6 +30,10 @@ pub enum StartRefusal {
     Unknown,
     /// 指定が無く、教材に開始点が 1 件も無い。
     Missing,
+    /// 開始点の `requires`（開始条件）が成り立たない（`Control::Begin` の断り。#2164）。
+    Unmet,
+    /// 開始点に入れなかった（効果・案内が読めない、遷移の上限など。`Control::Begin` が成立しない。#2164）。
+    Blocked,
 }
 
 /// 開始点の断りのコードの接頭辞。通知文が教材の読み込みの断りと文言を分けるために使う。
@@ -40,6 +45,8 @@ impl StartRefusal {
         match self {
             StartRefusal::Unknown => "start_unknown",
             StartRefusal::Missing => "start_missing",
+            StartRefusal::Unmet => "start_unmet",
+            StartRefusal::Blocked => "start_blocked",
         }
     }
 }
@@ -89,13 +96,12 @@ pub enum BundledIrRefusal {
 ///
 /// 呼び出し元は `host::EngineHost::for_mount`（`persist::mount_with_history` 経由）で、バイト列は `static/app.js` が固定の
 /// `./ir/main.json` から取得して渡す。バイト列は信頼できない入力として `load_ir`（大きさ・深さの上限・版・参照の検査）を必ず通す。
-/// 開始の操作（`Control::Begin`。TASK-217・TASK-294）が未実装の間の暫定で、開始点の節点に入った直後の状態
-/// は core の `Session::entered_at` が組み立てる（表示層は状態を組み立てない。`no_progress`）。開始時の効果・案内の水準の決定は
-/// 担当のタスクが入れる（試験の設定の `test_fixture::session_at` と同じ状態になる）。
+/// 開始点には core の `Session::begun_at` で `Control::Begin` と同じ規則（`effects`・案内の水準・飛ばした Step の省略）で入る
+/// （表示層は状態を組み立てない。`no_progress`。#2164）。返す状態が履歴の最初の状態になり、`begin` は `ops` に積まれない。
 ///
 /// # Errors
 ///
-/// IR を読めないとき、開始点を選べないとき、選んだ開始点の節点が教材に無いとき。
+/// IR を読めないとき、開始点を選べないとき、選んだ開始点の節点が教材に無いとき、開始点に入れない（開始条件の不成立を含む）とき。
 pub fn open_bundled_ir(
     bytes: &[u8],
     requested: Option<&str>,
@@ -106,7 +112,14 @@ pub fn open_bundled_ir(
     if !ir.nodes.iter().any(|n| n.uid == node) {
         return Err(BundledIrRefusal::Start(StartRefusal::Missing));
     }
-    Ok((Session::entered_at(ir, &node), id))
+    let (session, _) = Session::begun_at(ir, &id).map_err(|e| {
+        BundledIrRefusal::Start(match e {
+            BeginAtRefusal::Refused(RefuseReason::StartUnmet) => StartRefusal::Unmet,
+            BeginAtRefusal::Refused(RefuseReason::UnknownStart) => StartRefusal::Unknown,
+            BeginAtRefusal::Refused(_) | BeginAtRefusal::Blocked => StartRefusal::Blocked,
+        })
+    })?;
+    Ok((session, id))
 }
 
 /// 取得の結果から教材を開く。404 は本文を見ずに先に断り、`not_json`（本文が JSON として不正）と区別する（SHELL-32・D-74）。
@@ -238,12 +251,11 @@ mod tests {
         assert_eq!(id, "s-0-1");
         let cur = session.state().run.current.clone().unwrap();
         assert_eq!(cur.0, "main/st-0-1");
-        assert_eq!(session.state().run.generation.0, 1);
+        // `Control::Begin` と同じ規則で入るので世代は +1 される（#2164）。
+        assert_eq!(session.state().run.generation.0, 2);
         assert_eq!(session.step_status(&cur), StepStatus::Entered);
-        assert_eq!(
-            session.state().entry.as_ref().unwrap().run,
-            session.state().run
-        );
+        // 入口の写しは状態に書かず、ログから導く（`Begin` の規則。`entry` は `None`）。
+        assert!(session.state().entry.is_none());
         assert_eq!(open_bundled_ir(CH03, Some("s-0-1")).unwrap().1, "s-0-1");
     }
 

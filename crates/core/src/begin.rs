@@ -32,10 +32,14 @@
 //!
 //! `at` は操作前の世代と現在の Step で作る。現在の Step が無い新しい状態では空の uid を使う（`hint_open` の前例）。
 //!
+//! # 起動での使われ方
+//!
+//! 起動の入口 `Session::begun_at` は、本モジュールの `Begin` を新しい状態に 1 回適用する（#2164）。
+//! web の起動と `fandhe-pack test` が使い、返った状態が履歴の最初の状態になる。履歴の `ops` には `begin` を積まない。
+//!
 //! # 扱わないこと
 //!
 //! - `Control::SetGuidance` による水準の切り替え（`set_guidance`、TASK-294 2/2）。開始前に選んでも、宣言の無い `Begin` では新しい状態なら `pack.guidance` が勝つ
-//! - web の起動（`Session::entered_at`）での開始点の水準の反映（開始点を受け取る入口が無い。`docs/known-gaps.md`）
 //!
 //! 開始用の効果の `${名前}` は、pack の compile（`module_starts`）が実体の引数で置換済みである。本モジュールは実行時に
 //! 置換せず、IR の値をそのまま適用する（TASK-239。固定は pack の `start_instance`、前の周回を流し終えた状態からの省略は `start_skip`）。

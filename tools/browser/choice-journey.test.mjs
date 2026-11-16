@@ -384,10 +384,11 @@ test('G: 道具の対照。印の文字・見えるビュー・切り替えの�
       };
       const base0 = await probe(null);
       assert.equal(base0.left.rows.length, 5, 'control: 5 rows after the first accepted operation');
-      assert.ok(base0.left.rows.every((x) => x.mark === 'add'), 'control: all rows are marked as added');
+      // 開始点の effects で行が最初から置かれるため、最初の受付で印が付くのは変えた行（review/status の change）だけ（#2164）。
+      assert.ok(base0.left.rows.some((x) => x.mark === 'change'), 'control: the changed row is marked');
       assert.deepEqual(leftWhy(base0), [], 'control: untouched page has no left-area reason');
       const hands = [
-        ['markGlyphText', () => { const e = document.querySelector('[data-testid="mark-text"]'); e.textContent = ''; }, (b, a) => assert.notEqual(a.left.rows.filter((x) => x.markText === '').length, 0)],
+        ['markGlyphText', () => { const e = document.querySelector('li[data-mark="change"] > [data-testid="mark-text"]'); e.textContent = ''; }, (b, a) => assert.notEqual(a.left.rows.filter((x) => x.markText === '').length, 0)],
         ['visibleViews', () => {
           const other = document.querySelector('[data-testid="view-list"]:not([data-view="document"])');
           for (let e = other; e && e.getAttribute('data-testid') !== 'shell-left'; e = e.parentElement) e.removeAttribute('hidden');
@@ -480,7 +481,10 @@ test('K: 道具の対照。行の文字を測り、含まれる文字の期待�
       assert.equal(rows.length, 5);
       assert.ok(rows.every((x) => x.text !== '' && x.kind === 'item'), 'every row has text and the item kind');
       assert.ok(rows.some((x) => x.text.includes('宛先')), 'attribute text (title) is shown');
-      assert.ok(rows.every((x) => x.markText !== '' && !x.text.includes(x.markText)), 'mark text is excluded from the row text');
+      // 印が付くのは最初の受付で変えた行だけ（#2164。他の 4 行は開始点の effects で最初から置かれる）。
+      const marked = rows.filter((x) => x.mark !== '');
+      assert.ok(marked.length >= 1, 'at least one row is marked');
+      assert.ok(marked.every((x) => x.markText !== '' && !x.text.includes(x.markText)), 'mark text is excluded from the row text');
       const path0 = rows[0].path;
       const mk = (opTexts, endTexts) => ({
         ...cfgRrDerived,

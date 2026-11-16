@@ -47,7 +47,7 @@
 | `projection` | `Projection`・`LogRow`・`Mark`・`MarkKind`・`ReviewItem`・`ReviewChange` | イベント列から導く表示用の見え方 | 表示 |
 
 - 案内レベルとヒントの値の型（`GuidanceLevel`・`visible_hints`）は `fandhe_workshop_contract::guidance` にあり、`GUIDANCE_CONTRACT_VERSION` で別に管理する。本文書の対象外である
-- `Session::new`・`Session::from_state`・`Session::apply` が実行環境の入口である（開始点に入った直後の状態で作る `Session::entered_at` は、web の結線（TASK-254）までの暫定の入口。TASK-112 2/2）。状態を明示して呼ぶ関数が `apply(ir, state, op)` である
+- `Session::new`・`Session::from_state`・`Session::apply` が実行環境の入口である（開始点に `Control::Begin` と同じ規則で入った状態で作る `Session::begun_at(ir, start_id)` が製品の起動の入口で、web の `open_bundled_ir` と `fandhe-pack test` が使う。断るときは `BeginAtRefusal`。#2164。`Session::entered_at` は effects・案内・省略を反映しない試験用の入口）。状態を明示して呼ぶ関数が `apply(ir, state, op)` である
 - 利用者由来の文字列（`Input` の文字列、`Changed` の値、`Warning::message`）は信頼できない。HTML へ埋め込むときのエスケープは web 層の責務であり、core は値を保持するだけである
 
 ## 3. 世代の変わり方の表
@@ -222,3 +222,4 @@
   SHELL-22（TASK-537）の書き出しの画面は、描くときに web の `EngineHost::export_includes_unsent_draft` を読み、真のとき書き出しに下書きが入る案内を出す（案内の文面と表示は TASK-537。口の名前・意味・使い方はここで照合した）。試験用の観察は `engine_snapshot_json` の `exportIncludesUnsentDraft`（試験の設定のみ）。限界は `docs/known-gaps.md` の「SAVE-18: 消した下書きの残り」
 - 2026-11-10: `includes_unsent_draft`・`envelope_includes_unsent_draft`・`bytes_include_unsent_draft`・`RecordedSession::has_unsent_draft` の規則の (2) を、spec の D-111 に合わせて「`ops` に、送信していない空でない `Draft` が残っている」に広げた。送信していない `Draft` は、空でない `Draft` のうち直後の文字列の操作（`Draft`・`Submit`。`Engine`・`Reload` は飛ばす）が同じ値の `Submit` であるものを除いたもの（末尾の `Draft` を含む）である。入力欄が空でも、打った後に消した下書きが `Engine`・`Reload` を挟んで残れば真になる。名前・署名・型・直列化は変わらず、意味だけが真の側へ広がったため、文書の版・`CONTRACT_VERSION` は据え置いた。SHELL-22（TASK-537）の画面は同じ口を読めばよく、使い方は変わらない（SAVE-18・D-111）
 - 2026-11-12: 下書きの保存の口 `RecordedSession::set_draft` を足した（spec の `Session::set_draft` に当たる。`ops` への記録と写しの `drafts` の更新を 1 か所で行い、`draft` は別名として残す。SAVE-23、TASK-328 1/3）。写しの形は変えず、spec の `snapshot.draft` は `current_draft()`、他の根は `drafts` の残りと読む。型・直列化・世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた
+- 2026-11-16: 起動の入口 `Session::begun_at(ir, start_id)` と、断りの型 `session::BeginAtRefusal`（`Refused(RefuseReason)`・`Blocked`）を足した（#2164）。`Session::new` に `Control::Begin` を 1 回適用する関数で、新しい `Op`・`Event`・欄・直列化は足さず、世代の表も変えない。`BeginAtRefusal` は状態にも履歴にも入らない。既存の型・署名は変わらず、読み取りの口と入口の追加だけで先例（2026-10-27・2026-10-29・2026-11-12）と同じ扱いのため、文書の版・`CONTRACT_VERSION` は据え置いた。履歴の最初の状態が `Begin` 後の状態になる点（古い履歴が開けない）は契約の型の変更ではなく、`docs/known-gaps.md` の START-BEGIN に記録した

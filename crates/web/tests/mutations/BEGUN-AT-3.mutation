@@ -1,0 +1,8 @@
+id: BEGUN-AT-3
+package: fandhe-workshop-web
+test: start_begin_host
+target: crates/web/src/start_select.rs
+find:     Ok((session, id))
+replace:     Ok((Session::entered_at(session.ir().clone(), &node), id))
+expect-fail: 開始点の_effects_が起動の状態に反映される
+note: 起動の入口の返り値を、開始点の effects を適用しない暫定の入口に差し替える（#2164）

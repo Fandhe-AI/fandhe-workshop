@@ -122,7 +122,7 @@ pub mod world;
 
 pub use ir_load::{check_ir_limits, load_ir, IrLoadError};
 pub use projection::Projection;
-pub use session::{apply, Session, SessionState};
+pub use session::{apply, BeginAtRefusal, Session, SessionState};
 pub use value_limits::check_value_limits;
 
 /// 公開 API の契約の版（TASK-204・TASK-290・TASK-267・TASK-320・TASK-160、TASK-249、TASK-339 2/2、版 8）。
@@ -153,6 +153,9 @@ pub use value_limits::check_value_limits;
 /// 版 8 で足したもの: チェックポイントの保存の数の上限に達した拒否理由 `RefuseReason::CheckpointLimit`（SAVE-31）と、
 /// 次の行動 `RefuseNextAction::ContinueWithExistingCheckpoints`。章の終わりの自動保存の見送りも同じ `Event::Refused` で表す。
 /// `Event::Refused` の形は変えない。
+///
+/// 版を上げなかった追加: `Session::begun_at`・`session::BeginAtRefusal`（起動の入口。#2164）。新しい `Op`・`Event`・欄は足さず、
+/// 既存の型・署名・世代の表は変えない（`Session::current_draft` などの読み取りの口と同じ扱い。`docs/engine-api.md` の変更履歴）。
 ///
 /// 意図して含めないもの（版上げで足す）。
 /// - 早送りの入・切（EVT-27）。連続適用は版の対象外の [`fast_forward`] が持ち、入・切は D-54 で `ops` に入れない
