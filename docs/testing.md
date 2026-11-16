@@ -14259,6 +14259,6 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 
 - 変異注入（2026-11-16。`scripts/check-mutations.sh crates/web/tests/mutations/SHELL24-2.mutation crates/web/tests/mutations/SHELL24-3.mutation crates/web/tests/mutations/SHELL27-1.mutation`）: SHELL24-2（「早送り中」の処理中の条件を外す）・SHELL24-3（切り替えの通知で待たない印を落とす）・SHELL27-1（入の間は古い宛先も連続適用に回す）の 3 件がすべて DETECTED。
 - 実行結果（2026-11-16。base は `f7d49df8`。手元の macOS・Chromium）: `make test` は 4,301 件合格・失敗 0。`make test-browser` は 2,310 件中 2,308 件合格で、`fast-forward-toggle` の 10 件は合格。失敗の 2 件は `input-limit.test.mjs` の `JUDGE-23 K-3`（CSP あり・なし）で、本変更を入れない base（`f7d49df8`）の配信物でも同じく失敗した（本変更と無関係）。`tools/check-delivery.sh` は RESULT: ok。
-- 件数の期待値: `scripts/expected-test-counts.txt` は本変更で動いた 3 行（`fast_forward_host` の追加・`no_progress`・web の単体）だけを実測に合わせた。ほかの行・合計・ブラウザの合計は本変更より前からずれており、ブラウザに失敗が残るため `make update-test-counts` は流していない。
+- 件数の期待値: `scripts/expected-test-counts.txt` は変えていない。変えると `check-frontend-bump.sh counts` が全体の件数の照合を始め、本変更より前からのずれ（合計・行の無い試験バイナリ）で落ちるため。全行の更新は #2176 で扱う。
 - 範囲外: 処理中の進行そのものが学習内容の Step での無効化と「この場面は通常の速さです」（SHELL-26。#1043）、初期値の教材の設定と `?speed=fast`（SHELL-25・SHELL-28・SESS-3。#1045）、`reduce` との組み合わせ（SHELL-29）、`tick_schedule::next_tick` と core の重複の解消、教材の書き手への案内（長さは件数 × 300ms。#1043 と一緒に足す）。
 - 限界: `FAST_FORWARD_LIMIT = 4` は実測していない。区画の置き場は仮置き。履歴の読み込み・「捨てて始める」では入・切を戻さない（読み込み直すと切に戻る）。場面 C の 1000ms は CI で揺れたら時刻の差の判定に替える。本物の教材・L2・Chrome の原本では未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。

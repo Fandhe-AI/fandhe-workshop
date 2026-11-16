@@ -135,7 +135,6 @@ rust|tests/export_unsent_draft_host.rs [export_unsent_draft_host]|passed=4|ignor
 rust|tests/ext9_ir_identity.rs [ext9_ir_identity]|passed=6|ignored=0
 rust|tests/extension_point_procedure_doc.rs [extension_point_procedure_doc]|passed=5|ignored=0
 rust|tests/fast_forward.rs [fast_forward]|passed=17|ignored=0
-rust|tests/fast_forward_host.rs [fast_forward_host]|passed=11|ignored=0
 rust|tests/fictional_mark_validate.rs [fictional_mark_validate]|passed=10|ignored=0
 rust|tests/file_tree_product.rs [file_tree_product]|passed=3|ignored=0
 rust|tests/file_tree_view_a_contract.rs [file_tree_view_a_contract]|passed=10|ignored=0
@@ -262,7 +261,7 @@ rust|tests/modules.rs [modules]|passed=39|ignored=0
 rust|tests/move_step.rs [move_step]|passed=17|ignored=0
 rust|tests/next_chapter.rs [next_chapter]|passed=23|ignored=0
 rust|tests/no_hidden_triggers.rs [no_hidden_triggers]|passed=10|ignored=0
-rust|tests/no_progress.rs [no_progress]|passed=13|ignored=0
+rust|tests/no_progress.rs [no_progress]|passed=11|ignored=0
 rust|tests/no_runtime_markdown.rs [no_runtime_markdown]|passed=3|ignored=0
 rust|tests/no_starts.rs [no_starts]|passed=6|ignored=0
 rust|tests/offers_contract.rs [offers_contract]|passed=8|ignored=0
@@ -424,6 +423,6 @@ rust|total|binaries=423|passed=4220|ignored=4
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=55|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=127|ignored=0
-rust|unittests src/lib.rs [fandhe_workshop_web]|passed=210|ignored=0
+rust|unittests src/lib.rs [fandhe_workshop_web]|passed=200|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
 browser|total|tests=2097|pass=2097|skipped=0|todo=0|cancelled=0
