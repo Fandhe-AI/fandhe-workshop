@@ -154,6 +154,9 @@ pub use value_limits::check_value_limits;
 /// 次の行動 `RefuseNextAction::ContinueWithExistingCheckpoints`。章の終わりの自動保存の見送りも同じ `Event::Refused` で表す。
 /// `Event::Refused` の形は変えない。
 ///
+/// 版を上げなかった追加: `Session::begun_at`・`session::BeginAtRefusal`（起動の入口。#2164）。新しい `Op`・`Event`・欄は足さず、
+/// 既存の型・署名・世代の表は変えない（`Session::current_draft` などの読み取りの口と同じ扱い。`docs/engine-api.md` の変更履歴）。
+///
 /// 意図して含めないもの（版上げで足す）。
 /// - 早送りの入・切（EVT-27）。連続適用は版の対象外の [`fast_forward`] が持ち、入・切は D-54 で `ops` に入れない
 /// - 下書きの操作

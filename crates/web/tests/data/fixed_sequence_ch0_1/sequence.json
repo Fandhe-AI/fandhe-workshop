@@ -1,6 +1,6 @@
 {
   "sequence_format": 1,
-  "frozen_on": "2026-10-22",
+  "frozen_on": "2026-11-16",
   "source": "tools/browser/ch0-3-journey.mjs の journey を mouseDriver で main/st-2-1 まで流して記録した（TASK-114 2/2）",
   "ir_file": "ir.json",
   "ir_sha256": "5759f70451f341415b188cc78694177decc71eb30caecba30763a09be47a2d11",
@@ -90,10 +90,10 @@
     {"input":{"choice":"asked-back"}},
     {"draft":"/make-card sample"},
     {"submit":"/make-card sample"},
-    {"tick":{"generation":1,"step":"main/st-1-5","index":0}},
-    {"tick":{"generation":1,"step":"main/st-1-5","index":1}},
-    {"tick":{"generation":1,"step":"main/st-1-5","index":2}},
-    {"tick":{"generation":1,"step":"main/st-1-5","index":3}},
+    {"tick":{"generation":2,"step":"main/st-1-5","index":0}},
+    {"tick":{"generation":2,"step":"main/st-1-5","index":1}},
+    {"tick":{"generation":2,"step":"main/st-1-5","index":2}},
+    {"tick":{"generation":2,"step":"main/st-1-5","index":3}},
     {"input":{"ui":{"view":"v-cards","path":"cards/sample"}}},
     {"input":{"choice":"opt-right"}},
     {"input":{"choice":"ans-restored"}}

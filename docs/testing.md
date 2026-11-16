@@ -14233,3 +14233,5 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 ブラウザ試験の追従（2026-11-16）: 第 2 教材の派生版の設定（`review-request-derived*.json`・`-body-shown`・`-reject-scenes`）は、開始点の effects を二重に置く回避の edit を外し、最初の受付の印を `review/status` の change だけにした。`choice-journey.test.mjs` の G・K の対照は、印が付く行を変えた 1 行（`change`）に合わせた。`round_begin_host.rs` の `browser_host` は `begun_at` に替え、配信する設定の最初の状態から履歴を書き出す。`ir-unloadable` の C（巡回する IR）は、上限で止まる開始を断らない扱いで通る。`modifier-key-right-pane` の (C) は本変更と無関係に不安定で、本変更を外した状態でも 2 回中 1 回失敗した。
 
 限界: 古い保存済みの履歴は開けない見込み（`docs/known-gaps.md` の START-BEGIN）。試験用の設定（`test_fixture`）の起動は `entered_at` のまま。
+
+再凍結（2026-11-16。#2164）: 5.525 の変更で起動時の世代が 1 から 2 になり、固定の列 `fixed_sequence_ch0_1` の `expected_ops` の `tick` 4 件の `generation` が 1 から 2 にずれた。凍結の手順（`FANDHE_FREEZE_SEQUENCE`）で作り直した出力と旧版の差分は、`frozen_on` と この 4 件だけで、列・IR・`content_hash` は同じだった。`l1-l2-fixed` は pass 19・fail 0（手元の macOS。`l2-run` の非 loopback の接続の試験 3 件は手元の環境で失敗するため、手元では流せていない）。
