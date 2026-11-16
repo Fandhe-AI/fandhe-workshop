@@ -166,7 +166,11 @@ fn 一周目の途中と提示と違う開始点の押下は何も変えない()
     let (_ir, mut done) = finished_round1();
     let before = done.state().clone();
     press(&mut done, "s-r2-fresh");
-    assert_eq!(before, *done.state(), "effects つきの開始点は押せない");
+    assert_eq!(
+        before,
+        *done.state(),
+        "提示と違う開始点（effects つき）は押せない"
+    );
 }
 
 /// 世界状態の SHA-256（直列化した JSON の値。キーは `BTreeMap` で整列済み）。

@@ -12,7 +12,8 @@
 //   - 安全の計数・配信元の外への通信・エンジンの警告と無視が 0 件
 //
 // 確かめないこと:
-//   - `Control::Begin` による移動と開始点の effects の適用（core 未実装。TASK-217。今は `Control::GoTo`。`docs/testing.md` 5.227）
+//   - 開始点の effects の適用（この試験の教材の開始点は effects が空。effects を持つ開始点の提示と適用は native の
+//     `crates/web/tests/next_chapter.rs` が固定する。#2163）
 //   - 2 周目の開始（TASK-254）・範囲外の章の画面での確認（TASK-527）
 //   - 試験の出力に、入力した値や下書きの中身は出さない（名前・件数・合否だけ）
 //
