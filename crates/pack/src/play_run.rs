@@ -6,7 +6,7 @@
 //! 流す前の関門（[`run_pack`]）は、読み込み → `validate` → 教材テストの読み取り → `compile` の順で、
 //! 1 つでも診断があれば試験を流さない（fail-closed。[`TestOutcome::NotRun`]）。
 //!
-//! 開始は画面（`web::start_select`）と同じく `ir.starts` の `node` から `Session::entered_at` で作る。
+//! 開始は画面（`web::start_select`）と同じく `ir.starts` の `node` から `Session::begun_at`（`Control::Begin` と同じ規則）で作る。
 //! 進行の宛先も `web::tick_schedule::next_tick` と同じ式で組む。pack から web へは依存しないので式を写し、
 //! 画面側が変わるときは本モジュールも同じ変更で追従する。
 //!
@@ -23,9 +23,8 @@
 //! 変えるときは本モジュールも同じ変更で追従する。
 //!
 //! 入った Step の実体（TASK-405 2/2、AUTHOR-6）は、全件で入った `uid` の集合を [`Report::entered`] に集める。
-//! `Session::entered_at` は `Event::Entered` を出さず状態を作るだけなので、開始の節点は `open` が手で足す
-//! （足さないと全件の最初の Step が「入らなかった」に数えられる）。以後の入場は `apply` が返す `Event::Entered` から、
-//! 2 つ目以降の `Control::Begin` の入場も同じ読み方で足す。`use` の節点は分母（[`Report::steps`]）に入れない。
+//! 開始点には `Session::begun_at`（`Control::Begin` と同じ規則。#2164）で入り、その入場は返った `Event::Entered` から数える。
+//! 以後の入場は `apply` が返す `Event::Entered` から、2 つ目以降の `Control::Begin` の入場も同じ読み方で足す。`use` の節点は分母（[`Report::steps`]）に入れない。
 //!
 //! 扱わないこと
 //! - 最終行（後続）。開始点の切り替え（`Control::Begin`）の拒否は文面を持たず、R-21 の数に入れない。PASS・FAIL・集計の行は `cli::run_test` が `cli_contract` の関数で書く（TASK-404 2/3・3/3）。報告 [`Report`] が材料と試験の診断を持つ
@@ -43,11 +42,11 @@ use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
 use fandhe_workshop_contract::profile::read_profile;
 use fandhe_workshop_core::addr::{StepUid, TickAddr};
 use fandhe_workshop_core::effect::NoConditions;
-use fandhe_workshop_core::event::Event;
+use fandhe_workshop_core::event::{Event, RefuseReason};
 use fandhe_workshop_core::history_replay::submit_input;
 use fandhe_workshop_core::input::{Control, Decision, Input, Op};
 use fandhe_workshop_core::judge::{judge_input, JudgeError};
-use fandhe_workshop_core::Session;
+use fandhe_workshop_core::{BeginAtRefusal, Session};
 
 use crate::cli_contract::PackSummary;
 use crate::compile::compile;
@@ -88,6 +87,10 @@ pub enum Observed {
     NoJudgment,
     /// 開始点が無い。
     UnknownStart,
+    /// 開始点の `requires`（開始条件）が成り立たず、入れなかった。
+    StartUnmet,
+    /// 開始点に入れなかった（効果・案内が読めないなど。`Control::Begin` が成立しない）。
+    StartBlocked,
 }
 
 impl Observed {
@@ -106,6 +109,8 @@ impl Observed {
             Observed::TransitionLimit => "transition_limit".to_string(),
             Observed::NoJudgment => "no_judgment".to_string(),
             Observed::UnknownStart => "unknown_start".to_string(),
+            Observed::StartUnmet => "start_unmet".to_string(),
+            Observed::StartBlocked => "start_blocked".to_string(),
         }
     }
 
@@ -464,12 +469,25 @@ pub fn run(ir: &Ir, script: &Script) -> Report {
     }
 }
 
-fn open(ir: &Ir, start: &str, entered: &mut BTreeSet<String>) -> Option<Session> {
-    let s = ir.starts.iter().find(|s| s.id == start)?;
-    ir.nodes.iter().find(|n| n.uid == s.node)?;
-    // `entered_at` は `Event::Entered` を出さないので、開始の節点はここで数える。
-    entered.insert(s.node.clone());
-    Some(Session::entered_at(ir.clone(), &s.node))
+/// 開始点 `start` に画面と同じ入口で入る。入れなかったときは観察の種類（無い・条件不成立・成立しない）を返す。
+fn open(ir: &Ir, start: &str, entered: &mut BTreeSet<String>) -> Result<Session, Observed> {
+    let s = ir
+        .starts
+        .iter()
+        .find(|s| s.id == start)
+        .ok_or(Observed::UnknownStart)?;
+    ir.nodes
+        .iter()
+        .find(|n| n.uid == s.node)
+        .ok_or(Observed::UnknownStart)?;
+    // 画面と同じ入口（`Control::Begin` と同じ規則。#2164）。入った Step は返った `Entered` から数える。
+    let (session, events) = Session::begun_at(ir.clone(), start).map_err(|e| match e {
+        BeginAtRefusal::Refused(RefuseReason::UnknownStart) => Observed::UnknownStart,
+        BeginAtRefusal::Refused(RefuseReason::StartUnmet) => Observed::StartUnmet,
+        BeginAtRefusal::Refused(_) | BeginAtRefusal::Blocked => Observed::StartBlocked,
+    })?;
+    note_entered(&events, entered);
+    Ok(session)
 }
 
 /// 入力欄に打つ文字列を画面と同じ関数で分けて `Op` にする。接頭辞が無い（読めない）ときは送らない。
@@ -726,25 +744,35 @@ fn run_playthrough(
         tally,
     };
     for (n, seg) in p.segments.iter().enumerate() {
-        let begin_failed = Failure::Mismatch {
+        let begin_failed = |observed| Failure::Mismatch {
             segment: n + 1,
             step: 0,
             expected: "begin".to_string(),
-            observed: Observed::UnknownStart,
+            observed,
         };
         let current = match session.as_mut() {
             Some(s) => {
                 // 2 つ目以降の開始点は、状態を引き継いだまま重ねる。
                 let events = s.apply(Op::Control(Control::Begin(seg.start.clone())));
                 note_entered(events, entered);
-                if events.iter().any(|e| matches!(e, Event::Refused { .. })) {
-                    return result(inputs, Some(begin_failed), tally);
+                let refused = events.iter().find_map(|e| match e {
+                    Event::Refused { reason, .. } => Some(*reason),
+                    _ => None,
+                });
+                if let Some(reason) = refused {
+                    let observed = match reason {
+                        RefuseReason::StartUnmet => Observed::StartUnmet,
+                        _ => Observed::UnknownStart,
+                    };
+                    return result(inputs, Some(begin_failed(observed)), tally);
                 }
                 s
             }
             None => match open(ir, &seg.start, entered) {
-                Some(s) => session.insert(s),
-                None => return result(inputs, Some(begin_failed), tally),
+                Ok(s) => session.insert(s),
+                Err(observed) => {
+                    return result(inputs, Some(begin_failed(observed)), tally);
+                }
             },
         };
         if let Some(f) = run_steps(
@@ -783,18 +811,21 @@ fn run_error_input(
         observed,
         tally,
     };
-    let Some(mut session) = open(ir, &e.start, entered) else {
-        return fail(
-            0,
-            Failure::Mismatch {
-                segment: 0,
-                step: 0,
-                expected: expect_word(&e.expect),
-                observed: Observed::UnknownStart,
-            },
-            Some(Observed::UnknownStart),
-            Tally::default(),
-        );
+    let mut session = match open(ir, &e.start, entered) {
+        Ok(s) => s,
+        Err(observed) => {
+            return fail(
+                0,
+                Failure::Mismatch {
+                    segment: 0,
+                    step: 0,
+                    expected: expect_word(&e.expect),
+                    observed,
+                },
+                Some(observed),
+                Tally::default(),
+            );
+        }
     };
     let mut inputs = 0;
     let mut tally = Tally::default();

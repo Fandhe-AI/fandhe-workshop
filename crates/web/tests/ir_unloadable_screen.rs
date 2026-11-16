@@ -133,7 +133,12 @@ fn every_load_failure_shows_one_pack_unloadable_item() {
 
 #[test]
 fn every_start_refusal_shows_one_pack_unloadable_item() {
-    for r in [StartRefusal::Unknown, StartRefusal::Missing] {
+    for r in [
+        StartRefusal::Unknown,
+        StartRefusal::Missing,
+        StartRefusal::Unmet,
+        StartRefusal::Blocked,
+    ] {
         let code = r.reason_code();
         assert_unloadable_screen(&EngineHost::refused_start(r), code);
     }

@@ -1,0 +1,8 @@
+id: BEGUN-AT-2
+package: fandhe-workshop-core
+test: begun_at
+target: crates/core/src/session.rs
+find:         let mut session = Session::new(ir);
+replace:         let mut session = Session::entered_at(ir, "main/st-2");
+expect-fail: effects_案内_省略が_begin_と一致する
+note: Begin を適用する前の状態を暫定の入口（effects・案内・省略を反映しない）にする（#2164）

@@ -669,6 +669,9 @@ pub(crate) fn mount_session(fixture: MountFixture) -> Option<Session> {
 
 /// [`mount_session`] を、直接リンクの `start`（`None` は指定なし）で開始点を選べるようにしたもの（TASK-109 1/2）。
 ///
+/// 試験の設定の起動は `Control::Begin` を通らず、開始点の `effects`・案内の水準・省略を反映しない（`session_with_log` が作る状態）。
+/// 製品の起動（`start_select::open_bundled_ir`）は `Session::begun_at` で反映する。両者の差は意図したもの（#2164。試験の設定は固定の教材だけを開く）。
+///
 /// 照合は `start_select::select_start`（完全一致だけ）。一致しなければ `Err`（呼び出し側は session を作らず開かない）。
 /// 教材を読めない・開始の節点が無いときは `Ok(None)`（呼び出し側は session なしに倒す）。
 /// 成功したときは、実行環境と選んだ開始点の ID を返す。
@@ -995,6 +998,7 @@ fn session_at(ir_bytes: &[u8], start_id: Option<&str>) -> Option<Session> {
 }
 
 /// [`session_at`] に、開始状態のログへ積むイベントを足せるようにしたもの（`Session::from_state` の唯一の呼び出し）。
+/// `Control::Begin` を通らないので、開始点の `effects`・案内の水準・省略は反映しない（製品の起動の `begun_at` との意図した差。#2164）。
 /// `log` が空なら [`session_at`] と同じ。世界状態はログから導出されるので、積んだ `changed` が左の成果物の行になる。
 fn session_with_log(
     ir_bytes: &[u8],

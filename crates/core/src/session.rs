@@ -41,7 +41,7 @@ use crate::addr::{Generation, Root, StepUid};
 use crate::begin;
 use crate::changed;
 use crate::checkpoint;
-use crate::event::{Cause, Event};
+use crate::event::{Cause, Event, RefuseReason};
 use crate::go_to;
 use crate::hint_open;
 use crate::input::{CheckpointId, Control, GenerationRule, Input, Op};
@@ -410,6 +410,15 @@ impl StateChangeProvider for Engine<'_> {
     }
 }
 
+/// [`Session::begun_at`] が開始点に入れなかった理由。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BeginAtRefusal {
+    /// `Begin` が `Refused` を返した（無い開始 ID・開始条件の不成立）。
+    Refused(RefuseReason),
+    /// 警告で `Begin` が成立しなかった（効果・案内が読めない、世代のあふれ）。
+    Blocked,
+}
+
 /// 実行環境。教材と状態を持ち、操作を順に適用する。世代は状態の中にある。
 ///
 /// 呼び出し元は web（1 つの教材の実行）。保存からの復元は [`Session::from_state`] で行う。
@@ -429,12 +438,11 @@ impl Session {
         }
     }
 
-    /// 開始点の節点に入った直後の状態で作る（配信する設定の起動。TASK-112 2/2）。
+    /// 開始点の節点に入った直後の状態で作る試験用の入口（TASK-112 2/2）。
     ///
     /// 世代は初期値・現在の Step は `node`・その Step は `Entered`・入口の写しは同じ状態（ログの長さ 0）で、世界状態は空、
-    /// 案内の水準は既定。`Control::Begin` は飛ばした Step の省略まで実装済みだが、開始点の水準は `Begin` だけが決め（TASK-294 1/2）、この入口は反映しない。web の結線（TASK-254）が済むまでの暫定で、
-    /// 呼び出し元の web は表示層が状態を組み立てない規則（`no_progress`）のため、この入口を通す。`node` が教材に有るかの照合は
-    /// 呼び出し側が行う（`from_state` と同じ）。
+    /// 案内の水準は既定。開始点の `effects`・`guidance`・飛ばした Step の省略は反映しない。製品の起動（web の `open_bundled_ir`・
+    /// pack の `test`）は [`Session::begun_at`] を使う。`node` が教材に有るかの照合は呼び出し側が行う（`from_state` と同じ）。
     pub fn entered_at(ir: Ir, node: &str) -> Self {
         let uid = StepUid(node.to_owned());
         let mut slice = Slice::default();
@@ -454,6 +462,39 @@ impl Session {
             ..SessionState::default()
         };
         Session { ir, state }
+    }
+
+    /// 開始点 `start_id` に `Control::Begin` と同じ規則で入った状態で作る（製品の起動。#2164）。
+    ///
+    /// `Session::new` に `Begin` を 1 回適用する。成功時は、開始点の `effects`・`guidance`・飛ばした Step の省略が反映された
+    /// 実行環境と、そのときのイベント列を返す。呼び出し元は web の起動と `fandhe-pack test` で、返った状態を「最初の状態」にし、
+    /// 履歴の `ops` には `begin` を積まない（開いただけでは保存しない。SAVE-28）。
+    ///
+    /// # Errors
+    ///
+    /// `Begin` が断られた・警告で止まった（`Begun` が無い、または現在の Step が無く上限で止まったのでもない）とき。fail-closed。
+    /// 遷移の上限で止まった開始は断らず、止まった状態（現在の Step は空）を返す（SAFE-23・SHELL-31）。
+    pub fn begun_at(ir: Ir, start_id: &str) -> Result<(Self, Vec<Event>), BeginAtRefusal> {
+        let mut session = Session::new(ir);
+        let events = session
+            .apply(Op::Control(Control::Begin(start_id.to_owned())))
+            .to_vec();
+        if let Some(reason) = events.iter().find_map(|e| match e {
+            Event::Refused { reason, .. } => Some(*reason),
+            _ => None,
+        }) {
+            return Err(BeginAtRefusal::Refused(reason));
+        }
+        let begun = events.iter().any(|e| matches!(e, Event::Begun { .. }));
+        // 遷移の上限で止まった開始（巡回する IR。SAFE-23）は断らず、止まった状態（現在の Step は空）で返す。
+        // 巡回を止めるのは実行時の上限で、読み込みの時点では断らない（SHELL-31）。
+        let halted = events
+            .iter()
+            .any(|e| matches!(e, Event::TransitionLimitReached { .. }));
+        if !begun || (session.state.run.current.is_none() && !halted) {
+            return Err(BeginAtRefusal::Blocked);
+        }
+        Ok((session, events))
     }
 
     /// 既存の状態から作る。IR との照合はしない（保存復元の担当が行う）。
