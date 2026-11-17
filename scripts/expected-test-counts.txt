@@ -1,4 +1,4 @@
-# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-11-11・元にしたコミット: 39033bc0
+# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-11-18・元にしたコミット: 77bdec3c
 # 更新は `make update-test-counts`（遅い。ブラウザ試験も流す）。版上げ PR の中では変えない（CI が失敗する）。版を上げる前に別の PR で更新する。
 # 書式: rust|<試験の束>|passed=<n>|ignored=<n>。同じ束の記述が crate をまたいで重複する場合は合算する（限界）。
 rust|doc-tests fandhe_workshop_contract|passed=0|ignored=0
@@ -37,6 +37,7 @@ rust|tests/begin_guidance.rs [begin_guidance]|passed=9|ignored=0
 rust|tests/begin_skip.rs [begin_skip]|passed=8|ignored=0
 rust|tests/begin_skip_keep.rs [begin_skip_keep]|passed=6|ignored=0
 rust|tests/begin_unmet.rs [begin_unmet]|passed=2|ignored=0
+rust|tests/begun_at.rs [begun_at]|passed=5|ignored=0
 rust|tests/body_arg_gap.rs [body_arg_gap]|passed=7|ignored=0
 rust|tests/body_docs.rs [body_docs]|passed=5|ignored=0
 rust|tests/body_level_runtime.rs [body_level_runtime]|passed=1|ignored=0
@@ -120,6 +121,8 @@ rust|tests/doc_load.rs [doc_load]|passed=7|ignored=0
 rust|tests/document_element_rows.rs [document_element_rows]|passed=8|ignored=0
 rust|tests/document_view_a_contract.rs [document_view_a_contract]|passed=12|ignored=0
 rust|tests/document_view_contract.rs [document_view_contract]|passed=16|ignored=0
+rust|tests/draft_reload_host.rs [draft_reload_host]|passed=4|ignored=0
+rust|tests/draft_save_restore.rs [draft_save_restore]|passed=8|ignored=0
 rust|tests/effect_apply.rs [effect_apply]|passed=13|ignored=0
 rust|tests/effect_contract.rs [effect_contract]|passed=15|ignored=0
 rust|tests/effects.rs [effects]|passed=20|ignored=0
@@ -135,6 +138,9 @@ rust|tests/export_unsent_draft_host.rs [export_unsent_draft_host]|passed=4|ignor
 rust|tests/ext9_ir_identity.rs [ext9_ir_identity]|passed=6|ignored=0
 rust|tests/extension_point_procedure_doc.rs [extension_point_procedure_doc]|passed=5|ignored=0
 rust|tests/fast_forward.rs [fast_forward]|passed=17|ignored=0
+rust|tests/fast_forward_default.rs [fast_forward_default]|passed=3|ignored=0
+rust|tests/fast_forward_host.rs [fast_forward_host]|passed=21|ignored=0
+rust|tests/fast_forward_on_off.rs [fast_forward_on_off]|passed=10|ignored=0
 rust|tests/fictional_mark_validate.rs [fictional_mark_validate]|passed=10|ignored=0
 rust|tests/file_tree_product.rs [file_tree_product]|passed=3|ignored=0
 rust|tests/file_tree_view_a_contract.rs [file_tree_view_a_contract]|passed=10|ignored=0
@@ -147,7 +153,7 @@ rust|tests/glue_contract.rs [glue_contract]|passed=38|ignored=0
 rust|tests/glue_scale.rs [glue_scale]|passed=4|ignored=0
 rust|tests/go_to_closed_round.rs [go_to_closed_round]|passed=8|ignored=0
 rust|tests/guidance_api.rs [guidance_api]|passed=8|ignored=0
-rust|tests/guidance_contract.rs [guidance_contract]|passed=10|ignored=0
+rust|tests/guidance_contract.rs [guidance_contract]|passed=11|ignored=0
 rust|tests/guidance_judge_invariance.rs [guidance_judge_invariance]|passed=3|ignored=0
 rust|tests/guidance_leak_scope.rs [guidance_leak_scope]|passed=11|ignored=0
 rust|tests/guidance_levels.rs [guidance_levels]|passed=19|ignored=0
@@ -234,6 +240,8 @@ rust|tests/list_fold.rs [list_fold]|passed=9|ignored=0
 rust|tests/list_limit.rs [list_limit]|passed=7|ignored=0
 rust|tests/list_parent_attrs.rs [list_parent_attrs]|passed=3|ignored=0
 rust|tests/list_policy_contract.rs [list_policy_contract]|passed=8|ignored=0
+rust|tests/live_left_host.rs [live_left_host]|passed=6|ignored=0
+rust|tests/live_response_host.rs [live_response_host]|passed=5|ignored=0
 rust|tests/lo_check_contract.rs [lo_check_contract]|passed=10|ignored=0
 rust|tests/lo_check_vocabulary.rs [lo_check_vocabulary]|passed=1|ignored=0
 rust|tests/lo_first_answer.rs [lo_first_answer]|passed=11|ignored=0
@@ -259,11 +267,12 @@ rust|tests/module_path_overlap.rs [module_path_overlap]|passed=7|ignored=0
 rust|tests/module_skip_steps.rs [module_skip_steps]|passed=5|ignored=0
 rust|tests/modules.rs [modules]|passed=39|ignored=0
 rust|tests/move_step.rs [move_step]|passed=17|ignored=0
-rust|tests/next_chapter.rs [next_chapter]|passed=23|ignored=0
+rust|tests/next_chapter.rs [next_chapter]|passed=24|ignored=0
 rust|tests/no_hidden_triggers.rs [no_hidden_triggers]|passed=10|ignored=0
-rust|tests/no_progress.rs [no_progress]|passed=11|ignored=0
+rust|tests/no_progress.rs [no_progress]|passed=13|ignored=0
 rust|tests/no_runtime_markdown.rs [no_runtime_markdown]|passed=3|ignored=0
 rust|tests/no_starts.rs [no_starts]|passed=6|ignored=0
+rust|tests/normal_speed.rs [normal_speed]|passed=4|ignored=0
 rust|tests/offers_contract.rs [offers_contract]|passed=8|ignored=0
 rust|tests/old_pack_history_open.rs [old_pack_history_open]|passed=9|ignored=0
 rust|tests/op_sequence_properties.rs [op_sequence_properties]|passed=14|ignored=0
@@ -281,12 +290,13 @@ rust|tests/parts_contract.rs [parts_contract]|passed=8|ignored=0
 rust|tests/per_instance_guidance_gap.rs [per_instance_guidance_gap]|passed=4|ignored=0
 rust|tests/play_input_class.rs [play_input_class]|passed=10|ignored=0
 rust|tests/play_input_split.rs [play_input_split]|passed=7|ignored=0
+rust|tests/playthrough_emit.rs [playthrough_emit]|passed=2|ignored=1
 rust|tests/point_click_contract.rs [point_click_contract]|passed=7|ignored=0
 rust|tests/point_rows_contract.rs [point_rows_contract]|passed=7|ignored=0
 rust|tests/preview_command.rs [preview_command]|passed=9|ignored=0
 rust|tests/preview_embedded.rs [preview_embedded]|passed=0|ignored=0
 rust|tests/preview_serve.rs [preview_serve]|passed=5|ignored=0
-rust|tests/product_rows.rs [product_rows]|passed=4|ignored=0
+rust|tests/product_rows.rs [product_rows]|passed=6|ignored=0
 rust|tests/profile.rs [profile]|passed=5|ignored=0
 rust|tests/profile_contract.rs [profile_contract]|passed=4|ignored=0
 rust|tests/profile_input.rs [profile_input]|passed=12|ignored=0
@@ -335,6 +345,8 @@ rust|tests/round_slice_init.rs [round_slice_init]|passed=26|ignored=0
 rust|tests/round_three.rs [round_three]|passed=8|ignored=0
 rust|tests/row_keys_wiring.rs [row_keys_wiring]|passed=3|ignored=0
 rust|tests/run_status_contract.rs [run_status_contract]|passed=15|ignored=0
+rust|tests/run_wide_guidance.rs [run_wide_guidance]|passed=8|ignored=0
+rust|tests/run_wide_guidance_rounds.rs [run_wide_guidance_rounds]|passed=2|ignored=0
 rust|tests/save_failure.rs [save_failure]|passed=9|ignored=0
 rust|tests/save_failure_idb.rs [save_failure_idb]|passed=5|ignored=0
 rust|tests/save_pending.rs [save_pending]|passed=8|ignored=0
@@ -356,6 +368,7 @@ rust|tests/slot_contract.rs [slot_contract]|passed=7|ignored=0
 rust|tests/soft_break_join.rs [soft_break_join]|passed=7|ignored=0
 rust|tests/split_answer.rs [split_answer]|passed=5|ignored=0
 rust|tests/stale_notice.rs [stale_notice]|passed=5|ignored=0
+rust|tests/start_begin_host.rs [start_begin_host]|passed=4|ignored=0
 rust|tests/start_gate.rs [start_gate]|passed=8|ignored=0
 rust|tests/start_instance.rs [start_instance]|passed=5|ignored=0
 rust|tests/start_link_host.rs [start_link_host]|passed=3|ignored=0
@@ -415,14 +428,14 @@ rust|tests/view_select.rs [view_select]|passed=16|ignored=0
 rust|tests/vocab_command.rs [vocab_command]|passed=15|ignored=0
 rust|tests/vocab_declaration.rs [vocab_declaration]|passed=17|ignored=0
 rust|tests/vocabulary_extension_points.rs [vocabulary_extension_points]|passed=6|ignored=0
-rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
+rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=16|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=423|passed=4220|ignored=4
+rust|total|binaries=436|passed=4321|ignored=5
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=55|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=127|ignored=0
-rust|unittests src/lib.rs [fandhe_workshop_web]|passed=200|ignored=0
+rust|unittests src/lib.rs [fandhe_workshop_web]|passed=211|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
-browser|total|tests=2097|pass=2097|skipped=0|todo=0|cancelled=0
+browser|total|tests=2318|pass=2318|skipped=0|todo=0|cancelled=0
