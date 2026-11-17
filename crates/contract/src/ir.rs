@@ -169,6 +169,10 @@ pub struct Step {
     /// 最後の Step か。
     #[serde(default, rename = "final", skip_serializing_if = "is_false")]
     pub is_final: bool,
+    /// 処理中の進行そのものが学習内容の Step で、早送りの設定にかかわらず通常の速さで動かす印（語彙 v1.8。SHELL-26）。
+    /// web が読む。省略・false は従来どおり（早送りに従う）。false は書き出さない。
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub normal_speed: bool,
     /// 使うビュー。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub views: Vec<String>,

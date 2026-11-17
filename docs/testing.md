@@ -14262,3 +14262,27 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 - 件数の期待値: `scripts/expected-test-counts.txt` は変えていない。変えると `check-frontend-bump.sh counts` が全体の件数の照合を始め、本変更より前からのずれ（合計・行の無い試験バイナリ）で落ちるため。全行の更新は #2176 で扱う。
 - 範囲外: 処理中の進行そのものが学習内容の Step での無効化と「この場面は通常の速さです」（SHELL-26。#1043）、初期値の教材の設定と `?speed=fast`（SHELL-25・SHELL-28・SESS-3。#1045）、`reduce` との組み合わせ（SHELL-29）、`tick_schedule::next_tick` と core の重複の解消、教材の書き手への案内（長さは件数 × 300ms。#1043 と一緒に足す）。
 - 限界: `FAST_FORWARD_LIMIT = 4` は実測していない。区画の置き場は仮置き。履歴の読み込み・「捨てて始める」では入・切を戻さない（読み込み直すと切に戻る）。場面 C の 1000ms は CI で揺れたら時刻の差の判定に替える。本物の教材・L2・Chrome の原本では未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.527 Step の欄 `normal_speed`（語彙 v1.8。SHELL-26。#1043 の 1/2。5.526 の続き）
+
+実行日: 2026-11-17。
+
+- 目的: 処理中の進行そのものが学習内容の Step を、早送りの設定にかかわらず通常の速さで動かす印を、作成者が Step に書けるようにする。仕様の案は「`processing` と取り消しの規則 `on: {cancel: true}` を両方持つ Step」だが、本物の掲示板教材の該当 Step（`st-1-5`）は取り消しの規則を持たず、字面どおりでは該当が 0 件になるため、欄を足す（利用者の決定。2026-11-17）。本記録は教材パックと IR の側（1/2）で、web が欄を読んで早送りを止める結線（2/2）は含まない。
+- 実装:
+  - `crates/contract/src/ir.rs` の `Step.normal_speed: bool`（`#[serde(default, skip_serializing_if = "is_false")]`）。使わない教材の IR はバイト同一で、`ir_format` は 1 のまま。
+  - 語彙 v1.8（`vocab.rs` の `V1_8`・`LATEST`・`TERMS` の `field`／`normal_speed`。番号なし）。`history_open::VOCAB_MAX` を 1.8 に。`vocab_check.rs` の `PROBES` の末尾に足し、`pack.vocab` が 1.8 未満で使うと `E-VOCAB-MISMATCH`。
+  - 構造の検査 `guidance::check_normal_speed`（`validate`・`compile` の両方。`processing` が空で `true` なら `E-STRUCTURE`、診断は固定の英語で値を写さない）。引数の置換は `processing` の件数も真偽値も変えないため、展開の後の検査は置かない。新しい診断コードは足さない。
+  - 文書: `docs/vocabulary/vocabulary.md`（版 8）・`docs/vocabulary/README.md`・`docs/schema-format-b.md`・`docs/pack-authoring.md`・`docs/diagnostics.md`（版 22。注と変更履歴だけ）・`docs/engine-api.md`・`docs/known-gaps.md`・`README.md`。
+- 試験:
+
+| 試験 | 固定すること |
+|---|---|
+| `crates/pack/tests/normal_speed.rs`（4 件） | `true` が IR に出て `false`・省略は出ない。真偽値でない値（文字列・数・配列）は `E-PARSE`。`processing` が空の `true` は `validate`・`compile` とも `E-STRUCTURE` 1 件（`false` は通る）。`pack.vocab` が 1.7 だと `E-VOCAB-MISMATCH` 1 件で、使わない教材は 1.7 のままでよい |
+| `crates/pack/tests/vocabulary_terms.rs` | 文書の 7・8 節の `normal_speed`（v1.8・番号なし）と `vocab.rs` の表・`LATEST`・`VOCAB_MAX` の一致 |
+| `crates/core/tests/history_open.rs` | 履歴の語彙 1.8 は開き、1.9 は `vocab_newer` で開かない |
+| 既存の golden | 書き換えていない（使わない教材の IR がバイト同一であること） |
+
+- 変異注入（2026-11-17。`scripts/check-mutations.sh crates/pack/tests/mutations/SHELL26P-1.mutation crates/pack/tests/mutations/SHELL26P-2.mutation crates/pack/tests/mutations/SHELL26P-3.mutation`）: SHELL26P-1（`processing` が空の `true` の `E-STRUCTURE` を捨てる）・SHELL26P-2（`false` も書き出す）・SHELL26P-3（語彙の版の照合から外す）の 3 件がすべて DETECTED。
+- 実行結果（2026-11-17。base は `485cbcbb`。手元の macOS）: `make test` は 4,306 件合格・失敗 0（5.526 の 4,301 件から 5 件増。`normal_speed.rs` の 4 件と `vocabulary_terms.rs` の 1 件）。`make lint`・`make check-deps`・`make check`・`scripts/check-second-pack.sh`・`scripts/check-third-pack.sh` は終了コード 0。`history_open.rs` は、上限 1.7 を「新しい」側の例に使っていた 7 か所（1.8）を 1.9 に、「等しい版は開く」の例 1 か所を 1.7 から 1.8 に直した。
+- 件数の期待値: `scripts/expected-test-counts.txt` は変えていない（5.526 と同じ理由）。
+- 限界: 2/2 が入るまでは、欄を受け付けても早送りに従う（`docs/known-gaps.md` の SHELL-26）。欄の名前は spec 側の書き直しで変わりうる。教材側（fandhe-tutorials の `st-1-5` への `normal_speed: true`・`pack.vocab` の 1.8）は未反映。試験と実装の作成者は同じ AI で、人の確認は得ていない。

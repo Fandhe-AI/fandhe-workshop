@@ -1,0 +1,8 @@
+id: SHELL26P-3
+package: fandhe-workshop-pack
+test: normal_speed
+target: crates/pack/src/vocab_check.rs
+find:     (NORMAL_SPEED, uses_normal_speed),
+replace:     // NORMAL_SPEED の照合を外した変異
+expect-fail: normal_speed_below_vocab_1_8_is_mismatch
+note: normal_speed を語彙の版の照合の対象から外す（1.8 未満の宣言で E-VOCAB-MISMATCH が出ない）

@@ -1,0 +1,8 @@
+id: SHELL26P-1
+package: fandhe-workshop-pack
+test: normal_speed
+target: crates/pack/src/guidance.rs
+find:             if st.normal_speed && st.processing.is_empty() {
+replace:             if false && st.normal_speed && st.processing.is_empty() {
+expect-fail: normal_speed_without_processing_is_structure_in_both
+note: processing の無い Step の normal_speed の E-STRUCTURE を捨てる

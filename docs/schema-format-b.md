@@ -145,6 +145,7 @@
 | `do_levels` | 表（水準から文） | 省略可 | 空 | 語彙 1.6（PACK-50）。水準ごとの `do`。キーは `B`・`C` だけで、水準 A の文は `do` に書きます。`do` が必須です。キーが `A` または空の値は `E-STRUCTURE`、キーが `A`・`B`・`C` でなければ `E-PARSE`（項目 `scope`）です。探す順は `C`・`B`・`do` です |
 | `lo` | 列（文字列） | 省略可 | 空 | 学習目標（LO）。要素の中身の検査は未確認です |
 | `final` | 真偽値 | 省略可 | `false` | 終端の Step |
+| `normal_speed` | 真偽値 | 省略可 | `false` | 語彙 1.8（SHELL-26）。`true` なら、処理中の進行そのものが学習内容の Step として、早送りの設定にかかわらず通常の速さで動かす印です。真偽値以外は `E-PARSE`、`processing` を持たない Step の `true` は `E-STRUCTURE` です。`pack.vocab` が 1.8 未満で使うと `E-VOCAB-MISMATCH`（`validate` だけ）です。`false` は IR に書き出しません |
 | `views` | 列（ビューの ID） | 省略可 | 空 | この Step が宣言するビュー（`E-REF-VIEW`） |
 | `fixtures` | 列（練習データの ID） | 省略可 | 空 | `E-REF-FIXTURE` |
 | `hints` | 列（ヒントの ID） | 省略可 | 空 | `E-REF-HINT` |

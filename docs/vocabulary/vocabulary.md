@@ -1,14 +1,14 @@
 # 語彙の文書
 
 ```text
-語彙の文書の版: 7
-決定日: 2026-10-22
+語彙の文書の版: 8
+決定日: 2026-11-17
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
-- 本文書は、教材パックが使う語彙の全体（語彙 v1〜v1.7）を、語ごとの語彙の版つきで固定する契約である。名前つき拡張点の名前・種別・語彙の版もここで固定する（TASK-48、TASK-194、PACK-8〜PACK-23）
+- 本文書は、教材パックが使う語彙の全体（語彙 v1〜v1.8）を、語ごとの語彙の版つきで固定する契約である。名前つき拡張点の名前・種別・語彙の版もここで固定する（TASK-48、TASK-194、PACK-8〜PACK-23）
 - 「語彙の文書の版」は本文書の版（整数）であり、語ごとの「語彙の版」（`v1`・`v1.1` など）とは別物である。IR の形式の版 `ir_format`（TASK-41）とも別に管理する
 - 版 1 は名前つき拡張点 EP-1〜EP-5（語彙 v1）だけを固定した。版 2 は加算で、EP-6〜EP-12、拡張点の番号を持たない `confirm.options[].label`、条件・状態変化・入力方式などを含む語彙 v1〜v1.3 の全語（7 節）、版と拡張点の対応表（8 節）を足す
 - 版 3 は加算で、EP-13（`view.document_body`）と語彙 v1.4 の 3 語（`views.body` と値 2 つ）を足す（TASK-66 1/2、PACK-38、D-50・D-51）。文書のビューが練習データの本文を出す宣言である
@@ -16,6 +16,7 @@
 - 版 5 は加算で、PACK-34 の 4 語（入力方式 `env_action`・欄 `input.action`・値 `input.action=save`・`input.action=export`）を v1.5 の行へ足す。保存・書き出しの実行環境の操作を Step の入力として宣言する語で、拡張点の番号は持たない。語彙の版は v1.5 のままである（TASK-64 1/2、PACK-34、D-69）。値は閉じた 2 つで、受講者の入力を教材へ差し込む語ではない（D-50）
 - 版 6 は加算で、語彙 v1.6 の 1 語（`do_levels`）を足す。Step の `do` を案内レベルごとに書き分ける欄で、鍵は `B`・`C`、水準 A の文は `do` に書く。探す順は本文と同じ C → B → A で、`do_levels` を持つ Step は `do` を必須にする。拡張点の番号は持たず、IR の形式の版 `ir_format` は 1 のままである（TASK-70 2/2、PACK-50、D-55）
 - 版 7 は加算で、語彙 v1.7 の 8 語（`param_types`・`param_types.type`・`param_types.values`・`param_types.min`・`param_types.max` と、型の値 `param_types.type=bool`・`param_types.type=int`・`param_types.type=enum`）を足す。章・モジュールの引数 `params` の型と範囲の宣言で、`bool`・`int`（10 進の正準形。`min`・`max` は両端を含む）・`enum`（`values` のどれか）を選び、宣言に合わない既定値と呼び出しの引数を `validate`・`compile` が拒否する。`params` の形は変えず、`param_types` は IR に載せない。拡張点の番号は持たず、IR の形式の版 `ir_format` は 1 のままである（TASK-71 2/3、PACK-51、D-43）
+- 版 8 は加算で、語彙 v1.8 の 1 語（Step の `normal_speed`）を足す。処理中の進行そのものが学習内容の Step を、早送りの設定にかかわらず通常の速さで動かす印である。真偽値で、省略と `false` は従来どおり（早送りに従う）。`processing` を持たない Step に `true` を書くと `validate`・`compile` が `E-STRUCTURE` で拒否する。拡張点の番号は持たず、使わない教材の IR は変わらず、IR の形式の版 `ir_format` は 1 のままである（#1043、SHELL-26）
 - TASK-72（対応表の欄）は足さないと決まった（D-70、PACK-46。10 節）。TASK-62〜TASK-72 の語彙は、TASK-66 の文書ビューの本文の語（v1.4）、TASK-62 の「直す」の候補の語（v1.5）、TASK-70 の `do_levels`（v1.6）、TASK-71 の `param_types`（v1.7）を除き、本版に含めない。足すときは新しい語彙の版の行（v1.5 の語は既存の行）として加え、文書の版を上げる
 - 変更規則: 固定した行は書き換えない・消さない・改名しない。足すときは新しい語彙の版の行として加え、文書の版を上げ、変更履歴に記録する
 - 名前を変える必要が出た場合は、仕様（`docs/spec` の 04）を先に直し、版上げの契約タスクを立てる
@@ -95,7 +96,7 @@
 
 ## 7. 語の一覧
 
-語彙 v1〜v1.7 の語を、語ごとの語彙の版つきで固定する。（種別, 語）の組が一意のキーである。試験は、この表と `crates/pack/src/vocab.rs` の表の一致を確かめる。
+語彙 v1〜v1.8 の語を、語ごとの語彙の版つきで固定する。（種別, 語）の組が一意のキーである。試験は、この表と `crates/pack/src/vocab.rs` の表の一致を確かめる。
 
 - 種別の列は分類のキーであり、2 節の拡張点の種別とは別物である
 - 語の列の `a.b` は欄の経路、`x=y` は欄 `x` の値 `y` を指す
@@ -207,6 +208,7 @@
 | `value` | `param_types.type=bool` | `v1.7` | — | PACK-51 | `true` か `false` の文字列だけ |
 | `value` | `param_types.type=int` | `v1.7` | — | PACK-51 | 10 進の正準形の整数だけ（先頭の 0・`+`・`-0` は不可） |
 | `value` | `param_types.type=enum` | `v1.7` | — | PACK-51 | `values` のどれかと完全一致 |
+| `field` | `normal_speed` | `v1.8` | — | SHELL-26 | Step の欄。`true` なら、処理中の進行を早送りの設定にかかわらず通常の速さで動かす印。真偽値で、省略と `false` は従来どおり。`processing` が空の Step での `true` は `E-STRUCTURE`。IR に載る（`false` は書き出さない） |
 
 ## 8. 版と拡張点の対応表
 
@@ -220,13 +222,15 @@
 | `v1.5` | — | `input.revise.candidates`・`input.revise.candidates[].label`・`env_action`・`input.action`・`input.action=save`・`input.action=export` | PACK-34・PACK-42 |
 | `v1.6` | — | `do_levels` | PACK-50 |
 | `v1.7` | — | `param_types`・`param_types.type`・`param_types.values`・`param_types.min`・`param_types.max`・`param_types.type=bool`・`param_types.type=int`・`param_types.type=enum` | PACK-51 |
+| `v1.8` | — | `normal_speed` | SHELL-26 |
 
 - v1.1〜v1.3 は加算だけで、IR の形式の版 `ir_format` は 1 のままである（PACK-24）
 - v1.4 も加算だけである。`views` は値を通す欄のため、IR の型は変わらない
 - v1.5 も加算だけである。`input` は未型付けの値のまま IR に通るため、IR の型は変わらない。拡張点の番号は持たない（`confirm.options[].label` と同じ）
 - v1.6 も加算だけである。`Step` に任意の欄 `do_levels` を足すが、空なら書き出さないため、使わない教材の IR は変わらず、`ir_format` は 1 のままである。拡張点の番号は持たない
 - v1.7 も加算だけである。`ScopeSrc` に任意の欄 `param_types` を足すが、検査のための宣言で IR には載せないため、IR の形も使わない教材の IR も変わらず、`ir_format` は 1 のままである。拡張点の番号は持たない
-- 語彙の版の上限は `v1.7` である。それ以降の語彙は、新しい語彙の版の行として版上げで足す
+- v1.8 も加算だけである。`Step` に任意の欄 `normal_speed` を足すが、`false` は書き出さないため、使わない教材の IR は変わらず、`ir_format` は 1 のままである。拡張点の番号は持たない
+- 語彙の版の上限は `v1.8` である。それ以降の語彙は、新しい語彙の版の行として版上げで足す
 
 ## 9. 仕様との照合表
 
@@ -308,6 +312,7 @@
 
 | 6 | 2026-10-22 | 語彙 v1.6 の 1 語（`do_levels`）を加算。拡張点の番号なし。TASK-70 2/2 | TASK-70、PACK-50、D-55 |
 | 7 | 2026-10-22 | 語彙 v1.7 の 8 語（`param_types` と `type`・`values`・`min`・`max`・型の値 3 つ）を加算。拡張点の番号なし。TASK-71 2/3 | TASK-71、PACK-51、D-43 |
+| 8 | 2026-11-17 | 語彙 v1.8 の 1 語（Step の `normal_speed`）を加算。拡張点の番号なし。#1043 | #1043、SHELL-26 |
 
 2026-10-19: 5 節に手続きの文書（TASK-189）への参照を足した。固定した行は変わらないため、文書の版は 3 のまま据え置く。
 

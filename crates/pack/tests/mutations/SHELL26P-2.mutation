@@ -1,0 +1,8 @@
+id: SHELL26P-2
+package: fandhe-workshop-pack
+test: normal_speed
+target: crates/contract/src/ir.rs
+find:     #[serde(default, skip_serializing_if = "is_false")]
+replace:     #[serde(default)]
+expect-fail: normal_speed_true_is_in_ir_and_false_or_absent_is_not
+note: normal_speed の false を IR に書き出す（使わない教材の IR が変わる）
