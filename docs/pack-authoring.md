@@ -391,6 +391,18 @@ processing:
     - {name: wait-1}
 ```
 
+**早送りを入で始める教材は `pack:` に `fast_forward: true` を書きます**（語彙 1.9、SHELL-25・SESS-3）。省略と `false` は切で始まります。
+受講者が切り替えた入・切は保存しません（履歴の `ops` にも保存先にも入りません。D-54）。読み込み直すと、この初期値に戻ります。
+履歴の読み込み・「捨てて始める」では、その時点の入・切のままです。`normal_speed: true` の Step は、この設定が入でも通常の速さで進みます。
+
+- 書く教材は、`pack.vocab` に `1.9` 以上を宣言してください。宣言が古いと `validate` が `E-VOCAB-MISMATCH` を報告します
+- 真偽値以外は `E-PARSE` です。この欄は IR に載ります（`false` は載りません）
+- URL で早送りを指定する口（`?speed=fast`。SHELL-28）はありません（`docs/known-gaps.md` の SHELL-25）
+
+```yaml
+pack: {id: my-pack, title: 題名, version: '1.0.0', ir_format: 1, guidance: A, vocab: "1.9", fast_forward: true}
+```
+
 処理中の Esc は、間隔や件数によらず常にエンジンの停止です（D-22）。人が実際に押せる長さかどうかの画面での確認は
 TERM-34 の担当で、2026-10-15 時点では済んでいません。
 
@@ -622,8 +634,8 @@ views:
 - 宣言より新しい版の拡張点を使うと、拡張点ごとに 1 件の `E-VOCAB-MISMATCH` です。`compile` は報告しません
   （`validate` だけの検査です）
 - 対象は EP-9（`starts[].requires`・`unmet`。語彙 1.2）と、EP-10〜EP-12（`pack.profile`・`pack.appearance`・
-  `pack.left_pane`。語彙 1.3）と、EP-13（`views.<ID>.body`。語彙 1.4）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）と、承認の `input.revise`（`input.revise.candidates`。語彙 1.5）と、実行環境の操作 `env_action`（語彙 1.5）と、`do_levels`（語彙 1.6）と、`param_types`（語彙 1.7）と、`normal_speed`（語彙 1.8）です。
-  値が既定と同じでも、欄を書けば使用です。ただし `do_levels`・`param_types` の空の値と `normal_speed: false` は、省略と同じ扱いで使用に数えません。呼ばれないモジュールの開始点・Step も数えます。何か所で使っても 1 件です
+  `pack.left_pane`。語彙 1.3）と、EP-13（`views.<ID>.body`。語彙 1.4）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）と、承認の `input.revise`（`input.revise.candidates`。語彙 1.5）と、実行環境の操作 `env_action`（語彙 1.5）と、`do_levels`（語彙 1.6）と、`param_types`（語彙 1.7）と、`normal_speed`（語彙 1.8）と、`pack.fast_forward`（語彙 1.9）です。
+  値が既定と同じでも、欄を書けば使用です。ただし `do_levels`・`param_types` の空の値と `normal_speed: false`・`pack.fast_forward: false` は、省略と同じ扱いで使用に数えません。呼ばれないモジュールの開始点・Step も数えます。何か所で使っても 1 件です
 - 入力方式 `choice` の `input.options[].label`（語彙 v1）は別の欄で、対象ではありません。`confirm` の側だけを見ます
 - `pack.vocab` を省略した教材は検査しません。書き方の規約は別に定めます
 - `pack.vocab` が文字列でない、または `主.副` の形でない（`1.2.0`・`v1.2`・`01.2` など）ときは `E-PARSE` です。

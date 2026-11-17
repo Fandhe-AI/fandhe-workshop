@@ -1,0 +1,9 @@
+id: SHELL25-1
+package: fandhe-workshop-web
+test: fast_forward_host
+target: crates/web/src/host.rs
+find:         let fast_forward = session.ir().pack.fast_forward;
+replace:         let fast_forward = false;
+expect-fail: 教材の設定で初期値が入になり省略とfalseは切
+expect-fail: 作り直すと切り替えた値でなく教材の初期値に戻る
+note: 教材の `pack.fast_forward` を読まず、初期値を常に切にする（SHELL-25・SESS-3）

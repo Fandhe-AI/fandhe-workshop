@@ -10,6 +10,8 @@
 //   場面 G  通常の速さに固定した Step（SHELL-26。`normal_speed`）に入のまま入ると、ボタン 0・文言 1・「早送り中」0 で 1 件ずつ 300ms で進む
 //   場面 H  切り替えにフォーカスを置いたまま固定の Step に入ると、フォーカスは body に戻り、処理中の Esc で止まる
 //   場面 F  配信する設定（IR を同梱した写し）でも A・B が動き、試験用の口が無い
+//   場面 I  試験の設定で、設定なしは切で開き、入にしても保存先が変わらず読み込み直すと切。`pack.fast_forward: true` の IR に差し替えると入（SHELL-25・SESS-3）
+//   場面 J  配信する設定で、設定あり・なしの IR を同梱して開くとそれぞれ入・切で、切り替えても保存先が変わらず、読み込み直すと初期値に戻る
 //   共通    ページ内のエラー・CSP 違反が 0 件。試験の設定では安全性の計数（通信を含む）も 0 件（書き出しの場面 D を除く）
 // 「早送り中」は数 ms しか出ないため、ポーリングではなく MutationObserver で出現を記録する。
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）・FANDHE_WEB_DIR（配信する設定）。どちらも未設定・不在は skip にせず失敗にする。
@@ -139,6 +141,30 @@ async function enterPinned(page, { focusToggle = false } = {}) {
   if (focusToggle) await page.focus(TOGGLE);
   await clickRaw(page, ROW);
   await page.waitForSelector(PINNED, { timeout: 15000 });
+}
+
+// `pack.fast_forward` を `on` にした min-3step の IR（SHELL-25）。`false` は省略と同じ（書き出さない）。
+function ffIrText(on) {
+  const ir = JSON.parse(fs.readFileSync(MIN_IR, 'utf8'));
+  if (on) ir.pack.fast_forward = true;
+  return JSON.stringify(ir);
+}
+
+// 保存先（localStorage）の全体の写し。鍵の順に並べる。
+const storage = (page) => page.evaluate(() => JSON.stringify(Object.keys(localStorage).sort().map((k) => [k, localStorage.getItem(k)])));
+
+// 切り替えを 1 回押し、保存の遅延（1 秒以内。SAVE-7）を過ぎても保存先が変わらないことを確かめる。
+async function toggleKeepsStorage(page, want) {
+  const before = await storage(page);
+  await page.click(TOGGLE);
+  await waitStatus(page, want);
+  await page.waitForTimeout(1500);
+  assert.equal(await storage(page), before, '切り替えで保存先が変わらない');
+}
+
+async function reloadMounted(page) {
+  await page.reload();
+  await waitMounted(page);
 }
 
 // A と B。試験の設定と配信する設定で共通。
@@ -279,6 +305,40 @@ for (const csp of [true, false]) {
       const eng = await engine(page);
       assert.ok(eng.log.some((x) => x.kind === 'stopped'), '停止が記録される');
     });
+  });
+
+  test(`I: 試験の設定で初期値が教材の設定に従い、切り替えは保存されない（${mode}）`, { timeout: 300000 }, async () => {
+    await openScene(csp, async (page) => {
+      assert.equal((await status(page)).state, 'off', '設定なしは切');
+      // 履歴を作り、保存が落ち着いてから切り替える（切り替えが保存を起こさないこと）。
+      await sendRaw(page, INPUT);
+      await waitRun(page, 'idle');
+      await page.waitForFunction(() => localStorage.length > 0, null, { timeout: 15000 });
+      await page.waitForTimeout(1500);
+      await toggleKeepsStorage(page, 'on');
+      await reloadMounted(page);
+      assert.equal((await status(page)).state, 'off', '読み込み直すと切に戻る');
+      assert.equal(await page.evaluate((t) => window.__fandheTest.loadIr(t), ffIrText(true)), true, 'load-ir sent');
+      await waitStatus(page, 'on');
+      assert.equal((await status(page)).text, '早送り: 入', '設定ありの教材は入');
+      await toggleKeepsStorage(page, 'off');
+    });
+  });
+
+  test(`J: 配信する設定で設定あり・なしの初期値に、読み込み直すと戻る（${mode}）`, { timeout: 300000 }, async () => {
+    for (const on of [true, false]) {
+      await withDeliveryCopy(async (copy) => {
+        fs.writeFileSync(path.join(copy, 'ir', 'main.json'), ffIrText(on));
+        await openScene(csp, async (page) => {
+          assert.equal(await page.evaluate(() => typeof window.__fandheTest), 'undefined', '試験用の口が無い');
+          const [first, flipped] = on ? ['on', 'off'] : ['off', 'on'];
+          assert.equal((await status(page)).state, first, `開いた直後（設定 ${on}）`);
+          await toggleKeepsStorage(page, flipped);
+          await reloadMounted(page);
+          assert.equal((await status(page)).state, first, `読み込み直すと初期値（設定 ${on}）`);
+        }, { dir: copy, hooks: false });
+      });
+    }
   });
 
   test(`F: 配信する設定でも状態の文字と切り替えが動く（${mode}）`, { timeout: 300000 }, async () => {

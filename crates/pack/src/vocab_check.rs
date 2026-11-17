@@ -6,7 +6,7 @@
 //! - `pack.vocab` を省略した教材は検査しない。PACK-31 の前提は「`pack.vocab` を書く」であり、書き方の
 //!   規約は TASK-179 の持ち分である（contract の `DEFAULT` は履歴を書くときの値で、検査の既定ではない）
 //! - 検査する語は番号つき拡張点 EP-9（`starts[].requires`・`unmet`）と EP-10〜EP-13（`pack.profile`・
-//!   `appearance`・`left_pane`・`views.<ID>.body`）、番号を持たない `confirm.options[].label`（v1.3。TASK-59 2/2）と `input.revise.candidates`（v1.5。TASK-62 2/2。`label` は候補の中の欄なので候補で代表する）・`do_levels`（v1.6。TASK-70 2/2）・`param_types`（v1.7。TASK-71 2/3）・`normal_speed`（v1.8。SHELL-26）。v1.1 の語は対象外
+//!   `appearance`・`left_pane`・`views.<ID>.body`）、番号を持たない `confirm.options[].label`（v1.3。TASK-59 2/2）と `input.revise.candidates`（v1.5。TASK-62 2/2。`label` は候補の中の欄なので候補で代表する）・`do_levels`（v1.6。TASK-70 2/2）・`param_types`（v1.7。TASK-71 2/3）・`normal_speed`（v1.8。SHELL-26）・`pack.fast_forward`（v1.9。SHELL-25）。v1.1 の語は対象外
 //! - `confirm.options[].label` は確認の `confirm` だけを見る。入力方式 `choice` の `input.options[].label`
 //!   （v1 の語。PACK-23）は別の欄であり、この判定は `step.input` を読まない。`input.revise`（`kind: approval`）と `env_action`（PACK-34）だけは `step.input` を読む
 //! - 必要な版は [`crate::vocab::EXTENSION_POINTS`]・[`crate::vocab::term`] から引き、ここに書き写さない
@@ -51,6 +51,8 @@ const PARAM_TYPES: Source = Source::Term("field", "param_types");
 
 const NORMAL_SPEED: Source = Source::Term("field", "normal_speed");
 
+const FAST_FORWARD: Source = Source::Term("field", "pack.fast_forward");
+
 const PROBES: &[Probe] = &[
     (Source::Ep("starts.requires"), uses_start_condition),
     (Source::Ep("pack.profile"), |p| {
@@ -69,6 +71,8 @@ const PROBES: &[Probe] = &[
     (DO_LEVELS, uses_do_levels),
     (PARAM_TYPES, uses_param_types),
     (NORMAL_SPEED, uses_normal_speed),
+    // `false` は省略と同じで使用に数えない（`true` のときだけ。SHELL-25）。
+    (FAST_FORWARD, |p| p.workshop.pack.fast_forward),
 ];
 
 /// 語の版（主・副）と、診断の文面の接頭を表から引く。引けない項目は `None`（単体試験で全項目が引けることを保証する）。
@@ -282,7 +286,7 @@ mod tests {
             .any(|(s, _)| matches!(s, Source::Term(_, "confirm.options[].label"))));
         assert!(matches!(
             PROBES.last(),
-            Some((Source::Term(_, "normal_speed"), _))
+            Some((Source::Term(_, "pack.fast_forward"), _))
         ));
     }
 

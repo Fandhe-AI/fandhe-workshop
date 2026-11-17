@@ -759,3 +759,23 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 - 欄の名前は spec 側の書き直し（SHELL-26・INSTR-13 を「欄あり」に直す作業）で変わりうる。spec は 2026-11-17 時点で「欄は要らない」案のままである
 - 教材側（fandhe-tutorials の `st-1-5` への `normal_speed: true`・`pack.vocab` の 1.8）は未反映。ENGINE_REV を上げる PR で行う
 - 固定の Step の切り替えは、ボタンを出さない形で表す（`disabled` は使わない。フォーカスが載ったまま無効になると Esc の keydown が出ない恐れがあるため）。切り替えにフォーカスがあるまま固定の Step に入ると、ボタンが消えてフォーカスは body に戻る
+
+## SHELL-25: 早送りの初期値 `pack.fast_forward` の限界（#1045）
+
+### 状態
+
+- 2026-11-17: 教材の欄 `pack.fast_forward`（語彙 1.9）は、`validate`・`compile` が受け付けて IR に載り、画面（web）が教材を開くときに早送りの初期値として読む。省略と `false` は切。受講者が切り替えた入・切は保存せず（`ops`・保存先に書かない。D-54）、読み込み直すと初期値に戻る（SESS-3）
+
+### 限界
+
+- 欄の名前は spec 側の書き直し（Fandhe-AI/fandhe-workshop-spec#30）で変わりうる。spec は 2026-11-17 時点で欄の名前・形を決めていない（「語彙の追加になる。Phase 4 で決める」）
+- URL で早送りを指定する口 `?speed=fast`（SHELL-28）は未実装である。仕様が検討中で、配信する設定で試験用のクエリを読まない約束（SHELL-35）の例外になるため、本変更に含めない
+- 履歴の読み込み・「捨てて始める」では入・切を初期値に戻さず、その時点の値のままである（読み込み直したときだけ初期値に戻る）
+
+### 回避
+
+- URL で早送りを入にしたい場合は、教材の `pack.fast_forward: true` を使う
+
+### 根拠の試験
+
+- `crates/pack/tests/fast_forward_default.rs`・`crates/web/tests/fast_forward_host.rs`・`tools/browser/fast-forward-toggle.test.mjs` の場面 I・J。記録は `docs/testing.md` の 5.529

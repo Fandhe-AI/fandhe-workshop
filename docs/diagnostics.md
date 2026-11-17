@@ -1,7 +1,7 @@
 # 診断コードの一覧
 
 ```text
-診断コードの一覧の版: 22
+診断コードの一覧の版: 23
 決定日: 2026-11-17
 状態: 固定（契約）
 ```
@@ -83,6 +83,7 @@
 - `E-REF-STEP` の範囲（版 15。固定した行は書き換えず、本注で補う）。章の `next` が他の章の Step を指す場合にも出る（`transition target is in another chapter`。PACK-43・D-67）。`validate` と `compile` の両方が検出する。開始点は対象外。件数は 34 件のまま
 - `do_levels`（語彙 1.6、拡張点の番号なし。PACK-50）の診断（版 11。固定した行は書き換えず、本注で補う）。`E-VOCAB-MISMATCH` の対象に `do_levels` が含まれる（`validate` だけ）。`E-PARSE` は `do_levels` の鍵が `A`・`B`・`C` でないとき（項目 `scope`）と、値が文字列でないときに出る。`E-STRUCTURE` は、鍵 `A`・空または空白だけの値・`do` が無い（または空白だけの）`do_levels` に出る（Step ごとに種類別に 1 件ずつ。`validate` と `compile` の両方が検出する）。`E-GUIDANCE-LEAK` は、その水準で出る `do`（`do_levels` を C → B → A で探した文）も調べる。診断に値・鍵・隠す語を写さない。件数は 34 件のまま
 - `normal_speed`（語彙 1.8、拡張点の番号なし。SHELL-26）の診断（版 22。固定した行は書き換えず、本注で補う）。`E-VOCAB-MISMATCH` の対象に `normal_speed` が含まれる（`validate` だけ）。`E-PARSE` は値が真偽値でないとき。`E-STRUCTURE` は、`normal_speed: true` で `processing` が空の Step に出る（Step ごとに 1 件。`validate` と `compile` の両方が検出する）。診断に値を写さない。新しいコードは足さず、件数は 37 件のまま
+- `pack.fast_forward`（語彙 1.9、拡張点の番号なし。SHELL-25）の診断（版 23。固定した行は書き換えず、本注で補う）。`E-VOCAB-MISMATCH` の対象に `pack.fast_forward` が含まれる（`validate` だけ。`false` は使用に数えない）。`E-PARSE` は値が真偽値でないとき。構造の検査は無い（どの教材にも付けてよい）。診断に値を写さない。新しいコードは足さず、件数は 37 件のまま
 - 語彙の文書（v1.1）は、本文の上限超過を `E-REF-BODY` の条件に含める。実装では、この上限超過は `E-REF-BODY` ではなく上限超過のコードに当たり、4 節の参照のみの区分にある。`.md` 以外の本文は素の `E-LIMIT`、`.md` の本文は事前走査の `E-LIMIT-MD-SIZE` である。実装の `E-REF-BODY` は、本文の参照が解決できない場合（安全でない本文パス・参照先の不存在・存在するファイルの読み込み時の I/O エラー）に出る。上限超過は含まない（版 6。D-64。固定した行は書き換えず、本注で補う）。件数は 34 件のまま
 
 ## 3. 件数の記録
@@ -178,6 +179,7 @@ TASK-40・TASK-42〜TASK-47・TASK-49〜TASK-59（spec の 05 の入力欄に TA
 | 20 | 2026-10-28 | `E-NO-CONFIRM` が `test` でも、確認の操作なしで達成になった件（R-22）に出ることを、2 節の表の後の注で補った。`E-EMPTY-NEXT-ACTION` は固定の行のとおり。行は書き換えず、件数は 36 件のまま。新しいコードは足さず、流用は実装の側で決めた細目である | TASK-405 1/2・AUTHOR-5 |
 | 21 | 2026-11-03 | `E-VIEW-KIND-UNKNOWN` を足し、37 件にした。ビューの `kind` の綴りの誤りを `validate`・`compile` が止める。既存のコードで表せるときは流用する既定（`docs/extension-point-procedure.md` の 5 節）から外れて新しいコードにしたのは、D-97 が「表示側の fail-closed は変えず、未知の `kind` を報告する新しい診断コードを足す」と決めたためである。`kind` の欠け・文字列でない値は `E-PARSE`。既存の行は書き換えていない | TASK-796・D-97・ART-1・AUTHOR-2・EXT-8 |
 | 22 | 2026-11-17 | `normal_speed`（語彙 1.8）の診断（`E-PARSE`・`E-STRUCTURE`・`E-VOCAB-MISMATCH` の対象）を、表の後の注で補った。行は書き換えず、件数は 37 件のまま | #1043・SHELL-26 |
+| 23 | 2026-11-17 | `pack.fast_forward`（語彙 1.9）の診断（`E-PARSE`・`E-VOCAB-MISMATCH` の対象）を、表の後の注で補った。行は書き換えず、件数は 37 件のまま | #1045・SHELL-25 |
 
 ## 8. 作成者向けの早見表
 

@@ -120,6 +120,11 @@ pub struct PackInfo {
     /// 左側の表示の設定。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub left_pane: Option<Value>,
+    /// 早送りの初期値を入にする設定（語彙 v1.9。SHELL-25・SESS-3）。web が教材を開くときに読む。
+    /// 省略・false は切で始める。false は書き出さない（使わない教材の IR はバイト同一）。
+    /// 属性の並びを `Step.normal_speed` と変えてあるのは、変異の定義（`find`）が行で一意に当たるようにするためである。
+    #[serde(skip_serializing_if = "is_false", default)]
+    pub fast_forward: bool,
 }
 
 /// 練習データの宣言。内容の木は [`Ir::fixture_docs`] に ID をキーとして載せる。

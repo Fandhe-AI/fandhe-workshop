@@ -40,6 +40,7 @@ fn pack() -> PackInfo {
         profile: None,
         appearance: None,
         left_pane: None,
+        fast_forward: false,
     }
 }
 
@@ -346,7 +347,7 @@ fn explicit_defaults_equal_omitted() {
         json!({"id": "p", "title": "t", "version": "0", "ir_format": 1, "guidance": "A"}),
         json!({"id": "p", "title": "t", "version": "0", "ir_format": 1, "guidance": "A",
             "vocab": null, "guidance_levels": null, "profile": null, "appearance": null,
-            "left_pane": null}),
+            "left_pane": null, "fast_forward": false}),
     );
     assert_default_equiv::<Node>(
         json!({"uid": "main/a", "scope": "main", "unit": "u", "step": {"id": "a", "title": "t"}}),

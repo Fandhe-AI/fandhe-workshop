@@ -1,0 +1,8 @@
+id: SHELL25P-2
+package: fandhe-workshop-pack
+test: fast_forward_default
+target: crates/pack/src/vocab_check.rs
+find:     (FAST_FORWARD, |p| p.workshop.pack.fast_forward),
+replace:     (FAST_FORWARD, |_| false),
+expect-fail: fast_forward_below_vocab_1_9_is_mismatch
+note: `pack.fast_forward` を語彙の版の照合の対象から外す（1.9 未満の宣言で E-VOCAB-MISMATCH が出ない）

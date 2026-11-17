@@ -6,7 +6,7 @@
 //! `RecordedSession::fast_forward` が持ち、ここは文字とボタンを描くだけである。
 //! 状態は「早送り: 入」「早送り: 切」の文字で出す（色だけで示さない）。`aria-pressed` は a11y の閉じた一覧に無いので使わない。
 //! 欄 `normal_speed` を持つ Step（SHELL-26）ではボタンを出さず、文言 [`PINNED_LABEL`] を出して入・切を動かさない。
-//! 初期値（SHELL-25・SESS-3）は扱わない。
+//! 初期値（SHELL-25・SESS-3）は教材の `pack.fast_forward` からホストが決め（`host::EngineHost::with_session_at`）、ここは受けた入・切を描くだけである。
 
 use fandhe_frontend_core::{el, text, Node};
 
