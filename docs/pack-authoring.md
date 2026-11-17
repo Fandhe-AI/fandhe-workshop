@@ -622,8 +622,8 @@ views:
 - 宣言より新しい版の拡張点を使うと、拡張点ごとに 1 件の `E-VOCAB-MISMATCH` です。`compile` は報告しません
   （`validate` だけの検査です）
 - 対象は EP-9（`starts[].requires`・`unmet`。語彙 1.2）と、EP-10〜EP-12（`pack.profile`・`pack.appearance`・
-  `pack.left_pane`。語彙 1.3）と、EP-13（`views.<ID>.body`。語彙 1.4）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）と、承認の `input.revise`（`input.revise.candidates`。語彙 1.5）と、実行環境の操作 `env_action`（語彙 1.5）と、`do_levels`（語彙 1.6）と、`normal_speed`（語彙 1.8）です。
-  値が既定と同じでも、欄を書けば使用です。呼ばれないモジュールの開始点・Step も数えます。何か所で使っても 1 件です
+  `pack.left_pane`。語彙 1.3）と、EP-13（`views.<ID>.body`。語彙 1.4）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）と、承認の `input.revise`（`input.revise.candidates`。語彙 1.5）と、実行環境の操作 `env_action`（語彙 1.5）と、`do_levels`（語彙 1.6）と、`param_types`（語彙 1.7）と、`normal_speed`（語彙 1.8）です。
+  値が既定と同じでも、欄を書けば使用です。ただし `do_levels`・`param_types` の空の値と `normal_speed: false` は、省略と同じ扱いで使用に数えません。呼ばれないモジュールの開始点・Step も数えます。何か所で使っても 1 件です
 - 入力方式 `choice` の `input.options[].label`（語彙 v1）は別の欄で、対象ではありません。`confirm` の側だけを見ます
 - `pack.vocab` を省略した教材は検査しません。書き方の規約は別に定めます
 - `pack.vocab` が文字列でない、または `主.副` の形でない（`1.2.0`・`v1.2`・`01.2` など）ときは `E-PARSE` です。
