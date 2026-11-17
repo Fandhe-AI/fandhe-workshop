@@ -5,7 +5,8 @@
 //! 書かない（SHELL-27・D-54。`contract::history::OPS_RECORDS_FAST_FORWARD`）。入の間の連続適用は core の
 //! `RecordedSession::fast_forward` が持ち、ここは文字とボタンを描くだけである。
 //! 状態は「早送り: 入」「早送り: 切」の文字で出す（色だけで示さない）。`aria-pressed` は a11y の閉じた一覧に無いので使わない。
-//! 処理中の進行そのものが学習内容の Step での無効化（SHELL-26）と初期値（SHELL-25・SESS-3）は扱わない。
+//! 欄 `normal_speed` を持つ Step（SHELL-26）ではボタンを出さず、文言 [`PINNED_LABEL`] を出して入・切を動かさない。
+//! 初期値（SHELL-25・SESS-3）は扱わない。
 
 use fandhe_frontend_core::{el, text, Node};
 
@@ -46,6 +47,12 @@ pub const TOGGLE_LABEL: &str = "早送りを切り替える";
 /// 入の間の処理中に出す文字。
 pub const ACTIVE_LABEL: &str = "早送り中";
 
+/// 通常の速さに固定した Step で出す文言の `data-testid`（固定の間だけ 1 個）。
+pub const PINNED_TESTID: &str = "fast-forward-pinned";
+
+/// 通常の速さに固定した Step で出す文言。
+pub const PINNED_LABEL: &str = "この場面は通常の速さです";
+
 /// 入れ物の CSS クラス。
 pub const FAST_FORWARD_CLASS: &str = "sh-fast-forward";
 
@@ -58,10 +65,12 @@ pub const FAST_FORWARD_FIELD: PartField = PartField {
 /// 今提示する早送りの区画。前後で比べて dirty を積むための値。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FastForwardOffer {
-    /// 入か。
+    /// 入か。通常の速さに固定した Step の間も入のまま（固定は切り替えを捨てるだけで、入・切の値は変えない）。
     pub on: bool,
     /// ボタンを出すか（表示だけの間は出さない）。
     pub can_toggle: bool,
+    /// 通常の速さに固定した Step か（SHELL-26。文言を出す）。
+    pub pinned: bool,
     /// 「早送り中」を出すか（入かつ処理中）。
     pub active: bool,
 }
@@ -93,6 +102,16 @@ pub fn fast_forward_section(offer: &FastForwardOffer) -> Node {
                     (ACTION_ATTR, ACTION_TOGGLE_FAST_FORWARD),
                 ],
                 vec![text(TOGGLE_LABEL)],
+            ),
+        ));
+    }
+    if offer.pinned {
+        items.push((
+            "pinned".to_owned(),
+            el(
+                "span",
+                vec![("data-testid", PINNED_TESTID)],
+                vec![text(PINNED_LABEL)],
             ),
         ));
     }
@@ -134,6 +153,7 @@ mod tests {
         let t = s(FastForwardOffer {
             on: false,
             can_toggle: true,
+            pinned: false,
             active: false,
         });
         assert!(t.contains(OFF_LABEL) && t.contains("\"off\""), "{t}");
@@ -146,6 +166,7 @@ mod tests {
         let t = s(FastForwardOffer {
             on: true,
             can_toggle: true,
+            pinned: false,
             active: true,
         });
         assert!(t.contains(ON_LABEL) && t.contains("\"on\""), "{t}");
@@ -153,10 +174,23 @@ mod tests {
     }
 
     #[test]
+    fn 固定のstepは文言を出しボタンを出さない() {
+        let t = s(FastForwardOffer {
+            on: true,
+            can_toggle: false,
+            pinned: true,
+            active: false,
+        });
+        assert!(t.contains(PINNED_LABEL) && t.contains(PINNED_TESTID), "{t}");
+        assert!(t.contains(ON_LABEL) && !t.contains(TOGGLE_TESTID), "{t}");
+    }
+
+    #[test]
     fn 表示だけの間はボタンを出さず文字は残し検査器を通る() {
         let o = FastForwardOffer {
             on: true,
             can_toggle: false,
+            pinned: false,
             active: false,
         };
         let n = fast_forward_section(&o);

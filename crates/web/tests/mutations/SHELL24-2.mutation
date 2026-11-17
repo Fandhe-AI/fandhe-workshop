@@ -2,7 +2,7 @@ id: SHELL24-2
 package: fandhe-workshop-web
 test: fast_forward_host
 target: crates/web/src/host.rs
-find:             active: self.fast_forward && live && self.is_busy(),
-replace:             active: self.fast_forward && live,
+find:             active: self.fast_now() && live && self.is_busy(),
+replace:             active: self.fast_now() && live,
 expect-fail: 早送り中は入かつ処理中だけ出る
 note: 「早送り中」を処理中でなくても出す（入かつ処理中の条件を外す。SHELL-24）

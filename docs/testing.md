@@ -14285,4 +14285,26 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 - 変異注入（2026-11-17。`scripts/check-mutations.sh crates/pack/tests/mutations/SHELL26P-1.mutation crates/pack/tests/mutations/SHELL26P-2.mutation crates/pack/tests/mutations/SHELL26P-3.mutation`）: SHELL26P-1（`processing` が空の `true` の `E-STRUCTURE` を捨てる）・SHELL26P-2（`false` も書き出す）・SHELL26P-3（語彙の版の照合から外す）の 3 件がすべて DETECTED。
 - 実行結果（2026-11-17。base は `485cbcbb`。手元の macOS）: `make test` は 4,306 件合格・失敗 0（5.526 の 4,301 件から 5 件増。`normal_speed.rs` の 4 件と `vocabulary_terms.rs` の 1 件）。`make lint`・`make check-deps`・`make check`・`scripts/check-second-pack.sh`・`scripts/check-third-pack.sh` は終了コード 0。`history_open.rs` は、上限 1.7 を「新しい」側の例に使っていた 7 か所（1.8）を 1.9 に、「等しい版は開く」の例 1 か所を 1.7 から 1.8 に直した。
 - 件数の期待値: `scripts/expected-test-counts.txt` は変えていない（5.526 と同じ理由）。
-- 限界: 2/2 が入るまでは、欄を受け付けても早送りに従う（`docs/known-gaps.md` の SHELL-26）。欄の名前は spec 側の書き直しで変わりうる。教材側（fandhe-tutorials の `st-1-5` への `normal_speed: true`・`pack.vocab` の 1.8）は未反映。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+- 限界: 2/2（5.528）が入るまでは、欄を受け付けても早送りに従う。欄の名前は spec 側の書き直しで変わりうる。教材側（fandhe-tutorials の `st-1-5` への `normal_speed: true`・`pack.vocab` の 1.8）は未反映。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.528 通常の速さに固定した Step の画面の結線（SHELL-26。#1043 の 2/2。5.527 の続き）
+
+実行日: 2026-11-17。
+
+- 目的: 今の Step が `normal_speed: true` のとき、早送りが入でも処理中の進行を通常の速さ（1 件ずつ 300ms）で動かし、学習内容の進行を見て Esc で止める体験を残す。範囲は今の Step 全体（入力待ちの間も含む）。
+- 実装:
+  - `host.rs`: `step_normal_speed()`（今の Step の IR を `ir.nodes.iter().find(|n| n.uid == uid.0)` の形で引いて欄を読む）と `fast_now()`（`fast_forward && !step_normal_speed()`）。`notify` の第 2 引数（待たない印）の 5 か所と `Op::Tick` の連続適用の条件を `fast_now()` にした。固定の Step の進行は `apply_engine` で 1 件ずつ進み、`fast_forward_engine` を通らない。`HostAction::ToggleFastForward` は固定の Step では状態も通知も `tick_reset` も変えずに捨てる（ボタンを書き換えた click でも入・切は動かない）。Step の出入りの dirty は既存の提示の前後の比較（`FastForwardOffer`）に乗る。Esc・停止は既存の経路のまま。
+  - `fast_forward_ops.rs`: `FastForwardOffer.pinned` を足し、固定の間はボタンを出さず（`can_toggle` は偽）文言「この場面は通常の速さです」（`fast-forward-pinned`）を出す。状態の文字（早送り: 入／切）はそのまま出す。「早送り中」は固定の間は出ない。`disabled` は使わない（フォーカスが載ったまま無効になると Esc の keydown が出ない恐れがあり、要素が消えればフォーカスは body に戻る）。冒頭の doc の「SHELL-26 は扱わない」を直した。
+  - 入・切は `ops` に入れない（D-54）。入と切で最後の状態・`ops`・ログは一致する（SHELL-27）。
+- 試験:
+
+| 試験 | 固定すること |
+|---|---|
+| native `crates/web/tests/fast_forward_host.rs`（6 件追加。試験の教材は `min-3step` の `st-2` に処理 3 件と `normal_speed: true` を試験の中で差す） | 入のまま固定の Step に入ると 1 件ずつ進み、宛先つきの通知の待たない印が偽で、ボタン 0・文言 1・「早送り中」0。出ると文言が消えボタンが戻り `fast_forward` が dirty になり入のまま。固定の Step の切り替えは入・切・通知・`tick_reset` を変えない。固定の Step の処理中の停止（停止ボタン・Esc）が通常の速さと同じ結果。固定の Step を挟んでも入と切で最後の状態・履歴が一致。固定でない Step の処理の完了（確認なし）そのもので固定の Step へ移ると、遷移の後の通知の待たない印が偽で、固定の Step の進行は 1 件ずつ（判定を遷移前の値のままにする誤りを手で入れると落ちることを確認し、戻した） |
+| `fast_forward_ops` の単体（1 件追加） | 固定の描画は文言を出しボタンを出さない |
+| ブラウザ `fast-forward-toggle.test.mjs`（4 件追加。CSP あり・なし。`loadIr` で同じ IR を差す） | G 入のまま入ると文言 1・ボタン 0・「早送り中」0 で 3 件が 600ms 以上かけて進む。H 切り替えにフォーカスを置いたまま固定の Step に入るとフォーカスは body に戻り、処理中の Esc で `stopped` になりログに停止が残る（止まる件数は CI の待ちで揺れるため判定せず、native が持つ）。ページ内エラー・CSP 違反・安全性の計数（通信を含む）は 0 件 |
+
+- 変異注入（2026-11-17。`scripts/check-mutations.sh crates/web/tests/mutations/SHELL26-1.mutation`・`SHELL26-2`・`SHELL26-3`・`SHELL27-1`・`SHELL24-2`・`SHELL24-3`）: 新しい SHELL26-1（判定を常に偽にする）・SHELL26-2（切り替えの捨てを外す）・SHELL26-3（`fast_now` の固定の除外を外す）と、書き換えた行に `find` を合わせた SHELL27-1・SHELL24-2・SHELL24-3 の 6 件がすべて DETECTED。`make check-mutation-defs` は一貫（860 ファイル）。
+- 実行結果（2026-11-17。base は `7c7d1e3f`。手元の macOS・Chromium）: `make lint`・`make check-deps`・`make check` は終了コード 0。`make test` は 4,313 件合格・失敗 0（5.527 の 4,306 件から 7 件増。native 6 件と単体 1 件）。`make test-browser` は 2,314 件中 2,312 件合格で、`fast-forward-toggle` の 14 件は合格。失敗の 2 件は `input-limit.test.mjs` の `JUDGE-23 K-3`（CSP あり・なし。#2175。macOS だけの既知の失敗）。`tools/check-delivery.sh`（`SKIP_WASM_OPT=1` の配信物）は RESULT: ok。
+- 件数の期待値: `scripts/expected-test-counts.txt` は変えていない（5.526 と同じ理由。全行の更新は #2176）。
+- 限界: 固定の範囲は Step 全体で、処理の区間だけには絞っていない。ボタンは出さない形で、読み上げには文言が出る。教材側（`st-1-5`・`pack.vocab` 1.8）は未反映。spec は「欄は要らない」案のままで、書き直しは別に扱う。本物の教材・L2・Chrome の原本では未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。

@@ -1509,7 +1509,7 @@ impl EngineHost {
     ///
     /// 通知は `Component::update` の中から呼ばれる。通知先は Runtime にも App にも触れてはならない（再入になる）。
     pub fn set_tick_request(&mut self, f: TickRequest) {
-        f(self.next_tick(), self.fast_forward);
+        f(self.next_tick(), self.fast_now());
         self.tick_request = Some(f);
     }
 
@@ -2413,7 +2413,7 @@ impl EngineHost {
             reset();
         }
         if let (Some(notify), Some(session)) = (self.tick_request.as_ref(), self.model.session()) {
-            notify(next_tick(session), self.fast_forward);
+            notify(next_tick(session), self.fast_now());
         }
     }
 
@@ -2611,7 +2611,7 @@ impl EngineHost {
         }
         // 次の進行の宛先を通知する（`None` も渡す。予約済みの印を glue が消すため）。
         if let (Some(notify), Some(session)) = (self.tick_request.as_ref(), self.model.session()) {
-            notify(next_tick(session), self.fast_forward);
+            notify(next_tick(session), self.fast_now());
         }
         if changed {
             self.save_due = true;
@@ -2721,7 +2721,7 @@ impl EngineHost {
             reset();
         }
         if let Some(notify) = self.tick_request.as_ref() {
-            notify(None, self.fast_forward);
+            notify(None, self.fast_now());
         }
     }
 
@@ -2806,11 +2806,31 @@ impl EngineHost {
     /// 「早送り中」は入かつ処理中だけ（表示だけの間は進行が届かないので出さない）。
     fn fast_forward_offer(&self) -> FastForwardOffer {
         let live = self.model.session().is_some() && self.model.view_only.is_none();
+        let pinned = live && self.step_normal_speed();
         FastForwardOffer {
             on: self.fast_forward,
-            can_toggle: live,
-            active: self.fast_forward && live && self.is_busy(),
+            can_toggle: live && !pinned,
+            pinned,
+            active: self.fast_now() && live && self.is_busy(),
         }
+    }
+
+    /// 今の Step が `normal_speed`（通常の速さに固定）か。範囲は Step 全体で、入力待ちの間も含む（SHELL-26）。
+    fn step_normal_speed(&self) -> bool {
+        self.model.session().is_some_and(|s| {
+            s.state().run.current.as_ref().is_some_and(|uid| {
+                s.ir()
+                    .nodes
+                    .iter()
+                    .find(|n| n.uid == uid.0)
+                    .is_some_and(|n| n.step.normal_speed)
+            })
+        })
+    }
+
+    /// いま早送りで進めるか。入で、かつ今の Step が固定でないとき。予約の印（待たない）と連続適用の判断に使う。
+    fn fast_now(&self) -> bool {
+        self.fast_forward && !self.step_normal_speed()
     }
 
     /// 変換して開いた通知の表示を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
@@ -3151,7 +3171,7 @@ impl Component for EngineHost {
             }
             // 早送りが入で、今の宛先の進行が届いたときだけ連続適用に回す。古い宛先・他の操作はこれまでどおり（SHELL-27）。
             HostAction::Engine(Op::Tick(addr))
-                if self.fast_forward && self.next_tick().as_ref() == Some(&addr) =>
+                if self.fast_now() && self.next_tick().as_ref() == Some(&addr) =>
             {
                 self.fast_forward_engine();
             }
@@ -3195,12 +3215,15 @@ impl Component for EngineHost {
             // 入・切を替え、予約済みのタイマーを捨ててから今の宛先を新しい間隔で通知し直す（捨てたタイマーは届かず `Ignored` も増えない）。
             // 表示だけの間は上の allowlist が捨てる（allowlist には足さない）。
             HostAction::ToggleFastForward => {
-                self.fast_forward = !self.fast_forward;
-                if let Some(reset) = self.tick_reset.as_ref() {
-                    reset();
-                }
-                if let Some(notify) = self.tick_request.as_ref() {
-                    notify(self.next_tick(), self.fast_forward);
+                // 通常の速さに固定した Step（SHELL-26）では何も変えない。ボタンを書き換えた click でも入・切は動かない。
+                if !self.step_normal_speed() {
+                    self.fast_forward = !self.fast_forward;
+                    if let Some(reset) = self.tick_reset.as_ref() {
+                        reset();
+                    }
+                    if let Some(notify) = self.tick_request.as_ref() {
+                        notify(self.next_tick(), self.fast_now());
+                    }
                 }
             }
             HostAction::CheckpointPage(page) => {
