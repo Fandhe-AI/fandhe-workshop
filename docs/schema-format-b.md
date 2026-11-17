@@ -88,6 +88,7 @@
 | `profile` | 表 | 省略可 | 省略（接頭辞 `/`・入力欄あり） | EP-10。`docs/operation-profile.md` |
 | `appearance` | 表 | 省略可 | 省略（`standard`） | EP-11。`docs/operation-profile.md` |
 | `left_pane` | 表 | 省略可 | 省略（`shown`・`all`） | EP-12。`docs/pack-authoring.md` の「左エリア」 |
+| `fast_forward` | 真偽値 | 省略可 | `false` | 語彙 1.9（SHELL-25・SESS-3）。`true` なら、教材を開いたときの早送りを入で始めます。受講者の切り替えは保存せず、読み込み直すとこの値に戻ります。真偽値以外は `E-PARSE` です。`pack.vocab` が 1.9 未満で使うと `E-VOCAB-MISMATCH`（`validate` だけ）です。`false` は IR に書き出しません |
 
 `pack` の中の未知の欄も `E-PARSE` です。`vocab` は 1.2 のように引用符で囲みます（`1.10` が `1.1` にならないよう、文字列として読みます。PACK-4）。
 

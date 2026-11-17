@@ -10,8 +10,8 @@ use std::path::Path;
 
 use fandhe_workshop_pack::vocab::{VocabVersion, EXTENSION_POINTS, LATEST, TERMS};
 
-const VERSIONS: [&str; 9] = [
-    "v1", "v1.1", "v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7", "v1.8",
+const VERSIONS: [&str; 10] = [
+    "v1", "v1.1", "v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7", "v1.8", "v1.9",
 ];
 
 fn doc() -> String {
@@ -316,6 +316,26 @@ fn normal_speed_term_is_v18_without_number() {
 }
 
 #[test]
+fn pack_fast_forward_term_is_v19_without_number() {
+    let d = doc();
+    let row = doc_terms(&d)
+        .into_iter()
+        .find(|(_, t, _, _)| t == "pack.fast_forward")
+        .expect("pack.fast_forward が 7 節にあること");
+    assert_eq!(
+        (row.0.as_str(), row.2.as_str(), row.3.as_str()),
+        ("field", "v1.9", "—")
+    );
+    let v19 = section_rows(&d, "## 8. ")
+        .into_iter()
+        .find(|r| strip(&r[0]) == "v1.9")
+        .expect("v1.9 の行");
+    assert_eq!(strip(&v19[1]), "—", "v1.9 は拡張点を持たない");
+    assert!(v19[2].contains("pack.fast_forward"));
+    assert!(ep_rows(&d).iter().all(|r| r[1] != "pack.fast_forward"));
+}
+
+#[test]
 fn every_extension_point_appears_in_terms() {
     let d = doc();
     let used: BTreeSet<String> = doc_terms(&d).into_iter().map(|t| t.3).collect();
@@ -357,8 +377,8 @@ fn crosswalk_terms_exist() {
 }
 
 #[test]
-fn latest_is_v18() {
-    assert_eq!(LATEST, VocabVersion::V1_8);
+fn latest_is_v19() {
+    assert_eq!(LATEST, VocabVersion::V1_9);
     let max = TERMS.iter().map(|t| t.version).max().expect("語がある");
     assert_eq!(max, LATEST);
 }

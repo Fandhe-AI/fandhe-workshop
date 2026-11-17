@@ -84,7 +84,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `docs/dependency-inventory.md` | 依存の棚卸しの手順と日付つきの結果の記録（BUILD-25・D-58）。実行は `make inventory-deps` |
 | `docs/measurement.md` | 測定の結果の様式（版 1）。基点の 4 項目と、基点の違う値を比べない規則。実行は `make measure`（大きさのみは `make measure-wasm-size`） |
 | `docs/toolchain.md` | ツールチェーンの固定（版 1）。固定した版と前提の一か所の正。固定ファイルとの一致は `make check-toolchain` が検査する |
-| `docs/vocabulary/vocabulary.md` | 語彙の文書（版 8）。語彙 v1〜v1.8 の語ごとの版・名前つき拡張点 EP-1〜EP-13・版と拡張点の対応表・固有の語の一覧を固定する契約。文書と pack crate の表（`crates/pack/src/vocab.rs`）の一致は `crates/pack/tests/vocabulary_terms.rs`、汎用名の検査は `crates/pack/tests/vocabulary_extension_points.rs` |
+| `docs/vocabulary/vocabulary.md` | 語彙の文書（版 9）。語彙 v1〜v1.9 の語ごとの版・名前つき拡張点 EP-1〜EP-13・版と拡張点の対応表・固有の語の一覧を固定する契約。文書と pack crate の表（`crates/pack/src/vocab.rs`）の一致は `crates/pack/tests/vocabulary_terms.rs`、汎用名の検査は `crates/pack/tests/vocabulary_extension_points.rs` |
 | `docs/l2-update-procedure.md` | L2 の配布物の更新手順（版 2）。`site/` の差し替え 1 操作・引き継ぐもの・検査・限界 |
 | `docs/upstream-bump-procedure.md` | 参照元の版を上げる手順書（版 1）。洗い出し・教材テスト・公開前の人の確認と記録・AI の生成物を無検証で公開しないことを固定する（TASK-182 2/2） |
 | `docs/extension-point-procedure.md` | 拡張点の追加の手続きの文書（版 1）。汎用であることの説明・語彙の文書の固定・診断コードの追加・公開の一覧への追記・既存の教材パックが同じ IR になることの確認を固定する。実行時の登録の仕組みは作らない（D-53）。形の検査は `crates/pack/tests/extension_point_procedure_doc.rs` |

@@ -14308,3 +14308,29 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 - 実行結果（2026-11-17。base は `7c7d1e3f`。手元の macOS・Chromium）: `make lint`・`make check-deps`・`make check` は終了コード 0。`make test` は 4,313 件合格・失敗 0（5.527 の 4,306 件から 7 件増。native 6 件と単体 1 件）。`make test-browser` は 2,314 件中 2,312 件合格で、`fast-forward-toggle` の 14 件は合格。失敗の 2 件は `input-limit.test.mjs` の `JUDGE-23 K-3`（CSP あり・なし。#2175。macOS だけの既知の失敗）。`tools/check-delivery.sh`（`SKIP_WASM_OPT=1` の配信物）は RESULT: ok。
 - 件数の期待値: `scripts/expected-test-counts.txt` は変えていない（5.526 と同じ理由。全行の更新は #2176）。
 - 限界: 固定の範囲は Step 全体で、処理の区間だけには絞っていない。ボタンは出さない形で、読み上げには文言が出る。教材側（`st-1-5`・`pack.vocab` 1.8）は未反映。spec は「欄は要らない」案のままで、書き直しは別に扱う。本物の教材・L2・Chrome の原本では未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.529 早送りの初期値の教材の設定 `pack.fast_forward`（語彙 v1.9。SHELL-25・SESS-3。#1045。5.528 の続き）
+
+実行日: 2026-11-17。
+
+- 目的: 早送りの既定値を教材の設定に置き（SHELL-25・SESS-3・D-54）、受講者が切り替えた入・切は保存せず、読み込み直すと初期値に戻ることを固定する。設定が無いときは切（案 A。D-54）。欄の名前・形は仕様で未決のため、`pack.fast_forward: true`（真偽値）とした（利用者の決定。2026-11-17）。`?speed=fast`（SHELL-28）は含めない。
+- 実装:
+  - `crates/contract/src/ir.rs` の `PackInfo.fast_forward: bool`（`#[serde(skip_serializing_if = "is_false", default)]`。属性の並びは `Step.normal_speed` の行と分け、変異の `find` が一意に当たるようにした）。使わない教材の IR はバイト同一で、`ir_format` は 1 のまま。形式 B の `workshop.yaml` の `pack:` は `PackInfo` をそのまま読むため、欄はそのまま IR に届く。
+  - 語彙 v1.9（`vocab.rs` の `V1_9`・`LATEST`・`TERMS` の `field`／`pack.fast_forward`。番号なし）。`history_open::VOCAB_MAX` を 1.9 に。`vocab_check.rs` の `PROBES` の末尾に足し、`true` のときだけ使用とみなす（`pack.vocab` が 1.9 未満で使うと `E-VOCAB-MISMATCH`）。構造の検査は足さない（どの教材にも付けてよい）。新しい診断コードは足さない。
+  - web: `host.rs` の `with_session_at`（`with_ir`・`with_session`・配信する設定の `for_mount` で IR を読めた場合・試験の設定の `for_mount_with` が通る）で `fast_forward` を `ir.pack.fast_forward` から始める。試験の設定の教材の差し替え（`replace_pack`。`loadIr`・`loadFixture`）も、教材を開くのと同じく新しい教材の値に戻す。履歴の差し替え・「捨てて始める」では今の値を戻さない（既存の規則のまま）。切り替えは従来どおり `ops`・保存先に書かない。`fast_forward_ops.rs` の冒頭の doc の「初期値は扱わない」を直した。
+  - 文書: `docs/vocabulary/vocabulary.md`（版 9）・`docs/vocabulary/README.md`・`docs/schema-format-b.md`・`docs/pack-authoring.md`・`docs/diagnostics.md`（版 23。注と変更履歴だけ）・`docs/engine-api.md`・`docs/known-gaps.md`（SHELL-25）・`README.md`・`CLAUDE.md`。
+- 試験:
+
+| 試験 | 固定すること |
+|---|---|
+| `crates/pack/tests/fast_forward_default.rs`（3 件） | `true` が IR に出て、`false` と省略は出ず同じバイト列。真偽値でない値（文字列・数・配列）は `E-PARSE`。`pack.vocab` が 1.8 だと `E-VOCAB-MISMATCH` 1 件で、`false`・省略は 1.8 のままでよい |
+| `crates/pack/tests/vocabulary_terms.rs`（1 件追加） | 文書の 7・8 節の `pack.fast_forward`（v1.9・番号なし）と `vocab.rs` の表・`LATEST`・`VOCAB_MAX` の一致 |
+| `crates/core/tests/history_open.rs` | 履歴の語彙 1.9 は開き、1.10 は `vocab_newer` で開かない（「新しい」側の例 7 か所を 1.9 から 1.10 に、「等しい版は開く」の例 1 か所を 1.8 から 1.9 に直した） |
+| native `crates/web/tests/fast_forward_host.rs`（4 件追加） | 設定ありで開くと入で、最初の進行から連続適用に回る。`false`・省略は切。設定ありでも切り替えは `ops`・保存する履歴を変えない。切り替えてから同じ教材で作り直し保存した履歴で起動する（読み込み直し相当）と、設定あり・なしとも教材の初期値に戻り、履歴の差し替え（`open_history`）では今の値のまま。設定ありでも `normal_speed` の Step は 1 件ずつ進み待たない印が偽 |
+| ブラウザ `fast-forward-toggle.test.mjs`（4 件追加。CSP あり・なし。IR は試験の中で書き換える） | I（試験の設定）: 設定なしは切で開き、履歴を作って保存が落ち着いた後に入にしても localStorage の全体が 1.5 秒後も変わらず、読み込み直すと切。`loadIr` で設定ありの IR に差し替えると入で、切にしても保存先が変わらない。J（配信する設定。IR を同梱した写し）: 設定あり・なしの IR でそれぞれ入・切で開き、切り替えても保存先が変わらず、読み込み直すと初期値に戻る。ページ内エラー・CSP 違反は 0 件、試験の設定では安全性の計数（通信を含む）も 0 件 |
+| 既存の golden | 書き換えていない（使わない教材の IR がバイト同一であること） |
+
+- 変異注入（2026-11-17。`scripts/check-mutations.sh crates/web/tests/mutations/SHELL25-1.mutation crates/pack/tests/mutations/SHELL25P-1.mutation crates/pack/tests/mutations/SHELL25P-2.mutation crates/pack/tests/mutations/SHELL26P-2.mutation`）: SHELL25-1（初期値を常に切にする）・SHELL25P-1（`false` も書き出す）・SHELL25P-2（語彙の版の照合から外す）の 3 件と、同じ `ir.rs` を対象にする既存の SHELL26P-2（属性の並びを変えた後も `find` が `Step.normal_speed` の行に一意に当たることの確認）の 4 件がすべて DETECTED。`make check-mutation-defs` は一貫（863 ファイル）。
+- 実行結果（2026-11-17。base は `d97302a6`。手元の macOS・Chromium）: `make lint`・`make check-deps`・`make check` は終了コード 0。`make test` は 4,321 件合格・失敗 0・無視 5（5.528 の 4,313 件から 8 件増。`fast_forward_default.rs` の 3 件・`vocabulary_terms.rs` の 1 件・native の 4 件）。`make test-browser` は 2,318 件中 2,316 件合格で、`fast-forward-toggle` の 18 件は合格。失敗の 2 件は `input-limit.test.mjs` の `JUDGE-23 K-3`（CSP あり・なし。#2175。macOS だけの既知の失敗）。`make build-web` の後の `tools/check-delivery.sh` は RESULT: ok。
+- 件数の期待値: `scripts/expected-test-counts.txt` は変えていない（5.526 と同じ理由。全行の更新は #2176）。
+- 限界: 欄の名前は spec の書き直し（Fandhe-AI/fandhe-workshop-spec#30）で変わりうる。試験の設定の教材の差し替え（`replace_pack`。`test-hooks` だけ）で初期値に戻す行は変異の対象にしておらず、ブラウザの場面 I・J が守る。`?speed=fast`（SHELL-28）は未実装（`docs/known-gaps.md` の SHELL-25）。保存先の不変は localStorage だけを見ており、IndexedDB は見ていない（切り替えは保存の経路に入らないため、native の `history_to_save` の不変で代える）。教材側（掲示板教材）は既定の切のままで足すものは無い。本物の教材・L2・Chrome の原本では未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。

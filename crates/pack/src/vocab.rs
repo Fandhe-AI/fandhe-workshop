@@ -1,6 +1,6 @@
-//! 語彙の版の表（語彙 v1〜v1.8 の語と名前つき拡張点 EP-1〜EP-13）。
+//! 語彙の版の表（語彙 v1〜v1.9 の語と名前つき拡張点 EP-1〜EP-13）。
 //!
-//! 正は `docs/vocabulary/vocabulary.md`（版 8）で、本モジュールは実装側の写しである。
+//! 正は `docs/vocabulary/vocabulary.md`（版 9）で、本モジュールは実装側の写しである。
 //! `fandhe-pack vocab`（TASK-408）の数え上げと、宣言と使用の一致の検査（TASK-59）が、
 //! 語ごとの語彙の版を引くために使う。文書と本表の一致は `tests/vocabulary_terms.rs` が確かめる。
 //! 純粋な定数の表で、I/O も panic も持たない。
@@ -31,6 +31,8 @@ pub enum VocabVersion {
     V1_7,
     /// 語彙 v1.8（Step の `normal_speed`。拡張点の番号は持たない）。
     V1_8,
+    /// 語彙 v1.9（`pack.fast_forward`。拡張点の番号は持たない）。
+    V1_9,
 }
 
 impl VocabVersion {
@@ -46,6 +48,7 @@ impl VocabVersion {
             VocabVersion::V1_6 => "v1.6",
             VocabVersion::V1_7 => "v1.7",
             VocabVersion::V1_8 => "v1.8",
+            VocabVersion::V1_9 => "v1.9",
         }
     }
 
@@ -61,6 +64,7 @@ impl VocabVersion {
             VocabVersion::V1_6 => (1, 6),
             VocabVersion::V1_7 => (1, 7),
             VocabVersion::V1_8 => (1, 8),
+            VocabVersion::V1_9 => (1, 9),
         }
     }
 }
@@ -71,7 +75,7 @@ pub fn extension_point(name: &str) -> Option<&'static ExtensionPoint> {
 }
 
 /// このエンジンが知る語彙の版の上限。
-pub const LATEST: VocabVersion = VocabVersion::V1_8;
+pub const LATEST: VocabVersion = VocabVersion::V1_9;
 
 /// 名前つき拡張点の 1 件。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -799,6 +803,12 @@ pub const TERMS: &[VocabTerm] = &[
         kind: "field",
         term: "normal_speed",
         version: VocabVersion::V1_8,
+        extension_point: None,
+    },
+    VocabTerm {
+        kind: "field",
+        term: "pack.fast_forward",
+        version: VocabVersion::V1_9,
         extension_point: None,
     },
 ];

@@ -1,0 +1,8 @@
+id: SHELL25P-1
+package: fandhe-workshop-pack
+test: fast_forward_default
+target: crates/contract/src/ir.rs
+find:     #[serde(skip_serializing_if = "is_false", default)]
+replace:     #[serde(default)]
+expect-fail: fast_forward_true_is_in_ir_and_false_or_absent_is_not
+note: `pack.fast_forward` の false を IR に書き出す（使わない教材の IR が変わる）

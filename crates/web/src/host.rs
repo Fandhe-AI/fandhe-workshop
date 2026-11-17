@@ -754,8 +754,9 @@ pub struct EngineHost {
     live_left_key: (Option<String>, String),
     /// `live_left` の通し番号。非空の文を積むたびに 1 進める。
     live_left_seq: u64,
-    /// 早送りが入か（SHELL-24。TASK-540 1/2）。表示の状態で、`ops`・履歴・保存先には書かない（D-54）。初期値は切で、
-    /// 履歴の差し替え・「捨てて始める」でも戻さない。入の間は今の宛先の進行が届くと `fast_forward_engine` が区切りまで続けて適用する。
+    /// 早送りが入か（SHELL-24。TASK-540 1/2）。表示の状態で、`ops`・履歴・保存先には書かない（D-54）。初期値は教材の
+    /// `pack.fast_forward`（省略は切。SHELL-25・SESS-3）で、教材を受けて作るとき（`with_session_at`）だけ決める。
+    /// 履歴の差し替え・「捨てて始める」でも戻さない（読み込み直すと初期値に戻る）。入の間は今の宛先の進行が届くと `fast_forward_engine` が区切りまで続けて適用する。
     fast_forward: bool,
     /// 直近の `update` で変わった field。
     dirty: Vec<&'static str>,
@@ -1056,6 +1057,7 @@ impl EngineHost {
         let mut input = HelloView::new();
         input.set_command_table(candidates::command_table(session.ir()));
         let initial = Some(session.state().clone());
+        let fast_forward = session.ir().pack.fast_forward;
         let d = derive(&session);
         input.set_input_field(d.input_field);
         Ok(Self {
@@ -1089,7 +1091,7 @@ impl EngineHost {
             live_left: String::new(),
             live_left_key: (None, String::new()),
             live_left_seq: 0,
-            fast_forward: false,
+            fast_forward,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -2420,9 +2422,11 @@ impl EngineHost {
     /// 教材ごと差し替える（試験の設定だけ）。開始の状態・補完表・導出した値を新しい教材から作り直す。
     ///
     /// 入力欄の有無は構造の違いで mount 後に変えられない。差し替えでは更新せず、構築時の値を保つ。
+    /// 早送りの入・切は、教材を開くのと同じく新しい教材の `pack.fast_forward` に戻す（SHELL-25。履歴の差し替えとは別）。
     #[cfg(feature = "test-hooks")]
     fn replace_pack(&mut self, session: Session) {
         self.initial = Some(session.state().clone());
+        self.fast_forward = session.ir().pack.fast_forward;
         self.input
             .set_command_table(candidates::command_table(session.ir()));
         let start = RecordedSession::first_start(session.ir());

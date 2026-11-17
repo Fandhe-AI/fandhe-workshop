@@ -2,6 +2,7 @@
 //!
 //! タイマーは試験の側で模す。ホストが通知した最後の宛先を届け、通知の第 2 引数（待たない印）と `tick_reset` の回数を記録する。
 //! 通常の速さ・入・途中の切り替えの 3 通りで、最後の状態（ログを含む）と保存する履歴が一致することを固定する。
+//! 教材の `pack.fast_forward` による初期値（SHELL-25・SESS-3）と、作り直すと初期値に戻ることも固定する。
 //! ブラウザでの押下・間隔は `tools/browser/fast-forward-toggle.test.mjs` の担当である。試験では `unwrap` を使ってよい。
 
 use std::cell::{Cell, RefCell};
@@ -24,7 +25,7 @@ use fandhe_workshop_web::fast_forward_ops::{
     ACTION_TOGGLE_FAST_FORWARD, ACTIVE_TESTID, FAST_FORWARD_FIELD, FAST_FORWARD_LIMIT, OFF_LABEL,
     ON_LABEL, PINNED_LABEL, PINNED_TESTID, STATE_ATTR, STATUS_TESTID, TOGGLE_TESTID,
 };
-use fandhe_workshop_web::host::{EngineHost, HostAction, ImportOutcome};
+use fandhe_workshop_web::host::{BootKind, EngineHost, HostAction, ImportOutcome};
 use fandhe_workshop_web::parts::Component;
 use fandhe_workshop_web::shell::{self, ControlSection};
 
@@ -589,4 +590,86 @@ fn 処理の完了で固定のstepへ移ると遷移の後の印が偽で1件ず
     assert_eq!(progress_count(&h), before + 1);
     assert!(h.next_tick().is_some());
     assert_eq!(t.last(), (h.next_tick(), false));
+}
+
+/// `pack.fast_forward` を `on` にした `min-3step`（SHELL-25）。`pinned` なら `st-2` を固定の Step にする（SHELL-26）。
+fn ff_ir(on: bool, pinned: bool) -> Vec<u8> {
+    let mut v: serde_json::Value = serde_json::from_slice(&ir_json("")).unwrap();
+    v["pack"]["fast_forward"] = serde_json::json!(on);
+    if pinned {
+        v["nodes"][1]["step"]["processing"] = serde_json::json!([
+            {"name": "q1", "effects": []}, {"name": "q2", "effects": []}, {"name": "q3", "effects": []}
+        ]);
+        v["nodes"][1]["step"]["normal_speed"] = serde_json::json!(true);
+    }
+    serde_json::to_vec(&v).unwrap()
+}
+
+#[test]
+fn 教材の設定で初期値が入になり省略とfalseは切() {
+    let (mut h, t) = host_with(&ff_ir(true, false));
+    assert_eq!(status(&h), (ON_LABEL.to_owned(), "on".to_owned()));
+    assert_eq!(count(&h.view(), TOGGLE_TESTID), 1);
+    h.update(make_note());
+    assert!(t.last().1, "初期値の入でも待たない印で通知する");
+    fire(&mut h, &t);
+    assert_eq!(progress_count(&h), FAST_FORWARD_LIMIT as usize);
+    for bytes in [ff_ir(false, false), ir_json("")] {
+        let (h, _) = host_with(&bytes);
+        assert_eq!(status(&h), (OFF_LABEL.to_owned(), "off".to_owned()));
+    }
+}
+
+#[test]
+fn 設定ありでも切り替えは_ops_にも保存にも出ない() {
+    let (mut h, _) = host_with(&ff_ir(true, false));
+    toggle(&mut h);
+    assert_eq!(status(&h), (OFF_LABEL.to_owned(), "off".to_owned()));
+    assert_eq!(
+        h.history_to_save(),
+        None,
+        "切り替えだけでは履歴が生まれない"
+    );
+    h.update(make_note());
+    let saved = h.history_to_save();
+    let ops = h.model().session().unwrap().log().len();
+    toggle(&mut h);
+    toggle(&mut h);
+    assert_eq!(h.history_to_save(), saved);
+    assert_eq!(h.model().session().unwrap().log().len(), ops);
+}
+
+#[test]
+fn 作り直すと切り替えた値でなく教材の初期値に戻る() {
+    for on in [true, false] {
+        let (mut h, t) = host_with(&ff_ir(on, false));
+        toggle(&mut h);
+        h.update(make_note());
+        fire_until_idle(&mut h, &t);
+        let saved = h.history_to_save().unwrap();
+        // 読み込み直し相当: 同じ教材から作り直し、保存した履歴で起動する。
+        let (mut again, _) = host_with(&ff_ir(on, false));
+        assert_eq!(again.boot(Some(saved.as_bytes())), BootKind::Restored);
+        let want = if on { ON_LABEL } else { OFF_LABEL };
+        assert_eq!(status(&again).0, want, "on={on}");
+        // 履歴の差し替えでは今の値を戻さない（`host.rs` の `fast_forward` の規則）。
+        let exported = again.history_to_save().unwrap();
+        toggle(&mut again);
+        assert_eq!(again.open_history(exported.as_bytes()), ImportOutcome::Open);
+        let flipped = if on { OFF_LABEL } else { ON_LABEL };
+        assert_eq!(status(&again).0, flipped, "on={on}");
+    }
+}
+
+#[test]
+fn 設定ありでも固定のstepは通常の速さで進む() {
+    let (mut h, t) = host_with(&ff_ir(true, true));
+    enter_pinned(&mut h, &t);
+    assert_eq!(count(&h.view(), PINNED_TESTID), 1);
+    assert_eq!(status(&h), (ON_LABEL.to_owned(), "on".to_owned()));
+    let before = progress_count(&h);
+    choose(&mut h);
+    assert_eq!(t.last(), (h.next_tick(), false), "待たない印は偽");
+    fire(&mut h, &t);
+    assert_eq!(progress_count(&h), before + 1, "1 件ずつ");
 }
