@@ -146,7 +146,7 @@ fn open_marks_every_field_dirty_and_notifies_the_next_tick() {
     let mut h = host();
     let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::<Option<TickAddr>>::new()));
     let sink = seen.clone();
-    h.set_tick_request(Box::new(move |next| sink.borrow_mut().push(next)));
+    h.set_tick_request(Box::new(move |next, _| sink.borrow_mut().push(next)));
     let notified = seen.borrow().len();
     assert_eq!(h.open_history(&bytes), ImportOutcome::Open);
     let mut expected: Vec<&str> = h.registry().fields().map(|f| f.name).collect();
@@ -160,6 +160,8 @@ fn open_marks_every_field_dirty_and_notifies_the_next_tick() {
     expected.push("checkpoint_ops");
     // ヒントの操作（`hint_ops`）も registry の外で、前の教材の項目を消すために明示して積む（TASK-530）。
     expected.push("hint_ops");
+    // 早送りの区画（`fast_forward`）も registry の外で、「早送り中」が処理中かどうかで変わるので積む（SHELL-24）。
+    expected.push("fast_forward");
     // Step の題・do・本文（`step_body`）も registry の外で、同じ理由で積む（TASK-525）。
     expected.push("step_body");
     let mut dirty: Vec<&str> = h.dirty_fields().to_vec();

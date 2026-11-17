@@ -124,6 +124,7 @@ fn tick_delay_ms() -> i32 {
 /// 履歴の差し替えで、これまでの進行のタイマーを全部無効にする（`EngineHost::set_tick_reset` の通知先）。
 ///
 /// 世代を進め、予約の印も消す。差し替え後の宛先が差し替え前と同じでも、新しいタイマーを予約し直せる。
+/// 早送りの入・切の切り替え（SHELL-24）でも呼ばれ、300ms で予約した進行と遅延 0 で予約した進行を新しい間隔で予約し直させる。
 /// 停止・移動のような通常の更新では呼ばれない。古いタイマーは届いて core の `Ignored` になる（EVT-8）。
 fn on_tick_reset() {
     TICK_EPOCH.with(|e| {
@@ -143,8 +144,9 @@ fn on_tick_reset() {
 ///
 /// `Component::update` の中から呼ばれるが、Runtime にも App にも触れず `set_timeout` を予約するだけなので、
 /// 再入は起きない。`None` は予約の印を消す。同じ宛先がすでに予約済みなら何もしない（古い進行が `Ignored` を
-/// 出して更新が走っても、同じ宛先のタイマーを積み増さない）。
-fn on_tick_request(next: Option<TickAddr>) {
+/// 出して更新が走っても、同じ宛先のタイマーを積み増さない）。`fast` が真（早送りが入）なら間隔を待たず遅延 0 で予約する。
+/// 0 は間隔の値を決めたことにはならず、event loop に一度戻って停止を受けるための予約である（EVT-17・D-113）。
+fn on_tick_request(next: Option<TickAddr>, fast: bool) {
     let Some(addr) = next else {
         SCHEDULED.with(|s| {
             if let Ok(mut slot) = s.try_borrow_mut() {
@@ -161,7 +163,8 @@ fn on_tick_request(next: Option<TickAddr>) {
         _ => false,
     });
     if fresh {
-        schedule_action(RuntimeAction::Tick(addr), tick_delay_ms());
+        let delay = if fast { 0 } else { tick_delay_ms() };
+        schedule_action(RuntimeAction::Tick(addr), delay);
     }
 }
 

@@ -1,0 +1,9 @@
+id: SHELL27-1
+package: fandhe-workshop-web
+test: fast_forward_host
+target: crates/web/src/host.rs
+find:                 if self.fast_forward && self.next_tick().as_ref() == Some(&addr) =>
+replace:                 if self.fast_forward =>
+expect-fail: 区切りの間の停止は通常の速さと同じ結果になる
+expect-fail: 入でも古い宛先は_ignored_1件だけで状態を変えない
+note: 入の間は古い宛先の進行も連続適用に回す（停止の後の `Ignored` が記録されず、通常の速さとログ・ops が食い違う。SHELL-27）

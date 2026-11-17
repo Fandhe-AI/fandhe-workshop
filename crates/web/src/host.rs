@@ -103,6 +103,9 @@ use crate::candidates;
 use crate::checkpoint_ops::{checkpoint_section, CheckpointOffer, CHECKPOINT_OPS_FIELD};
 use crate::engine_parts::standard_registry;
 use crate::export_notice::{chapter_end_in, ExportHint, EXPORT_NOTICE_FIELD};
+use crate::fast_forward_ops::{
+    fast_forward_section, FastForwardOffer, FAST_FORWARD_FIELD, FAST_FORWARD_LIMIT,
+};
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
 use crate::hint_ops::{hint_section, HintOffer, HINT_OPS_FIELD};
 use crate::history_export::ExportGate;
@@ -277,6 +280,8 @@ pub enum HostAction {
     RestoreCheckpoint(u32),
     /// ヒントを 1 段開く（`open-hint`。TASK-530 1/2）。今の提示にボタンがあるときだけ `Control::OpenHint` を送り、上限は core が判定する。
     OpenHint,
+    /// 早送りの入・切の切り替え（`toggle-fast-forward`。SHELL-24。TASK-540 1/2）。処理中でなくても切り替えられ、`ops`・履歴・保存先には書かない（D-54）。
+    ToggleFastForward,
     /// チェックポイントの一覧のページ送り（`checkpoint-page`。FEND-22）。payload は正規形のページ番号で、ページ数との照合は `update` が行う。
     CheckpointPage(usize),
     /// 960px 未満のタブのクリック（`select-pane`。TASK-517 2/2）。表示の状態だけを変える。
@@ -575,10 +580,11 @@ fn derive(session: &Session) -> Derived {
     }
 }
 
-/// 次の進行の宛先の通知先。`apply_engine` の後に、次に届けるべき進行（無ければ `None`）を渡す。
+/// 次の進行の宛先の通知先。`apply_engine` の後に、次に届けるべき進行（無ければ `None`）と、間隔を待たないか（早送りが入。SHELL-24）を渡す。
 ///
-/// glue が `set_timeout` の予約に使う。ホストは予約の状態を持たず、重複の抑止も glue が受け持つ。
-pub type TickRequest = Box<dyn Fn(Option<TickAddr>)>;
+/// glue が `set_timeout` の予約に使う。第 2 引数が真なら遅延 0 で予約する（間隔の値は決めない。EVT-17・D-113）。
+/// ホストは予約の状態を持たず、重複の抑止も glue が受け持つ。
+pub type TickRequest = Box<dyn Fn(Option<TickAddr>, bool)>;
 
 /// 下書きの書き戻しの要求の通知先。送信で下書きを空にしたとき、`update` の中から呼ばれる。
 /// 拒否の後に下書きの全体を選択状態にする要求（`set_draft_select_request`）の通知先にも同じ型を使う。
@@ -748,6 +754,9 @@ pub struct EngineHost {
     live_left_key: (Option<String>, String),
     /// `live_left` の通し番号。非空の文を積むたびに 1 進める。
     live_left_seq: u64,
+    /// 早送りが入か（SHELL-24。TASK-540 1/2）。表示の状態で、`ops`・履歴・保存先には書かない（D-54）。初期値は切で、
+    /// 履歴の差し替え・「捨てて始める」でも戻さない。入の間は今の宛先の進行が届くと `fast_forward_engine` が区切りまで続けて適用する。
+    fast_forward: bool,
     /// 直近の `update` で変わった field。
     dirty: Vec<&'static str>,
     /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
@@ -910,6 +919,7 @@ impl EngineHost {
             live_left: String::new(),
             live_left_key: (None, String::new()),
             live_left_seq: 0,
+            fast_forward: false,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -1034,6 +1044,7 @@ impl EngineHost {
                 || f.name == NEXT_CHAPTER_FIELD.name
                 || f.name == CHECKPOINT_OPS_FIELD.name
                 || f.name == HINT_OPS_FIELD.name
+                || f.name == FAST_FORWARD_FIELD.name
                 || f.name == TOP_PLACE_FIELD.name
                 || f.name == STEP_BODY_FIELD.name
                 || f.name == EXPORT_RESULT_FIELD.name
@@ -1078,6 +1089,7 @@ impl EngineHost {
             live_left: String::new(),
             live_left_key: (None, String::new()),
             live_left_seq: 0,
+            fast_forward: false,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -1497,7 +1509,7 @@ impl EngineHost {
     ///
     /// 通知は `Component::update` の中から呼ばれる。通知先は Runtime にも App にも触れてはならない（再入になる）。
     pub fn set_tick_request(&mut self, f: TickRequest) {
-        f(self.next_tick());
+        f(self.next_tick(), self.fast_forward);
         self.tick_request = Some(f);
     }
 
@@ -2384,6 +2396,10 @@ impl EngineHost {
         if !self.dirty.contains(&HINT_OPS_FIELD.name) {
             self.dirty.push(HINT_OPS_FIELD.name);
         }
+        // 早送りの区画も registry の外にある。「早送り中」が処理中かどうかで変わるので明示して積む（SHELL-24）。
+        if !self.dirty.contains(&FAST_FORWARD_FIELD.name) {
+            self.dirty.push(FAST_FORWARD_FIELD.name);
+        }
         // 上部の教材名・位置も registry の外にある。教材・復元した Step が変わるので明示して積む（TASK-524）。
         if !self.dirty.contains(&TOP_PLACE_FIELD.name) {
             self.dirty.push(TOP_PLACE_FIELD.name);
@@ -2397,7 +2413,7 @@ impl EngineHost {
             reset();
         }
         if let (Some(notify), Some(session)) = (self.tick_request.as_ref(), self.model.session()) {
-            notify(next_tick(session));
+            notify(next_tick(session), self.fast_forward);
         }
     }
 
@@ -2477,6 +2493,16 @@ impl EngineHost {
     /// 戻りは、今回の操作で拒否の判定（`Judged` の `Rejected`）が出たか。送信の後に下書きを残すかの判断に使う。
     fn apply_engine(&mut self, op: Op) -> bool {
         self.step_engine(|session| events_summary(session.apply(op)))
+    }
+
+    /// 早送りが入の間に今の宛先の進行が届いたとき、core の連続適用を 1 区切り（[`FAST_FORWARD_LIMIT`]）だけ行う（EVT-17。SHELL-24）。
+    ///
+    /// 適用するのは通常の速さで届くのと同じ `Op::Tick` の列で、記録も同じ（SHELL-27）。区切りの後は `step_engine` が次の宛先を
+    /// 遅延 0 で通知し、event loop に戻る間に停止（Esc・停止ボタン）を受ける。古い宛先の進行はここに来ず `apply_engine` が `Ignored` にする。
+    fn fast_forward_engine(&mut self) {
+        self.step_engine(|session| {
+            events_summary(&session.fast_forward(FAST_FORWARD_LIMIT).events)
+        });
     }
 
     /// 送信の本文を記録してから、操作プロファイルの接頭辞で分類して適用する。戻りは `apply_engine` と同じ。
@@ -2585,7 +2611,7 @@ impl EngineHost {
         }
         // 次の進行の宛先を通知する（`None` も渡す。予約済みの印を glue が消すため）。
         if let (Some(notify), Some(session)) = (self.tick_request.as_ref(), self.model.session()) {
-            notify(next_tick(session));
+            notify(next_tick(session), self.fast_forward);
         }
         if changed {
             self.save_due = true;
@@ -2661,6 +2687,7 @@ impl EngineHost {
         let offered = self.next_chapter_offer().is_some();
         let ops_shown = self.checkpoint_offer() != CheckpointOffer::default();
         let hint_before = self.hint_offer();
+        let ff_before = self.fast_forward_offer();
         self.model.view_only = Some(code);
         self.view_only_has_draft = bytes_include_unsent_draft(&bytes);
         self.view_only_bytes = Some(bytes);
@@ -2685,11 +2712,16 @@ impl EngineHost {
         if self.hint_offer() != hint_before && !self.dirty.contains(&HINT_OPS_FIELD.name) {
             self.dirty.push(HINT_OPS_FIELD.name);
         }
+        // 早送りのボタンも表示だけの間は出さない。入・切の文字は残す。
+        if self.fast_forward_offer() != ff_before && !self.dirty.contains(&FAST_FORWARD_FIELD.name)
+        {
+            self.dirty.push(FAST_FORWARD_FIELD.name);
+        }
         if let Some(reset) = self.tick_reset.as_ref() {
             reset();
         }
         if let Some(notify) = self.tick_request.as_ref() {
-            notify(None);
+            notify(None, self.fast_forward);
         }
     }
 
@@ -2767,6 +2799,17 @@ impl EngineHost {
                 o
             }
             None => HintOffer::default(),
+        }
+    }
+
+    /// 今提示する早送りの区画。入・切の文字は常に出し、ボタンは表示だけの間と session が無いときは出さない（押下は allowlist が捨てる）。
+    /// 「早送り中」は入かつ処理中だけ（表示だけの間は進行が届かないので出さない）。
+    fn fast_forward_offer(&self) -> FastForwardOffer {
+        let live = self.model.session().is_some() && self.model.view_only.is_none();
+        FastForwardOffer {
+            on: self.fast_forward,
+            can_toggle: live,
+            active: self.fast_forward && live && self.is_busy(),
         }
     }
 
@@ -3001,6 +3044,8 @@ impl Component for EngineHost {
         let ops_before = self.checkpoint_offer();
         // ヒントの操作と開いた段も前後で比べる（TASK-530）。
         let hint_before = self.hint_offer();
+        // 早送りの入・切と「早送り中」も前後で比べる（SHELL-24）。
+        let ff_before = self.fast_forward_offer();
         // Step の題・do・本文も前後で比べる（TASK-525）。
         let step_before = self.step_text_key();
         // 表示だけの間は、閲覧に必要な action（allowlist）以外を全部捨てる（fail-closed。VER-8）。通すのは表示だけを変える action と、
@@ -3104,6 +3149,12 @@ impl Component for EngineHost {
                 }
                 self.dirty.extend_from_slice(self.input.dirty_fields());
             }
+            // 早送りが入で、今の宛先の進行が届いたときだけ連続適用に回す。古い宛先・他の操作はこれまでどおり（SHELL-27）。
+            HostAction::Engine(Op::Tick(addr))
+                if self.fast_forward && self.next_tick().as_ref() == Some(&addr) =>
+            {
+                self.fast_forward_engine();
+            }
             HostAction::Engine(op) => {
                 self.apply_engine(op);
             }
@@ -3139,6 +3190,17 @@ impl Component for EngineHost {
             HostAction::OpenHint => {
                 if self.hint_offer().can_open {
                     self.apply_engine(Op::Control(Control::OpenHint));
+                }
+            }
+            // 入・切を替え、予約済みのタイマーを捨ててから今の宛先を新しい間隔で通知し直す（捨てたタイマーは届かず `Ignored` も増えない）。
+            // 表示だけの間は上の allowlist が捨てる（allowlist には足さない）。
+            HostAction::ToggleFastForward => {
+                self.fast_forward = !self.fast_forward;
+                if let Some(reset) = self.tick_reset.as_ref() {
+                    reset();
+                }
+                if let Some(notify) = self.tick_request.as_ref() {
+                    notify(self.next_tick(), self.fast_forward);
                 }
             }
             HostAction::CheckpointPage(page) => {
@@ -3295,6 +3357,10 @@ impl Component for EngineHost {
         if self.hint_offer() != hint_before && !self.dirty.contains(&HINT_OPS_FIELD.name) {
             self.dirty.push(HINT_OPS_FIELD.name);
         }
+        if self.fast_forward_offer() != ff_before && !self.dirty.contains(&FAST_FORWARD_FIELD.name)
+        {
+            self.dirty.push(FAST_FORWARD_FIELD.name);
+        }
         if self.top_place() != place_before && !self.dirty.contains(&TOP_PLACE_FIELD.name) {
             self.dirty.push(TOP_PLACE_FIELD.name);
         }
@@ -3329,7 +3395,12 @@ impl Component for EngineHost {
         // 左は `workshop-parts` に包んで置く。右は入力欄の `main` の後ろに、部品を登録順に直接並べる。
         let mut left: Vec<Node> = Vec::new();
         // Step の題・do・本文は右のエリアの先頭に置く（仮置き。最終の配置は TASK-534・TASK-548）。
-        let mut right: Vec<Node> = vec![self.step_text_node(), self.input.view()];
+        // 早送りの区画は停止ボタン（入力欄の `main`）の直後に置く（SHELL-24。仮置き。最終の配置は TASK-534・TASK-548）。
+        let mut right: Vec<Node> = vec![
+            self.step_text_node(),
+            self.input.view(),
+            fast_forward_section(&self.fast_forward_offer()),
+        ];
         for (kind, node) in self.registry.views(&self.model) {
             match crate::shell_frame::pane_of(kind) {
                 crate::shell::PaneMount::Left => left.push(node),
@@ -3477,6 +3548,9 @@ impl Component for EngineHost {
         }
         if name == crate::hint_ops::ACTION_OPEN_HINT {
             return payload.is_empty().then_some(HostAction::OpenHint);
+        }
+        if name == crate::fast_forward_ops::ACTION_TOGGLE_FAST_FORWARD {
+            return payload.is_empty().then_some(HostAction::ToggleFastForward);
         }
         if name == crate::checkpoint_ops::ACTION_CHECKPOINT_PAGE {
             return crate::checkpoint_ops::parse_page_payload(payload)
