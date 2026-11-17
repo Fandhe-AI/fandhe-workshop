@@ -361,7 +361,7 @@ rules:
 
 **進行の間隔は宣言できません。** `processing` の要素にも、Step にも、`pack:` にも、間隔の欄はありません。書くと `E-PARSE`
 になります（PACK-44、D-43）。間隔はエンジンのビルド時の定数（web crate の `tick_interval`）で、300ms です（D-47、EVT-18）。配信する設定では、教材からも URL からも
-変えられません。早送りの扱いはこの節の範囲外で、早送りの項目に任せます。
+変えられません。早送りの扱いは、次の `normal_speed` の項に書きます。
 
 処理中に受講者が Esc を押せる長さが要る Step は、進行の件数を増やして長さを稼いでください。長さはおおよそ「件数 × 300ms」で、
 20 件ならおよそ 6 秒です（ST-1.5 の規模）。効果を持たない進行（`name` だけ）を足して構いません。
@@ -372,6 +372,23 @@ processing:
   - {name: wait-1}
   - {name: wait-2}
   - {name: wait-3}
+```
+
+**進行そのものが学習内容の Step は `normal_speed: true` を書きます**（語彙 1.8、SHELL-26）。受講者は早送りを入にできますが、
+処理中の進行を見て Esc で止める体験が学習内容の Step（ST-1.5 など）まで早送りすると、学習内容が消えます。その Step に `true` を書くと、
+早送りの設定にかかわらず通常の速さで進みます。省略と `false` は従来どおりで、早送りに従います。
+
+- `normal_speed: true` は、`processing` を持つ Step にだけ書けます。持たない Step は `validate` も `compile` も `E-STRUCTURE` で止めます
+- 書く教材は、`pack.vocab` に `1.8` 以上を宣言してください。宣言が古いと `validate` が `E-VOCAB-MISMATCH` を報告します
+- この欄は IR に載ります（`false` は載りません）。画面が欄を読んで早送りを止める結線は、2026-11-17 時点で未実装です（`docs/known-gaps.md` の SHELL-26）
+
+```yaml
+- id: st-1-5
+  title: 処理を止める
+  normal_speed: true
+  processing:
+    - {name: scan, effects: [{set_flag: scanning}]}
+    - {name: wait-1}
 ```
 
 処理中の Esc は、間隔や件数によらず常にエンジンの停止です（D-22）。人が実際に押せる長さかどうかの画面での確認は
@@ -605,8 +622,8 @@ views:
 - 宣言より新しい版の拡張点を使うと、拡張点ごとに 1 件の `E-VOCAB-MISMATCH` です。`compile` は報告しません
   （`validate` だけの検査です）
 - 対象は EP-9（`starts[].requires`・`unmet`。語彙 1.2）と、EP-10〜EP-12（`pack.profile`・`pack.appearance`・
-  `pack.left_pane`。語彙 1.3）と、EP-13（`views.<ID>.body`。語彙 1.4）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）と、承認の `input.revise`（`input.revise.candidates`。語彙 1.5）と、実行環境の操作 `env_action`（語彙 1.5）と、`do_levels`（語彙 1.6）です。
-  値が既定と同じでも、欄を書けば使用です。呼ばれないモジュールの開始点・Step も数えます。何か所で使っても 1 件です
+  `pack.left_pane`。語彙 1.3）と、EP-13（`views.<ID>.body`。語彙 1.4）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）と、承認の `input.revise`（`input.revise.candidates`。語彙 1.5）と、実行環境の操作 `env_action`（語彙 1.5）と、`do_levels`（語彙 1.6）と、`param_types`（語彙 1.7）と、`normal_speed`（語彙 1.8）です。
+  値が既定と同じでも、欄を書けば使用です。ただし `do_levels`・`param_types` の空の値と `normal_speed: false` は、省略と同じ扱いで使用に数えません。呼ばれないモジュールの開始点・Step も数えます。何か所で使っても 1 件です
 - 入力方式 `choice` の `input.options[].label`（語彙 v1）は別の欄で、対象ではありません。`confirm` の側だけを見ます
 - `pack.vocab` を省略した教材は検査しません。書き方の規約は別に定めます
 - `pack.vocab` が文字列でない、または `主.副` の形でない（`1.2.0`・`v1.2`・`01.2` など）ときは `E-PARSE` です。

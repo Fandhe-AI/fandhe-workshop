@@ -305,6 +305,7 @@ pub fn check_structure(pack: &LoadedPack) -> Vec<Diagnostic> {
     out.extend(crate::confirm::check_confirms(&pack.scopes));
     out.extend(crate::guidance::check_body_levels_a(&pack.scopes));
     out.extend(crate::guidance::check_do_levels(&pack.scopes));
+    out.extend(crate::guidance::check_normal_speed(&pack.scopes));
     out.extend(crate::param_check::check_param_types(&pack.scopes));
     out
 }

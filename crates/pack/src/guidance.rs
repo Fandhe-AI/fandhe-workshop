@@ -275,6 +275,26 @@ pub(crate) fn check_do_levels(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
     out
 }
 
+/// `normal_speed: true` の Step が `processing` を持たなければ `E-STRUCTURE` にする（SHELL-26。語彙 v1.8）。
+/// 通常の速さで動かす対象の進行が無い印は書き手の誤りで、黙って無視しない。
+/// 引数の置換は `processing` の件数も真偽値も変えないため、展開の後の検査は要らない。診断は固定の英語。
+pub(crate) fn check_normal_speed(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    for scope in scopes {
+        for st in &scope.src.steps {
+            if st.normal_speed && st.processing.is_empty() {
+                out.push(diag(
+                    &scope.file,
+                    &format!("step:{}", st.id),
+                    DiagCode::Structure,
+                    "normal_speed requires processing",
+                ));
+            }
+        }
+    }
+    out
+}
+
 /// 展開の後（モジュールの引数の置換の後）の node で、`do_levels` の空の値と `do` の欠落を `E-STRUCTURE` にする
 /// （PACK-50。`step_do` を使う文面の有無に依らない）。`check_do_levels` は置換の前の Step しか見ないため、
 /// 引数が空になって初めて違反する組をここで捕まえる。置換の前から同じ違反がある Step は `check_do_levels` が
