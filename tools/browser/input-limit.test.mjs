@@ -227,7 +227,8 @@ for (const csp of [true, false]) {
       await paste(page, 'あ'.repeat(MAX + 1));
       assert.equal(await notice(page), NOTICE);
       await page.focus(INPUT);
-      await page.keyboard.press('ControlOrMeta+Home');
+      // 末尾の手前へ 1 文字戻してから消す。ControlOrMeta+Home は macOS で Meta+Home になり、textarea のキャレットが動かない（#2175）
+      await page.keyboard.press('ArrowLeft');
       await page.keyboard.press('Delete');
       assert.equal(cpLen(await value(page)), MAX - 1);
       assert.equal(await notice(page), '');
