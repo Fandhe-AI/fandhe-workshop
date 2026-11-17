@@ -1,0 +1,9 @@
+id: SHELL26-1
+package: fandhe-workshop-web
+test: fast_forward_host
+target: crates/web/src/host.rs
+find:                     .is_some_and(|n| n.step.normal_speed)
+replace:                     .is_some_and(|_| false)
+expect-fail: 固定のstepは入のままでも1件ずつ進みボタン0文言1早送り中0
+expect-fail: 固定のstepの文言は文字どおりで出ると入に戻る
+note: 今の Step が `normal_speed` かの判定を常に偽にする（固定の Step でも早送りに従う。SHELL-26）

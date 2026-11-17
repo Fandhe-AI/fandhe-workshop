@@ -1,0 +1,8 @@
+id: SHELL26-2
+package: fandhe-workshop-web
+test: fast_forward_host
+target: crates/web/src/host.rs
+find:                 if !self.step_normal_speed() {
+replace:                 if true {
+expect-fail: 固定のstepでは切り替えを送っても入切が変わらず通知も捨てもしない
+note: 固定の Step での切り替えの捨てを外す（書き換えた click で入・切が動く。SHELL-26）

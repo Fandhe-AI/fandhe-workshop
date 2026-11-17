@@ -1,0 +1,8 @@
+id: SHELL26-3
+package: fandhe-workshop-web
+test: fast_forward_host
+target: crates/web/src/host.rs
+find:         self.fast_forward && !self.step_normal_speed()
+replace:         self.fast_forward
+expect-fail: 固定のstepは入のままでも1件ずつ進みボタン0文言1早送り中0
+note: `fast_now` から固定の Step の除外を外す（固定の Step でも連続適用に回り、待たない印が真になる。SHELL-26）

@@ -380,7 +380,7 @@ processing:
 
 - `normal_speed: true` は、`processing` を持つ Step にだけ書けます。持たない Step は `validate` も `compile` も `E-STRUCTURE` で止めます
 - 書く教材は、`pack.vocab` に `1.8` 以上を宣言してください。宣言が古いと `validate` が `E-VOCAB-MISMATCH` を報告します
-- この欄は IR に載ります（`false` は載りません）。画面が欄を読んで早送りを止める結線は、2026-11-17 時点で未実装です（`docs/known-gaps.md` の SHELL-26）
+- この欄は IR に載ります（`false` は載りません）。画面は今の Step の欄を読み、固定の Step では早送りのボタンを出さず「この場面は通常の速さです」を出します（2026-11-17。`docs/known-gaps.md` の SHELL-26）
 
 ```yaml
 - id: st-1-5

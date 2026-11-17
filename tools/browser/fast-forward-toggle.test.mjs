@@ -7,6 +7,8 @@
 //   場面 C  入で `/make-note` を送ると「早送り中」が出て消え、送ってから待機中に戻るまで 1000ms 未満（通常の速さは 5 × 300ms）
 //   場面 D  入と切で、最後の状態（ログを除く）・進行の記録・書き出しの ops と snapshot が一致する（SHELL-27）
 //   場面 E  処理中に切→入にすると残りがすぐ終わり、ignored が増えない（予約済みのタイマーは捨てる）
+//   場面 G  通常の速さに固定した Step（SHELL-26。`normal_speed`）に入のまま入ると、ボタン 0・文言 1・「早送り中」0 で 1 件ずつ 300ms で進む
+//   場面 H  切り替えにフォーカスを置いたまま固定の Step に入ると、フォーカスは body に戻り、処理中の Esc で止まる
 //   場面 F  配信する設定（IR を同梱した写し）でも A・B が動き、試験用の口が無い
 //   共通    ページ内のエラー・CSP 違反が 0 件。試験の設定では安全性の計数（通信を含む）も 0 件（書き出しの場面 D を除く）
 // 「早送り中」は数 ms しか出ないため、ポーリングではなく MutationObserver で出現を記録する。
@@ -33,7 +35,11 @@ const STOP = '[data-testid="stop-btn"]';
 const RUN = '[data-testid="run-status"]';
 const PROGRESS = '[data-testid="part-log-list"] li[data-kind="progress"]';
 const INPUT = { input: { command: '/make-note first-note' } };
+const PINNED = '[data-testid="fast-forward-pinned"]';
+const ROW = '[data-testid="part-artifact-view"] li[data-row="notes/draft"]';
+const CHOICE = { input: { choice: 'opt-memo' } };
 const TOTAL_TICKS = 5;
+const PINNED_TICKS = 3;
 const MIN_IR = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   '../../testdata/engine-event-consistency/test-data/min-3step.json',
@@ -110,6 +116,30 @@ const watchActive = (page) => page.evaluate((a) => {
   new MutationObserver(mark).observe(document.body, { childList: true, subtree: true, characterData: true });
   mark();
 }, ACTIVE);
+
+// min-3step の st-2（選択）に処理 3 件と `normal_speed: true` を差した IR（試験の設定の `loadIr` で差し替える）。
+function pinnedIrText() {
+  const ir = JSON.parse(fs.readFileSync(MIN_IR, 'utf8'));
+  ir.nodes[1].step.processing = ['q1', 'q2', 'q3'].map((name) => ({ name, effects: [] }));
+  ir.nodes[1].step.normal_speed = true;
+  return JSON.stringify(ir);
+}
+
+const clickRaw = (page, sel) => page.evaluate((x) => document.querySelector(x).click(), sel);
+
+// 差し替え → 入 → st-1 を進めて確認し、固定の st-2 の入力待ちに入る。フォーカスは click 以外では動かさない。
+async function enterPinned(page, { focusToggle = false } = {}) {
+  assert.equal(await page.evaluate((t) => window.__fandheTest.loadIr(t), pinnedIrText()), true, 'load-ir sent');
+  await waitMounted(page);
+  await page.click(TOGGLE);
+  await waitStatus(page, 'on');
+  await sendRaw(page, INPUT);
+  await waitRun(page, 'idle');
+  await page.waitForFunction((p) => document.querySelectorAll(p).length === 5, PROGRESS, { timeout: 15000 });
+  if (focusToggle) await page.focus(TOGGLE);
+  await clickRaw(page, ROW);
+  await page.waitForSelector(PINNED, { timeout: 15000 });
+}
 
 // A と B。試験の設定と配信する設定で共通。
 async function checkPlaceAndToggle(page) {
@@ -212,6 +242,42 @@ for (const csp of [true, false]) {
       const eng = await engine(page);
       assert.equal(eng.ticks.length, TOTAL_TICKS);
       assert.equal(eng.log.filter((x) => x.kind === 'ignored').length, 0, '捨てたタイマーは届かない');
+    });
+  });
+
+  test(`G: 固定の Step は入のままでも 1 件ずつ進み、ボタン 0・文言 1・早送り中 0（${mode}）`, { timeout: 300000 }, async () => {
+    await openScene(csp, async (page) => {
+      await enterPinned(page);
+      assert.equal(await page.locator(PINNED).textContent(), 'この場面は通常の速さです');
+      assert.equal(await page.locator(TOGGLE).count(), 0, 'ボタンは出ない');
+      assert.deepEqual(await status(page), { count: 1, text: '早送り: 入', state: 'on' });
+      await watchActive(page);
+      const before = await page.locator(PROGRESS).count();
+      const t0 = Date.now();
+      await sendRaw(page, CHOICE);
+      await page.waitForFunction(([p, n]) => document.querySelectorAll(p).length === n, [PROGRESS, before + PINNED_TICKS], { timeout: 15000 });
+      await waitRun(page, 'idle');
+      const elapsed = Date.now() - t0;
+      // 通常の速さは 3 × 300ms。連続適用なら数 ms で終わる。
+      assert.ok(elapsed >= 600, `1 件ずつ進んだ（${elapsed}ms）`);
+      assert.deepEqual(await page.evaluate(() => window.__ffSeen), { appeared: false, now: false }, '「早送り中」は出ない');
+    });
+  });
+
+  test(`H: 切り替えにフォーカスを置いたまま固定の Step に入り、Esc で止まる（${mode}）`, { timeout: 300000 }, async () => {
+    await openScene(csp, async (page) => {
+      await enterPinned(page, { focusToggle: true });
+      assert.equal(await page.locator(TOGGLE).count(), 0);
+      assert.ok(await page.evaluate(() => document.activeElement === document.body), 'フォーカスは body に戻る');
+      const before = await page.locator(PROGRESS).count();
+      await sendRaw(page, CHOICE);
+      await page.waitForFunction(([p, n]) => document.querySelectorAll(p).length >= n, [PROGRESS, before + 1], { timeout: 15000 });
+      assert.equal(await runState(page), 'busy');
+      await page.keyboard.press('Escape');
+      await waitRun(page, 'stopped');
+      // 止まる件数は native の「固定の step の処理中の停止は通常の速さと同じ結果」が持つ（CI の待ちで件数が揺れるため判定しない）。
+      const eng = await engine(page);
+      assert.ok(eng.log.some((x) => x.kind === 'stopped'), '停止が記録される');
     });
   });
 

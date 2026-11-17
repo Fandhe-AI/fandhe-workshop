@@ -748,21 +748,14 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 
 - `crates/web/tests/composing_marker_host.rs` の c8・c9、`tools/browser/ime-reload-flood.test.mjs` の S-M2・S-M2b・B-1・B-1n・B-2。記録は `docs/testing.md` の 5.502
 
-## SHELL-26: `normal_speed` を画面が読むまでの間（#1043 の 1/2）
+## SHELL-26: `normal_speed` の Step の限界（#1043）
 
 ### 状態
 
-- 2026-11-17: Step の欄 `normal_speed`（語彙 1.8）は、`validate`・`compile` が受け付け、IR に載る。画面（web）が欄を読んで早送りを止める結線は、#1043 の 2/2 で入れる
+- 2026-11-17: Step の欄 `normal_speed`（語彙 1.8）は、`validate`・`compile` が受け付けて IR に載り、画面（web）が今の Step の欄を読んで早送りを止める（#1043 の 2/2）。固定の Step ではボタンを出さず「この場面は通常の速さです」を出し、進行は 1 件ずつ 300ms 間隔で進む。範囲は Step 全体（入力待ちの間も含む）
 
 ### 限界
 
-- 2/2 が入るまでは、`normal_speed: true` の Step でも早送りの設定に従う。欄を書いても早送りは止まらず、「この場面は通常の速さです」の文言も出ない
-- 欄の名前は spec 側の書き直し（SHELL-26・INSTR-13 を「欄あり」に直す作業）で変わりうる
-
-### 回避
-
-- 2/2 が入るまでは、教材に `normal_speed` を書かない。書く場合は `pack.vocab` を 1.8 以上にし、処理中の進行が学習内容の Step だけに付ける
-
-### 根拠の試験
-
-- `crates/pack/tests/normal_speed.rs`。記録は `docs/testing.md` の 5.527
+- 欄の名前は spec 側の書き直し（SHELL-26・INSTR-13 を「欄あり」に直す作業）で変わりうる。spec は 2026-11-17 時点で「欄は要らない」案のままである
+- 教材側（fandhe-tutorials の `st-1-5` への `normal_speed: true`・`pack.vocab` の 1.8）は未反映。ENGINE_REV を上げる PR で行う
+- 固定の Step の切り替えは、ボタンを出さない形で表す（`disabled` は使わない。フォーカスが載ったまま無効になると Esc の keydown が出ない恐れがあるため）。切り替えにフォーカスがあるまま固定の Step に入ると、ボタンが消えてフォーカスは body に戻る
