@@ -14334,3 +14334,35 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 - 実行結果（2026-11-17。base は `d97302a6`。手元の macOS・Chromium）: `make lint`・`make check-deps`・`make check` は終了コード 0。`make test` は 4,321 件合格・失敗 0・無視 5（5.528 の 4,313 件から 8 件増。`fast_forward_default.rs` の 3 件・`vocabulary_terms.rs` の 1 件・native の 4 件）。`make test-browser` は 2,318 件中 2,316 件合格で、`fast-forward-toggle` の 18 件は合格。失敗の 2 件は `input-limit.test.mjs` の `JUDGE-23 K-3`（CSP あり・なし。#2175。macOS だけの既知の失敗）。`make build-web` の後の `tools/check-delivery.sh` は RESULT: ok。
 - 件数の期待値: `scripts/expected-test-counts.txt` は変えていない（5.526 と同じ理由。全行の更新は #2176）。
 - 限界: 欄の名前は spec の書き直し（Fandhe-AI/fandhe-workshop-spec#30）で変わりうる。試験の設定の教材の差し替え（`replace_pack`。`test-hooks` だけ）で初期値に戻す行は変異の対象にしておらず、ブラウザの場面 I・J が守る。`?speed=fast`（SHELL-28）は未実装（`docs/known-gaps.md` の SHELL-25）。保存先の不変は localStorage だけを見ており、IndexedDB は見ていない（切り替えは保存の経路に入らないため、native の `history_to_save` の不変で代える）。教材側（掲示板教材）は既定の切のままで足すものは無い。本物の教材・L2・Chrome の原本では未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.530 未送信の文章の保持を本体の画面で確かめる（TASK-443。TERM-17・TERM-18。#990。5.519・5.520 の続き）
+
+実行日: 2026-11-18。
+
+- 目的: 拒否された入力が入力欄に残ること（TERM-17）と、未送信の下書きが再読み込みで同じに戻り、変換中の文字列は下書きに入らないこと（TERM-18）を、右のログと拒否の表示（TASK-437）のある本体の画面で確かめる。
+  保持（TASK-271）・復元（TASK-328）・反映（TASK-356）の実装は済んでおり、本番のコードは変えていない。
+- 画面: 試験の設定の `?fixture=ch0-3-links`（CH-0〜CH-3 の形の 20 Step。開始点 `s-1-1`・`s-1-5`・`s-2-1` を使う）。
+  既存の `reject-keeps-draft`（TASK-271）・`draft-reload`（5.519）・`draft-reload-ime`（5.520）は試験用の最小の教材の画面で確かめており、
+  拒否の行の理由と次の行動を IR の文面と突き合わせていない。
+  経路の網羅・pagehide・配信する設定はそれらが持ち、ここでは複製しない。
+- 試験: `tools/browser/draft-keep-screen.test.mjs`（49 件。CSP あり・なし）。
+
+| ID | 場面 | 期待 |
+| --- | --- | --- |
+| SK-1 | 拒否の 7 分類（unknown_command・wrong_order・not_in_this_step（複数行の自然文）・not_supported は `s-1-1`、missing_arg・bad_arg_shape は `s-2-1`、busy は `s-1-5` の処理中）× Enter・送信ボタン | 右のログに拒否の行が 1 件出て、分類・理由・次の行動が IR の既定の拒否の文面と一致する。欄の値と状態の下書きが送った本文のまま（busy は処理の後も）。再読み込みの後も欄の値と拒否の行が同じ |
+| SK-1 の網羅 | 分類の一覧 | 誤入力の試験データ（`error-inputs.mjs`）の 7 分類と一致する（漏れ・余りがあれば失敗） |
+| SK-2 | 拒否の行のある画面で、改行・空行・Tab 文字・先頭が改行・末尾が改行・空白だけの下書きを入れて再読み込み | mount の直後と落ち着いた後で欄の値が一致し、状態の下書きも一致する。拒否の行が残る |
+| SK-3 | 同じ画面で、貼り付けた複数行（試料 `paste-3lines.txt`・`paste-crlf-tabs.txt`。CRLF は LF に正規化した期待） | 貼り付けだけでは右のログが増えず、再読み込みの後も戻る |
+| SK-4 | 同じ画面で、確定済みの文（先頭が改行・Tab つき）の末尾で変換中に再読み込み（CDP による IME の模擬） | 変換中も状態の下書きは確定済みのまま。再読み込みの後は確定済みの文だけが戻る |
+| SK-4c | 対照。同じ手順で読みを確定させてから再読み込み | 確定した読みも戻る（SK-4 の観察が空振りでないことの根拠） |
+
+- 負の対照（2026-11-18。手元で一時的に `crates/web/src/host.rs` の `keeps_draft` を常に `false` にしたビルド。
+  コミットしていない）: SK-1 の 28 件がすべて失敗し、SK-2〜SK-4 の 20 件と網羅の 1 件は合格した（拒否の後に打ち直す場面は保持に依らないため）。
+- 実行の記録（2026-11-18。base は `5af69567`。
+  手元の macOS・Chrome（`FANDHE_BROWSER_CHANNEL=chrome`）・`SKIP_WASM_OPT=1`）:
+  `node --test tools/browser/draft-keep-screen.test.mjs` を 3 回流して 49 件が全て合格。
+  失敗の文には下書きの本文を出さず、長さだけを出す。
+- 件数の期待値: `scripts/expected-test-counts.txt` は変えていない（5.526 と同じ理由。全行の更新は #2176）。
+- 限界: 証拠は自動ブラウザで、変換中の再読み込みはシミュレーター（実 IME ではない。実 IME と人の確認は TASK-93・#992）。Chromium 系だけで確かめた。
+  開始点の `effects` は空で、前の Step の成果物は持たない（5.199 と同じ限界）。
+  配信する設定（試験用の口なし）では確かめておらず、`draft-reload`・`draft-reload-ime` の DR-6・DI-6 が最小の教材で代える。試験の作成者は AI で、人の確認は得ていない。
