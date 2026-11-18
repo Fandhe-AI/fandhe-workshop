@@ -250,6 +250,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/tick-dispatch.test.mjs" \
   "${ROOT_DIR}/tools/browser/three-views.test.mjs" \
   "${ROOT_DIR}/tools/browser/xss-cases.test.mjs" \
+  "${ROOT_DIR}/tools/browser/log-line-newline.test.mjs" \
   "${ROOT_DIR}/tools/browser/log-lines-xss.test.mjs" \
   "${ROOT_DIR}/tools/browser/pack-body-xss.test.mjs" \
   "${ROOT_DIR}/tools/browser/e2-ir.test.mjs" \
