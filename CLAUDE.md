@@ -98,6 +98,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/history-format.md    # 履歴の形式の文書（版 1。包みの 7 欄・4 軸の版・追記だけで増える列）
 ├── docs/pack-authoring.md    # 教材の作成者向けの文書（版と履歴・主版を上げる条件・pack.vocab の規約）
 ├── docs/publish-checks.md    # 公開前の確認の記録（LIC-12。確かめた版・日付・確かめた人。TASK-139）
+├── docs/manual-checks/       # 人の確認表と記録の様式（実 IME の試験文 30 文・貼り付け・Tab の出入り・VoiceOver。#992 の進め方。TASK-19）
 ├── docs/known-gaps.md        # 既知の不足（忠実さの限界）の記録（H-3・H-6〜H-8・AUTHOR-13 など）
 ├── docs/schema-format-b.md   # 構造定義（形式 B）の欄・型・必須と YAML の注意書き・機械可読のスキーマを提供しない旨（版 2。TASK-411・TASK-418）
 ├── docs/operation-profile.md # 操作プロファイルと外観で選べるもの・外観 4 値の定義（版 1。TASK-411）
