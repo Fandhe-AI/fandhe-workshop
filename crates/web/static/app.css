@@ -271,6 +271,11 @@ input:not([type="hidden"]),
   min-height: 24px;
 }
 
+/* 右のログの行の本文と、入力欄の下の送信済みの一覧の行。受講者が送った複数行の改行を見えるまま残す
+  （既定の normal は改行を空白に畳む。#2189）。長い語ははみ出さずに折り返す。 */
+[data-testid="line-body"],
+[data-testid="log-list"] > li { white-space: pre-wrap; overflow-wrap: anywhere; }
+
 /* Step の題・いまやること・本文（TASK-525）。クラスだけで装飾し、style 属性は使わない。 */
 .sh-step { margin: 0 0 1rem; overflow-wrap: anywhere; }
 .sh-step h2 { margin: 0 0 0.5rem; font-size: 1.25rem; }
