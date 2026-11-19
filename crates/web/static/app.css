@@ -311,8 +311,7 @@ button {
 .sh-top { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .sh-history { padding: 0.25rem 0 0.75rem; border-bottom: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
 
-/* 左右の領域を枠で囲む。左右の余白は 0.5rem に留める（幅 960px の 2 列で文書の行の題が語の途中で折れないため。
-  left-row-layout の LR1）。左を sticky などでスクロールの入れ物にしない（中に操作対象が無い Step では
+/* 左右の領域を枠で囲む。左を sticky などでスクロールの入れ物にしない（中に操作対象が無い Step では
   入れ物が Tab の止まり先になる。tab-trap の C3）。 */
 [data-testid="shell-left"],
 [data-testid="shell-right"] {
@@ -320,6 +319,14 @@ button {
   padding: 0.5rem;
   border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
   border-radius: 0.5rem;
+}
+
+/* 幅 960〜1199px の 2 列では、左の列が文書の行の題・状態・補足を 1 行に収める下限に近い。枠と余白を付けず、
+  左の列の幅を手入れの前と同じにする（CI の Chromium の字の幅で、2026-11-19 に left-row-layout の LR1 が落ちた）。
+  余白が 0 だと中の見出しの余白が領域の外へ抜けて左右の上端がずれるため（shell-columns）、flow-root で止める。 */
+@media (960px <= width < 1200px) {
+  [data-testid="shell-left"],
+  [data-testid="shell-right"] { display: flow-root; padding: 0; border: 0; }
 }
 
 /* 左のビューの選択のボタンを横に並べ、選んでいるものを太字と太い線で示す。 */
