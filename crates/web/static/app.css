@@ -309,6 +309,8 @@ button {
 
 /* 上部の区画と履歴の操作。下の線で本体と分ける。 */
 .sh-top { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+/* 開いたヒントの本文は上部の 1 行全体を使う（flex の項目のままだと教材名・チェックポイントの横の狭い列に折れる）。 */
+.sh-top > .sh-hint:has([data-testid="hint-stage"]) { flex-basis: 100%; }
 .sh-history { padding: 0.25rem 0 0.75rem; border-bottom: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
 
 /* 左右の領域を枠で囲む。左を sticky などでスクロールの入れ物にしない（中に操作対象が無い Step では
@@ -383,18 +385,21 @@ ul:has(> li > [data-testid="approval-btn"]) { display: flex; flex-wrap: wrap; ga
   [data-testid="shell-right"] {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: repeat(5, auto) 1fr;
+    grid-template-rows: repeat(6, auto) 1fr;
     column-gap: 1rem;
     align-items: start;
   }
   [data-testid="shell-right"] > [data-testid="step-text"] { grid-column: 1; grid-row: 1 / -1; margin: 0; }
   [data-testid="shell-right"] > :not([data-testid="step-text"]) { grid-column: 2; }
   /* 選択肢・承認のボタンの一覧（右の領域の直下の ul）をログより上に出し、ログが伸びても押す先が下へ逃げないように
-    する。ログと周回の一覧は普段は操作対象を持たないため、見た目の順を入れ替えてもフォーカスの順（入力 → 早送り → 選択肢）と見た目の順は揃う。
-    例外はログの中の秘密情報の警告の選択（secret-choice）で、選択肢と同時に出るとフォーカスの順が見た目と逆になる。 */
-  [data-testid="shell-right"] > ul { grid-row: 3; }
-  [data-testid="shell-right"] > [data-testid="part-log"] { grid-row: 4; }
-  [data-testid="shell-right"] > [data-testid="part-review"] { grid-row: 5; }
+    する。ログと周回の一覧は普段は操作対象を持たないため、見た目の順とフォーカスの順（入力 → 早送り → 選択肢 →
+    次の章へ進む）は揃う。ログの中に秘密情報の警告の選択（secret-choice）が出ている間はログが操作対象を持つため、
+    並べ替えをやめて DOM の順に戻す（:has で判定）。選択肢の一覧は無いとき hidden でセルを占めないので、
+    後ろの「次の章へ進む」の包み（名前の無い div）も行を固定し、空いた行へ詰まらないようにする。 */
+  [data-testid="shell-right"]:not(:has([data-testid="secret-choice"]:not([hidden]))) > ul { grid-row: 3; }
+  [data-testid="shell-right"]:not(:has([data-testid="secret-choice"]:not([hidden]))) > [data-testid="part-log"] { grid-row: 4; }
+  [data-testid="shell-right"]:not(:has([data-testid="secret-choice"]:not([hidden]))) > [data-testid="part-review"] { grid-row: 5; }
+  [data-testid="shell-right"]:not(:has([data-testid="secret-choice"]:not([hidden]))) > div:not([data-testid]) { grid-row: 6; }
   [data-testid="hello-root"] { padding-top: 0; border-top: 0; }
 }
 
