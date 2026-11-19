@@ -288,6 +288,123 @@ input:not([type="hidden"]),
 .artifact-doc-body { margin: 0.25rem 0 0.25rem 1rem; overflow-wrap: anywhere; }
 .artifact-doc-body table { display: block; max-width: 100%; overflow-x: auto; }
 
+/* ==== 画面全体の最低限の見た目（#992 の人の確認の前の手入れ）==== */
+/* 区画の境目・部品のまとまり・フォーカスの位置を見分けられるようにする。色は足さず（TASK-490・ART-20 の担当）、
+  線と面は文字の色（currentColor）から作る。DOM の順番は変えない（見た目の順と Tab の順を揃えたままにする）。
+  アニメーションと transition は足さない（A11Y-11）。 */
+body { margin: 0; font-family: system-ui, sans-serif; line-height: 1.6; }
+[data-testid="workshop-root"] { box-sizing: border-box; max-width: 1440px; margin: 0 auto; padding: 0.5rem 0.5rem 2rem; }
+
+:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+button {
+  padding: 0.2rem 0.75rem;
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* 上部の区画と履歴の操作。下の線で本体と分ける。 */
+.sh-top { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+/* 開いたヒントの本文は上部の 1 行全体を使う（flex の項目のままだと教材名・チェックポイントの横の狭い列に折れる）。 */
+.sh-top > .sh-hint:has([data-testid="hint-stage"]) { flex-basis: 100%; }
+.sh-history { padding: 0.25rem 0 0.75rem; border-bottom: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
+
+/* 左右の領域を枠で囲む。左を sticky などでスクロールの入れ物にしない（中に操作対象が無い Step では
+  入れ物が Tab の止まり先になる。tab-trap の C3）。 */
+[data-testid="shell-left"],
+[data-testid="shell-right"] {
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 0.5rem;
+}
+
+/* 幅 960〜1199px の 2 列では、左の列が文書の行の題・状態・補足を 1 行に収める下限に近い。枠と余白を付けず、
+  左の列の幅を手入れの前と同じにする（CI の Chromium の字の幅で、2026-11-19 に left-row-layout の LR1 が落ちた）。
+  余白が 0 だと中の見出しの余白が領域の外へ抜けて左右の上端がずれるため（shell-columns）、flow-root で止める。 */
+@media (960px <= width < 1200px) {
+  [data-testid="shell-left"],
+  [data-testid="shell-right"] { display: flow-root; padding: 0; border: 0; }
+}
+
+/* 左のビューの選択のボタンを横に並べ、選んでいるものを太字と太い線で示す。 */
+[data-testid="view-select"] { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0 0 0.75rem; padding: 0; list-style: none; }
+[data-testid="view-select"] [data-selected="true"],
+[data-testid="pane-tab"][aria-selected="true"] { font-weight: bold; border-width: 2px; }
+[data-testid="view-list"] > li { padding: 0.2rem 0; }
+[data-action="ui"] { cursor: pointer; border-radius: 0.25rem; }
+
+/* Step の本文の見出しは題より小さくし、入力欄までの縦の長さを詰める。 */
+[data-testid="step-body"] h1 { font-size: 1.15rem; margin: 1rem 0 0.5rem; }
+[data-testid="step-body"] h2 { font-size: 1rem; margin: 1rem 0 0.25rem; }
+
+/* 入力の部品。欄を全幅にし、送信・OS・停止を 1 行に並べる。 */
+[data-testid="hello-root"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+}
+[data-testid="hello-root"] > * { margin: 0; }
+[data-testid="hello-root"] > textarea,
+[data-testid="hello-root"] > ul,
+[data-testid="hello-root"] > ol,
+[data-testid="hello-root"] > p:not([data-testid="os-field"]) { flex-basis: 100%; }
+[data-testid="draft-input"] { box-sizing: border-box; width: 100%; min-height: 5em; padding: 0.5rem; font: inherit; }
+[data-testid="key-hint"],
+[data-testid="op-guide"] { font-size: 0.85em; }
+[data-testid="log-list"] { padding-left: 1.75em; font-size: 0.85em; }
+
+/* 右のログ。状態の 2 語の間を空け、受講者が送った行を太字にする。 */
+[data-testid="part-log"] {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+}
+[data-testid="step-status"] { margin-left: 0.75em; }
+[data-testid="part-log-list"] { margin: 0.5rem 0; padding-left: 1.25em; }
+[data-testid="part-log-list"] > li[data-kind="received"] { font-weight: bold; }
+
+/* 選択肢・承認のボタンは押しやすい大きさにする。 */
+[data-testid="choice-btn"],
+[data-testid="approval-btn"] { padding: 0.35rem 1rem; }
+ul:has(> li > [data-testid="choice-btn"]),
+ul:has(> li > [data-testid="approval-btn"]) { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0 0; padding: 0; list-style: none; }
+
+/* 幅 1200px 以上では、操作の領域の中を 2 列にし、Step の文（題・いまやること・本文）を左の列、入力・ログ・選択肢を
+  右の列に置く。本文が長くても、入力欄と送った結果がスクロールせずに見える。DOM の順番は変えない。成果物と操作の
+  2 領域が横に並ぶこと（SHELL-1）は変えない。最後の行を 1fr にして、左の列の高さを右の列の部品の間に配らせない。 */
+@media (min-width: 1200px) {
+  .sh-panes { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+  [data-testid="shell-right"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: repeat(6, auto) 1fr;
+    column-gap: 1rem;
+    align-items: start;
+  }
+  [data-testid="shell-right"] > [data-testid="step-text"] { grid-column: 1; grid-row: 1 / -1; margin: 0; }
+  [data-testid="shell-right"] > :not([data-testid="step-text"]) { grid-column: 2; }
+  /* 選択肢・承認のボタンの一覧（右の領域の直下の ul）をログより上に出し、ログが伸びても押す先が下へ逃げないように
+    する。ログと周回の一覧は普段は操作対象を持たないため、見た目の順とフォーカスの順（入力 → 早送り → 選択肢 →
+    次の章へ進む）は揃う。ログの中に秘密情報の警告の選択（secret-choice）が出ている間はログが操作対象を持つため、
+    並べ替えをやめて DOM の順に戻す（:has で判定）。選択肢の一覧は無いとき hidden でセルを占めないので、
+    後ろの「次の章へ進む」の包み（名前の無い div）も行を固定し、空いた行へ詰まらないようにする。 */
+  [data-testid="shell-right"]:not(:has([data-testid="secret-choice"]:not([hidden]))) > ul { grid-row: 3; }
+  [data-testid="shell-right"]:not(:has([data-testid="secret-choice"]:not([hidden]))) > [data-testid="part-log"] { grid-row: 4; }
+  [data-testid="shell-right"]:not(:has([data-testid="secret-choice"]:not([hidden]))) > [data-testid="part-review"] { grid-row: 5; }
+  [data-testid="shell-right"]:not(:has([data-testid="secret-choice"]:not([hidden]))) > div:not([data-testid]) { grid-row: 6; }
+  [data-testid="hello-root"] { padding-top: 0; border-top: 0; }
+}
+
+/* ==== ここまで画面全体 ==== */
+
 /* ==== 左のビュー: ファイルツリー（file_tree）。種類ごとの結線の規則はこの節にだけ足す ==== */
 
 /* ==== ここまで file_tree ==== */
