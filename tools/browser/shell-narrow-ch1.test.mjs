@@ -5,7 +5,7 @@
 // 「次の章へ進む」を押して main/st-2-1 に入るまで進める。タブは paneAware が要るときだけ選ぶ。
 // 数え方は PoC-12 の手順 2（`docs/spec/03-poc/screen-reader-narrow/test-data/measurement-definitions.md`）に合わせる:
 //   (1) 模範解答の操作の対象（選択肢・指す行・入力欄と送信ボタン・「次の章へ進む」）は、操作の直前に、見えない・押せない・はみ出すを数える
-//       （見えない = 描画されていないか、スクロールで入れた後も表示領域と重ならない。押せない = 中心の elementFromPoint が自身か子孫でない。
+//       （見えない = 描画されていないか、自身か祖先が透明か、スクロールで入れた後も表示領域と重ならない。押せない = 中心の elementFromPoint が自身か子孫でない。
 //       はみ出す = 左端が 0 より左か、右端が 360px を 0.5px 超える）
 //   (2) 各 Step に入った時点と確認待ちになった時点で、操作・成果物の両方のタブを開き、描画されている操作可能な要素の全部について、
 //       はみ出す・押せない（覆われている）を数える（(3)(4) も両方のタブで測る）
@@ -15,7 +15,7 @@
 //   進まないこと、章の境目）と、開始点・終わりの確かめを合わせたもの。
 // 送信は入力を済ませた後に送信ボタンを測ってから実クリックで押す（Enter は glue がボタンの click() を呼び、ポインターで押せなくても通るため）。
 // 負の対照（CSSOM の el.style だけで変える）: 幅 500px の要素は (3) を、送信ボタンの覆いは (1)・(2) の押せないを、
-// `pointer-events: none` のボタン（中心で祖先が返る）は (2) の押せないを出す。
+// `pointer-events: none` のボタン（中心で祖先が返る）は (2) の押せないを、透明にしたボタンは (1) の見えないを出す。
 // 範囲外: 4 幅の観察（TASK-368）、縦の長さ・読みやすさ（人の評価。TASK-387）、Tab の出入り（tab-exit・shell-boundary）。
 // 出力には testid・件数・合否だけを出す（入力した値は出さない）。
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は失敗にする。
@@ -68,7 +68,12 @@ async function targetFaults(page, sel) {
     };
     const b = node.getBoundingClientRect();
     const kinds = [];
-    if (b.width === 0 || b.height === 0 || b.bottom <= 0 || b.top >= h || b.right <= 0 || b.left >= w) kinds.push('見えない');
+    // 自身か祖先が透明（opacity 0）なら、寸法があり押せても見えない。
+    let transparent = false;
+    for (let n = node; n instanceof Element; n = n.parentElement) {
+      if (Number(getComputedStyle(n).opacity) === 0) transparent = true;
+    }
+    if (transparent || b.width === 0 || b.height === 0 || b.bottom <= 0 || b.top >= h || b.right <= 0 || b.left >= w) kinds.push('見えない');
     if (b.left < 0 || b.right > w + 0.5) kinds.push('はみ出す');
     const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
     if (!(top !== null && (top === node || node.contains(top)))) kinds.push('押せない');
@@ -173,6 +178,15 @@ async function run(srv) {
   await page.goto(`${srv.url}${QUERY}`);
   await waitMounted(page);
   L.check('open', '開始点 s-1-1 の CH-1 の先頭で開く', (await engine(page)).current === 'main/st-1-1');
+  // タブを押し、そのタブが選ばれて対応するパネル（aria-controls）が表示されるのを待つ（押しただけでは切り替わった保証がない）。
+  const selectPane = async (pane) => {
+    await page.click(`#${pane}`, { timeout: T });
+    await page.waitForFunction((id) => {
+      const tab = document.getElementById(id);
+      const panel = document.getElementById(tab?.getAttribute('aria-controls') ?? '');
+      return tab?.getAttribute('aria-selected') === 'true' && !!panel && !panel.hidden && panel.getBoundingClientRect().height > 0;
+    }, pane, { timeout: T });
+  };
   const scan = async (uid, status, pane) => {
     const o = await screenFaults(page);
     for (const f of o.faults) add('screen', `${uid} ${f.id} ${f.kind}`);
@@ -185,10 +199,10 @@ async function run(srv) {
     points += 1;
     const selected = await page.getAttribute('[data-testid="pane-tab"][aria-selected="true"]', 'id');
     for (const pane of PANES) {
-      await page.click(`#${pane}`, { timeout: T });
+      await selectPane(pane);
       await scan(uid, status, pane);
     }
-    if (selected) await page.click(`#${selected}`, { timeout: T });
+    if (selected) await selectPane(selected);
   };
   const record = (id, kind) => add('target', `${current} ${id} ${kind}`);
   const d = measuringDriver(page, mouseDriver(page), record);
@@ -217,6 +231,8 @@ test('幅 360px で CH-1 を s-1-1 から模範解答で通すと、操作の欠
     const r = await run(srv);
     console.log(`diagnostic 360px CH-1: flow=${r.L.summary()} points=${r.points} faults=${r.faults.length} overflow=${r.overflow.length} small=${r.small.length}`);
     assert.deepEqual(r.L.failed(), [], 'flow checks');
+    // journey の CH-1 の 18 項目と、開始点・終わりの 5 項目（docs/testing.md 5.532）。
+    assert.equal(r.L.items.length, 23, 'flow checks count');
     // 入力待ち 6 時点（st-1-1〜st-1-6）と確認待ち 4 時点（st-1-1・st-1-4・st-1-5・st-1-6）。
     assert.equal(r.points, 10, 'measured 10 screen states');
     assert.deepEqual(r.faults, [], 'operation faults (step, element, kind)');
@@ -256,6 +272,14 @@ test('対照: 幅 500px の要素・送信ボタンの覆い・pointer-events �
     const o = await screenFaults(page);
     assert.ok(covered(o.faults), '(2) covered submit button on the screen scan');
     assert.ok(o.scrollWidth > WIDTH, '(3) wide element makes horizontal scroll');
+
+    // 透明な送信ボタンは (1) で見えないに数える。
+    const faded = await openPage(browser, { origin: srv.origin, viewport: { width: WIDTH, height: HEIGHT } });
+    await faded.page.goto(`${srv.url}${QUERY}`);
+    await waitMounted(faded.page);
+    await faded.page.evaluate((sel) => { document.querySelector(sel).parentElement.style.opacity = '0'; }, SUBMIT);
+    assert.ok((await targetFaults(faded.page, SUBMIT)).kinds.includes('見えない'), '(1) transparent submit button');
+    await faded.context.close();
 
     // 祖先が返る形（pointer-events: none）も (2) で押せないに数える。
     const reload = await openPage(browser, { origin: srv.origin, viewport: { width: WIDTH, height: HEIGHT } });
