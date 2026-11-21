@@ -318,6 +318,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/checkpoint-list.test.mjs" \
   "${ROOT_DIR}/tools/browser/hint-open.test.mjs" \
   "${ROOT_DIR}/tools/browser/fast-forward-toggle.test.mjs" \
+  "${ROOT_DIR}/tools/browser/fast-forward-journey.test.mjs" \
   "${ROOT_DIR}/tools/browser/candidates.test.mjs" \
   "${ROOT_DIR}/tools/browser/storage-select.test.mjs" \
   "${ROOT_DIR}/tools/browser/artifact-view-check.test.mjs" \

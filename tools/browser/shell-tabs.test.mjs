@@ -6,10 +6,12 @@
 //   - 矢印（左右。端は巡回）・Home・End で切り替わり、フォーカスも選んだタブへ移る（続けて Enter・Space を押しても選択は戻らない）。Home・End はページを動かさない
 //     （keydown の defaultPrevented が真）。対照として Alt+ArrowRight では何も変わらない
 //   - 境目: 959px で成果物を選んだ後に 960px へ広げると、両方が見えて tablist が隠れ、959px へ戻すと選んだ側だけが見える
+//   - 既定と保持（SHELL-2・#1013 の決定。#1037）: 試験の設定の ?fixture=ch0-3-chapters で、開いた直後は「操作」。成果物のタブで行を指して
+//     Step が変わっても成果物のまま、操作のタブで選んで Step が変わっても操作のまま（自動で切り替わらない）
 // 試験の設定（FANDHE_WEB_TEST_DIR）では、tab にフォーカスがある Esc がちょうど 1 回届くこと（FEND-6）を確かめる。
 // どちらも、CSP 違反・ページ内のエラー・コンソールのエラーが 0 件である。
 //
-// 確かめないこと: フォーカスの置き方の細部（A11Y-21・未決）、既定のタブと Step をまたぐ保持（SHELL-2・未決。仮置き）、
+// 確かめないこと: フォーカスの置き方の細部（A11Y-21。#1039）、変化があった側の印（SHELL-5。#1038）、
 // 360px の横スクロールと 24px 未満の操作対象の件数（TASK-518・TASK-368 の担当）。
 //
 // 入力: FANDHE_WEB_DIR（配信設定）と FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は失敗にする。
@@ -83,6 +85,32 @@ for (const width of [959, 360]) {
         assert.ok(box && box.width >= 24 && box.height >= 24, `${sel} size ${JSON.stringify(box)}`);
       }
       await expectSelected(page, 'pane-tab-ops', ['right'], '既定');
+      noErrors(rec);
+      await context.close();
+    });
+  });
+
+  test(`幅 ${width}px: 既定は操作で、Step が変わっても選んだタブが保たれる（SHELL-2）`, async () => {
+    await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
+      const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport: { width, height: 800 } });
+      await page.goto(`${srv.url}?fixture=ch0-3-chapters`);
+      await waitMounted(page);
+      const current = () => page.evaluate(() => JSON.parse(window.__fandheTest.stateJson()).engine.current);
+      const waitCurrent = (uid) => page.waitForFunction((u) => JSON.parse(window.__fandheTest.stateJson()).engine.current === u, uid, { timeout: 30000 });
+      await expectSelected(page, 'pane-tab-ops', ['right'], '開いた直後');
+      // st-0-1: 操作のタブで答え、成果物のタブで行を指すと st-0-2a へ進む。
+      await page.click('[data-testid="choice-btn"][data-choice="opt-right"]');
+      await page.click(TAB_ART);
+      await page.click('[data-testid="part-artifact-view"] [data-row="cards/notice"]');
+      await waitCurrent('main/st-0-2a');
+      await expectSelected(page, 'pane-tab-artifacts', ['left'], 'Step が変わった後（成果物を選んでいた）');
+      // st-0-2a: 操作のタブで答えて Step を変えても、操作のまま。
+      await page.click(TAB_OPS);
+      await page.click('[data-testid="choice-btn"][data-choice="opt-read-a"]');
+      await page.click('[data-testid="choice-btn"][data-choice="ans-a-ok"]');
+      await waitCurrent('main/st-0-2b');
+      await expectSelected(page, 'pane-tab-ops', ['right'], 'Step が変わった後（操作を選んでいた）');
+      assert.equal(await current(), 'main/st-0-2b');
       noErrors(rec);
       await context.close();
     });
