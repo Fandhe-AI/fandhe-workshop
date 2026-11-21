@@ -68,7 +68,14 @@ after(async () => {
 
 const statusOf = async (page, uid) => (await engine(page)).stateWithoutLog.run.slices.main?.status?.[uid] ?? 'entered';
 const runState = (page) => page.evaluate((s) => document.querySelector(s)?.getAttribute('data-state') ?? null, RUN);
-const ffState = (page) => page.evaluate((s) => document.querySelector(s)?.getAttribute('data-fast-forward') ?? null, STATUS);
+// 早送りの状態。属性と文字（「早送り: 入」「早送り: 切」）が食い違う・文字が消えたときは 'mismatch'。
+const ffState = (page) => page.evaluate((s) => {
+  const el = document.querySelector(s);
+  const state = el?.getAttribute('data-fast-forward') ?? null;
+  const text = (el?.textContent ?? '').trim();
+  const want = { on: '早送り: 入', off: '早送り: 切' }[state];
+  return want !== undefined && text === want ? state : 'mismatch';
+}, STATUS);
 // 適用された進行の記録の数（engine の ticks は記録の中の Progress の (世代, 番号) の列）。
 const tickCount = async (page) => (await engine(page)).ticks.length;
 
