@@ -197,3 +197,22 @@ fn evt19_changes_are_not_merged_across_a_checkpoint_save() {
         replay_changes(World::new(), &events)
     );
 }
+
+#[test]
+fn evt19_changes_are_not_merged_across_a_step_entry() {
+    // 同じ世代で S の変化 → T へ遷移（世界状態は変えない）→ S へ戻って同じ経路の変化。遷移を飛び越えてまとめない。
+    let s1 = stamp(1, "main/st-1");
+    let events = vec![
+        changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::Entered {
+            at: stamp(1, "main/st-2"),
+        },
+        Event::Entered { at: s1.clone() },
+        changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
+    ];
+    assert_eq!(
+        result_only(&events),
+        events,
+        "Step への出入りで区間が切れる"
+    );
+}

@@ -11,7 +11,9 @@
 //! 2. 同じ時点（世代と Step。`Stamp`）の `Changed` が続く区間の中で、同じ経路の `Changed` を 1 件にまとめる。置き場は最初の
 //!    1 件の位置、変更前は最初の 1 件の値、変更後と原因は最後の 1 件の値にする。まとめた結果の前後が同じなら除く（途中で戻った変化）。
 //!    別の時点の `Changed` が現れたら区間を切る（同じ世代で別の Step を挟んで戻ったとき、間の Step の変化を飛び越えてまとめない）。
-//!    チェックポイントの保存（`CheckpointSaved`）と復帰（`Restored`）でも区間を切る（保存の時点の値を、保存の後の変化と混ぜない）
+//!    1 つの処理の中で起きるイベント（`Flag`・`Warning`・`Ignored`・`InputReceived`・`Judged`・`Accepted`）以外のイベント
+//!    （Step への出入り・遷移・移動・停止・チェックポイントの保存と復帰など）でも区間を切る（世界状態を変えない遷移を挟んで
+//!    同じ Step に戻ったときや、保存の時点の値を、後の変化と混ぜない）
 //! 3. それ以外のイベントは順のまま残す
 //!
 //! 時点が違えば（停止で世代が進む・別の Step に移る）まとめない。停止の巻き戻しの `Changed` を、その前の処理の変化と混ぜないため。
@@ -28,10 +30,10 @@ use crate::event::Event;
 /// 結果だけのイベント列を返す（規則はモジュールの説明）。入力は変えない。
 #[must_use]
 pub fn result_only(events: &[Event]) -> Vec<Event> {
-    let mut out: Vec<Option<Event>> = Vec::with_capacity(events.len());
-    // (時点, 経路) から、まとめ先の `out` の添字。
+    let mut out: Vec<Event> = Vec::with_capacity(events.len());
+    // 経路から、まとめ先の `out` の添字（いまの区間の中だけ）。
     let mut slot: BTreeMap<String, usize> = BTreeMap::new();
-    // いまの区間の時点（世代と Step）。別の時点の `Changed` が来たら区間を切る。
+    // いまの区間の時点（世代と Step）。別の時点の `Changed` か、区間を切るイベントが来たら区間を切る。
     let mut segment: Option<(Generation, StepUid)> = None;
     for e in events {
         match e {
@@ -48,28 +50,32 @@ pub fn result_only(events: &[Event]) -> Vec<Event> {
                     slot.clear();
                     segment = Some(here);
                 }
-                let key = path.clone();
-                if let Some(Some(Event::Changed {
+                if let Some(Event::Changed {
                     after: a, cause: c, ..
-                })) = slot.get(&key).and_then(|&i| out.get_mut(i))
+                }) = slot.get(path).and_then(|&i| out.get_mut(i))
                 {
                     a.clone_from(after);
                     *c = *cause;
                 } else {
-                    slot.insert(key, out.len());
-                    out.push(Some(e.clone()));
+                    slot.insert(path.clone(), out.len());
+                    out.push(e.clone());
                 }
             }
-            Event::CheckpointSaved { .. } | Event::Restored { .. } => {
+            // 1 つの処理の中で起きうるイベントは区間を切らない（受付・進行の効果をまとめるため）。
+            Event::Flag { .. }
+            | Event::Warning { .. }
+            | Event::Ignored { .. }
+            | Event::InputReceived { .. }
+            | Event::Judged { .. }
+            | Event::Accepted { .. } => out.push(e.clone()),
+            // それ以外（Step への出入り・遷移・移動・停止・保存・復帰など）は区間を切る。
+            other => {
                 slot.clear();
                 segment = None;
-                out.push(Some(e.clone()));
+                out.push(other.clone());
             }
-            other => out.push(Some(other.clone())),
         }
     }
-    out.into_iter()
-        .flatten()
-        .filter(|e| !matches!(e, Event::Changed { before, after, .. } if before == after))
-        .collect()
+    out.retain(|e| !matches!(e, Event::Changed { before, after, .. } if before == after));
+    out
 }
