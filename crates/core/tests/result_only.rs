@@ -135,9 +135,9 @@ fn evt19_changes_across_a_stop_are_not_merged() {
 fn evt19_a_change_that_returns_to_its_start_is_dropped() {
     let at = stamp(1, "main/st-1");
     let events = vec![
+        Event::Accepted { at: at.clone() },
         changed(at.clone(), Some(el("a")), Some(el("b")), Cause::Input),
-        changed(at.clone(), Some(el("b")), Some(el("a")), Cause::Input),
-        Event::Accepted { at },
+        changed(at, Some(el("b")), Some(el("a")), Cause::Input),
     ];
     let r = result_only(&events);
     assert_eq!(count(&r, |e| matches!(e, Event::Changed { .. })), 0);
@@ -223,7 +223,14 @@ fn evt19_the_final_tick_of_a_confirm_none_step_merges_with_earlier_ticks() {
     // `confirm: none` の最後の進行は、達成と遷移の後に変化を記録する。処理の中なので、途中の変化とまとまる。
     let s1 = stamp(1, "main/st-1");
     let events = vec![
+        Event::Accepted { at: s1.clone() },
         changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::Progress {
+            at: s1.clone(),
+            name: "last".into(),
+            index: 0,
+            total: 1,
+        },
         Event::Achieved {
             at: s1.clone(),
             explicit_skip: false,
@@ -254,6 +261,7 @@ fn evt19_opening_a_hint_during_processing_does_not_split_the_changes() {
     // 処理中にヒントを開いても、処理は続く。同じ処理の変化は 1 件にまとまる。
     let s1 = stamp(1, "main/st-1");
     let events = vec![
+        Event::Accepted { at: s1.clone() },
         changed(s1.clone(), None, Some(el("a")), Cause::Input),
         Event::HintOpened {
             at: s1.clone(),
@@ -300,12 +308,65 @@ fn evt19_an_input_rejected_during_processing_does_not_split_the_changes() {
     // 処理中に断られた入力（受付にならない）は処理を止めないので、前後の進行の変化は 1 件にまとまる。
     let s1 = stamp(1, "main/st-1");
     let events = vec![
+        Event::Accepted { at: s1.clone() },
         changed(s1.clone(), None, Some(el("a")), Cause::Input),
         Event::InputReceived {
             at: s1.clone(),
             input: Input::Command("/x".into()),
         },
         changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(
+        count(&r, |e| matches!(e, Event::Changed { .. })),
+        1,
+        "{r:?}"
+    );
+}
+
+#[test]
+fn evt19_the_confirm_after_the_processing_is_not_merged() {
+    // 処理の後の確認の操作は、最後の進行で区間が閉じた後なので、処理の変化とまとめない。
+    let s1 = stamp(1, "main/st-1");
+    let events = vec![
+        Event::Accepted { at: s1.clone() },
+        Event::Progress {
+            at: s1.clone(),
+            name: "p".into(),
+            index: 0,
+            total: 1,
+        },
+        changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::InputReceived {
+            at: s1.clone(),
+            input: Input::Command("/x".into()),
+        },
+        changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(
+        count(&r, |e| matches!(e, Event::Changed { .. })),
+        2,
+        "{r:?}"
+    );
+}
+
+#[test]
+fn evt19_a_wait_step_processing_starts_at_its_first_tick() {
+    // 入った時点から処理中の wait の Step は、受付の前の 0 番の進行で区間が始まり、最後の進行の受付まで 1 つにまとまる。
+    let s1 = stamp(1, "main/st-2");
+    let tick = |index| Event::Progress {
+        at: s1.clone(),
+        name: format!("p{index}"),
+        index,
+        total: 2,
+    };
+    let events = vec![
+        tick(0),
+        changed(s1.clone(), None, Some(el("running")), Cause::Input),
+        tick(1),
+        Event::Accepted { at: s1.clone() },
+        changed(s1, Some(el("running")), Some(el("done")), Cause::Input),
     ];
     let r = result_only(&events);
     assert_eq!(
