@@ -264,3 +264,28 @@ fn evt19_opening_a_hint_during_processing_does_not_split_the_changes() {
         "{r:?}"
     );
 }
+
+#[test]
+fn evt19_a_merged_change_keeps_the_first_position_and_before_and_the_last_after_and_cause() {
+    let at = stamp(1, "main/st-1");
+    let events = vec![
+        Event::Accepted { at: at.clone() },
+        changed(at.clone(), None, Some(el("a")), Cause::Input),
+        Event::Progress {
+            at: at.clone(),
+            name: "p".into(),
+            index: 0,
+            total: 1,
+        },
+        changed(at.clone(), Some(el("a")), Some(el("b")), Cause::Stop),
+    ];
+    let r = result_only(&events);
+    assert_eq!(
+        r,
+        vec![
+            Event::Accepted { at: at.clone() },
+            changed(at, None, Some(el("b")), Cause::Stop),
+        ],
+        "最初の位置・最初の変更前・最後の変更後と原因"
+    );
+}
