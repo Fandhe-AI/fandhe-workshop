@@ -136,6 +136,7 @@ for (const csp of [true, false]) {
       await page.waitForTimeout(1000);
       assert.equal(atStop, beforeEsc, 'no progress between Esc and the stopped state');
       assert.equal(await progressRows(page), beforeEsc, 'no progress after the stop');
+      assert.equal(await runState(page), 'stopped', 'still stopped after 1,000ms');
       assert.ok(atStop < STAGES, `stopped before the last stage (${atStop})`);
       assert.equal(await page.locator(STOPPED).count(), 1, 'one stopped row');
     });
