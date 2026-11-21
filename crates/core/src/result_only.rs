@@ -10,10 +10,14 @@
 //! 1. `Progress`（段階の表示）を除く
 //! 2. 同じ時点（世代と Step。`Stamp`）の `Changed` が続く区間の中で、同じ経路の `Changed` を 1 件にまとめる。置き場は最初の
 //!    1 件の位置、変更前は最初の 1 件の値、変更後と原因は最後の 1 件の値にする。まとめた結果の前後が同じなら除く（途中で戻った変化）。
-//!    別の時点の `Changed` が現れたら区間を切る（同じ世代で別の Step を挟んで戻ったとき、間の Step の変化を飛び越えてまとめない）
+//!    別の時点の `Changed` が現れたら区間を切る（同じ世代で別の Step を挟んで戻ったとき、間の Step の変化を飛び越えてまとめない）。
+//!    チェックポイントの保存（`CheckpointSaved`）と復帰（`Restored`）でも区間を切る（保存の時点の値を、保存の後の変化と混ぜない）
 //! 3. それ以外のイベントは順のまま残す
 //!
 //! 時点が違えば（停止で世代が進む・別の Step に移る）まとめない。停止の巻き戻しの `Changed` を、その前の処理の変化と混ぜないため。
+//!
+//! 返す列は表示用で、元の記録（`SessionState.log`）との位置の対応を持たない（`Restored.log_len` などは元の記録の位置を指したまま）。
+//! 位置で索引する導出（`projection::Projection` など）には元の記録を渡し、この関数は表示の直前にだけ使う。
 //! 不変条件: 全域で決定的。I/O・時刻・乱数を持たない。`unwrap`・`expect`・`panic!` を使わない。
 
 use std::collections::BTreeMap;
@@ -55,6 +59,11 @@ pub fn result_only(events: &[Event]) -> Vec<Event> {
                     slot.insert(key, out.len());
                     out.push(Some(e.clone()));
                 }
+            }
+            Event::CheckpointSaved { .. } | Event::Restored { .. } => {
+                slot.clear();
+                segment = None;
+                out.push(Some(e.clone()));
             }
             other => out.push(Some(other.clone())),
         }

@@ -4,7 +4,7 @@
 //! - 処理中の段を持つ Step の受付から最後の進行までのイベント列で、`Progress` が 0 件になり、同じ経路の `Changed` が 1 件にまとまる
 //! - まとめた `Changed` を始めの世界状態に当てると、全部の `Changed` を当てた結果・セッションの最終の世界状態と一致する
 //!   （最終の状態は動きを抑えない場合と同じ）
-//! - 停止で世代が進むと、停止の前の変化と停止の巻き戻しの変化をまとめない。同じ世代でも別の Step の変化を挟めばまとめない
+//! - 停止で世代が進むと、停止の前の変化と停止の巻き戻しの変化をまとめない。同じ世代でも別の Step の変化を挟めば、チェックポイントの保存を挟めばまとめない
 //! - 前後が同じになった変化は除く。`Progress`・`Changed` 以外のイベントは順のまま残る
 //!
 //! 試験では `unwrap`・`expect` を使ってよい。
@@ -156,6 +156,42 @@ fn evt19_changes_are_not_merged_across_another_step_in_the_same_generation() {
     ];
     let r = result_only(&events);
     assert_eq!(r, events, "区間が切れるので 3 件のまま");
+    assert_eq!(
+        replay_changes(World::new(), &r),
+        replay_changes(World::new(), &events)
+    );
+}
+
+#[test]
+fn evt19_changes_are_not_merged_across_a_checkpoint_save() {
+    // a→b を保存してから b→c。まとめると保存の時点の値が c に見えるが、チェックポイントが持つのは b。
+    let mut s = Session::new(ir());
+    s.apply(Op::Control(Control::Begin("s-1".into())));
+    let mut events = s
+        .apply(Op::Input(Input::Command("/make-note first-note".into())))
+        .to_vec();
+    let mut saved = false;
+    while let Some(addr) = next_tick(s.state()) {
+        events.extend(s.apply(Op::Tick(addr)).to_vec());
+        if !saved {
+            events.extend(s.apply(Op::Control(Control::Save)).to_vec());
+            saved = true;
+        }
+    }
+    let at = events
+        .iter()
+        .position(|e| matches!(e, Event::CheckpointSaved { .. }))
+        .expect("保存した");
+    let r = result_only(&events);
+    let at_r = r
+        .iter()
+        .position(|e| matches!(e, Event::CheckpointSaved { .. }))
+        .expect("保存が残る");
+    // 保存より前の変化だけを当てた世界状態が、元の列と結果だけの列で一致する（保存の時点の値が変わらない）。
+    assert_eq!(
+        replay_changes(World::new(), &r[..at_r]),
+        replay_changes(World::new(), &events[..at])
+    );
     assert_eq!(
         replay_changes(World::new(), &r),
         replay_changes(World::new(), &events)
