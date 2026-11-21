@@ -204,6 +204,7 @@ test('早送りが入でも、チェックポイントへの復帰の後は入�
     await page.click(`${RESTORE}[data-checkpoint="${saved}"]`, { timeout: T });
     await at(page, 'main/st-1-5', 'entered');
     L.check('R', '復帰の後は st-1-5 の入力待ちのまま進まない', await holds(page, 'main/st-1-5', 'entered'));
+    L.check('R', '復帰の後も早送りが入', (await ffState(page)) === 'on');
     const before = await tickCount(page);
     await watchActive(page);
     await page.fill(DRAFT, '/make-card sample');
@@ -212,6 +213,7 @@ test('早送りが入でも、チェックポイントへの復帰の後は入�
     L.check('R', '送り直すと進行が段の数だけ増えてから確認待ち', (await tickCount(page)) - before === PROCESSING['main/st-1-5']);
     L.check('R', '送り直した処理で「早送り中」が出た', await seenActive(page));
     L.check('R', '確認待ちのまま達成にならない', await holds(page, 'main/st-1-5', 'accepted'));
+    L.check('R', '送り直した後の確認待ちでも早送りが入', (await ffState(page)) === 'on');
     await page.click(rowSel('cards/sample'), { timeout: T });
     await at(page, 'main/st-1-6', 'entered');
     L.check('R', '指す確認で st-1-5 が達成', (await statusOf(page, 'main/st-1-5')) === 'achieved');
