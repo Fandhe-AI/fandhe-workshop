@@ -157,3 +157,20 @@ fn shell5_a_progress_line_alone_marks_the_ops_tab() {
     );
     assert_eq!(marked(&h), vec!["pane-tab-ops".to_owned()]);
 }
+
+#[test]
+fn shell5_progress_lines_hidden_by_reduced_motion_do_not_mark_the_ops_tab() {
+    // 動きを抑える設定では進行の行を出さない（A11Y-11）。出ない行では操作のタブに印を付けない。
+    let mut h = host();
+    h.set_reduced_motion(true);
+    act(&mut h, "draft", "/make-note first-note");
+    act(&mut h, "submit", "");
+    act(&mut h, "select-pane", "artifacts");
+    let t = h.next_tick().expect("処理中");
+    act(
+        &mut h,
+        "tick",
+        &format!("{} {} {}", t.generation.0, t.index, t.step.0),
+    );
+    assert!(marked(&h).is_empty(), "{:?}", marked(&h));
+}
