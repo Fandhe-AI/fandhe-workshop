@@ -99,10 +99,14 @@ const screenFaults = (page) => page.evaluate(([operable, targets, w]) => {
     if (!shown(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.left < 0 || r.right > w + 0.5) faults.push({ id: id(el), kind: 'はみ出す' });
-    // 覆われているかは、表示領域の中にある要素だけで判定する（外にある要素は elementFromPoint が引けない）。
-    const cx = r.left + r.width / 2;
-    const cy = r.top + r.height / 2;
-    if (cx >= 0 && cx < window.innerWidth && cy >= 0 && cy < window.innerHeight) {
+    // 覆われているかは、表示領域と重なる部分の中心で判定する（一部だけ見えている要素も測る。外の部分は elementFromPoint が引けない）。
+    const vl = Math.max(r.left, 0);
+    const vr = Math.min(r.right, window.innerWidth);
+    const vt = Math.max(r.top, 0);
+    const vb = Math.min(r.bottom, window.innerHeight);
+    const cx = (vl + vr) / 2;
+    const cy = (vt + vb) / 2;
+    if (vr > vl && vb > vt) {
       const top = document.elementFromPoint(cx, cy);
       // 祖先が返る（`pointer-events: none` など）のも押せないに数える。
       if (!(top !== null && (top === el || el.contains(top)))) faults.push({ id: id(el), kind: '押せない' });
@@ -158,10 +162,12 @@ function measuringDriver(page, inner, record, beforeNext) {
       await clickSubmit();
     },
     esc: before(() => [DRAFT], inner.esc),
-    nextChapter: before(() => [NEXT], async () => {
+    // 章の終わりの画面を走査（タブの選び直しでスクロールが変わりうる）してから、押す直前のボタンを測る。
+    nextChapter: async () => {
       await beforeNext();
+      await measure(NEXT);
       return inner.nextChapter();
-    }),
+    },
   }, { clicks: 0 });
 }
 
