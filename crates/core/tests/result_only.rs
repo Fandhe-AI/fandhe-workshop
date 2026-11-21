@@ -1,0 +1,410 @@
+//! 進行イベントの列から結果だけを導く `result_only::result_only` の試験（EVT-19・A11Y-29。TASK-230 1/2。#983）。
+//!
+//! 確かめること:
+//! - 処理中の段を持つ Step の受付から最後の進行までのイベント列で、`Progress` が 0 件になり、同じ経路の `Changed` が 1 件にまとまる
+//! - まとめた `Changed` を始めの世界状態に当てると、全部の `Changed` を当てた結果・セッションの最終の世界状態と一致する
+//!   （最終の状態は動きを抑えない場合と同じ）
+//! - 停止で世代が進むと、停止の前の変化と停止の巻き戻しの変化をまとめない。同じ世代でも別の Step の変化を挟めば、チェックポイントの保存を挟めばまとめない
+//! - 前後が同じになった変化は除く。`Progress`・`Changed` 以外のイベントは順のまま残る
+//!
+//! 試験では `unwrap`・`expect` を使ってよい。
+
+mod common;
+
+use std::path::PathBuf;
+
+use common::tick::next_tick;
+use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_core::addr::{Generation, Stamp, StepUid};
+use fandhe_workshop_core::event::{Cause, Event};
+use fandhe_workshop_core::input::{Control, Input, Op};
+use fandhe_workshop_core::result_only::result_only;
+use fandhe_workshop_core::world::{Element, World};
+use fandhe_workshop_core::{load_ir, Session};
+
+fn ir() -> Ir {
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../testdata/engine-event-consistency/test-data/min-3step.json");
+    load_ir(&std::fs::read(p).expect("read testdata")).expect("load ir")
+}
+
+/// 世界状態に `Changed` を順に当てる（本番の再生規則 `changed::replay_changes` を使う）。
+fn replay_changes(mut world: World, events: &[Event]) -> World {
+    fandhe_workshop_core::changed::replay_changes(&mut world, events);
+    world
+}
+
+/// 先頭の Step に入り、処理中の段を持つ入力を送って最後の進行まで進めたときのイベント列（送る前の世界状態も返す）。
+fn processed() -> (World, Vec<Event>, Session) {
+    let mut s = Session::new(ir());
+    s.apply(Op::Control(Control::Begin("s-1".into())));
+    let start = s.state().run.world.clone();
+    let mut events = s
+        .apply(Op::Input(Input::Command("/make-note first-note".into())))
+        .to_vec();
+    while let Some(addr) = next_tick(s.state()) {
+        events.extend(s.apply(Op::Tick(addr)).to_vec());
+    }
+    (start, events, s)
+}
+
+fn count(events: &[Event], f: impl Fn(&Event) -> bool) -> usize {
+    events.iter().filter(|e| f(e)).count()
+}
+
+#[test]
+fn evt19_progress_is_dropped_and_changes_of_one_path_are_merged() {
+    let (_, events, _) = processed();
+    let progress = count(&events, |e| matches!(e, Event::Progress { .. }));
+    assert!(progress >= 2, "試験の前提: 段が 2 つ以上ある（{progress}）");
+    let changed = count(
+        &events,
+        |e| matches!(e, Event::Changed { path, .. } if path == "notes/draft"),
+    );
+    assert!(
+        changed >= 2,
+        "試験の前提: 同じ経路の変化が 2 件以上ある（{changed}）"
+    );
+    let r = result_only(&events);
+    assert_eq!(count(&r, |e| matches!(e, Event::Progress { .. })), 0);
+    assert_eq!(
+        count(
+            &r,
+            |e| matches!(e, Event::Changed { path, .. } if path == "notes/draft")
+        ),
+        1
+    );
+}
+
+#[test]
+fn evt19_final_world_equals_the_full_sequence_and_the_session() {
+    let (start, events, s) = processed();
+    let r = result_only(&events);
+    let full = replay_changes(start.clone(), &events);
+    let only = replay_changes(start, &r);
+    assert_eq!(only, full);
+    assert_eq!(only, s.state().run.world);
+}
+
+#[test]
+fn evt19_other_events_keep_their_order() {
+    let (_, events, _) = processed();
+    let others = |es: &[Event]| -> Vec<Event> {
+        es.iter()
+            .filter(|e| !matches!(e, Event::Progress { .. } | Event::Changed { .. }))
+            .cloned()
+            .collect()
+    };
+    assert_eq!(others(&result_only(&events)), others(&events));
+}
+
+fn stamp(generation: u64, step: &str) -> Stamp {
+    Stamp {
+        generation: Generation(generation),
+        step: StepUid(step.into()),
+    }
+}
+
+fn el(state: &str) -> Element {
+    let mut e = Element::default();
+    e.attrs.insert("state".into(), state.into());
+    e
+}
+
+fn changed(at: Stamp, before: Option<Element>, after: Option<Element>, cause: Cause) -> Event {
+    Event::Changed {
+        at,
+        path: "p".into(),
+        before,
+        after,
+        cause,
+    }
+}
+
+#[test]
+fn evt19_changes_across_a_stop_are_not_merged() {
+    // 世代 1 で作られた要素が、停止で世代 2 に進んだ後の巻き戻しで消える。時点が違うので 2 件のまま残る。
+    let events = vec![
+        changed(stamp(1, "main/st-1"), None, Some(el("a")), Cause::Input),
+        changed(stamp(2, "main/st-1"), Some(el("a")), None, Cause::Stop),
+    ];
+    assert_eq!(result_only(&events), events);
+}
+
+#[test]
+fn evt19_a_change_that_returns_to_its_start_is_dropped() {
+    let at = stamp(1, "main/st-1");
+    let events = vec![
+        Event::Accepted { at: at.clone() },
+        changed(at.clone(), Some(el("a")), Some(el("b")), Cause::Input),
+        changed(at, Some(el("b")), Some(el("a")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(count(&r, |e| matches!(e, Event::Changed { .. })), 0);
+    assert_eq!(r.len(), 1);
+}
+
+#[test]
+fn evt19_changes_are_not_merged_across_another_step_in_the_same_generation() {
+    // 同じ世代で S → T → S と変化が続く。S の 2 件を T を飛び越えてまとめると、最後の値が T の値になってしまう。
+    let s1 = stamp(1, "main/st-1");
+    let t = stamp(1, "main/st-2");
+    let events = vec![
+        changed(s1.clone(), None, Some(el("s")), Cause::Input),
+        changed(t, Some(el("s")), Some(el("t")), Cause::Input),
+        changed(s1, Some(el("t")), Some(el("s2")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(r, events, "区間が切れるので 3 件のまま");
+    assert_eq!(
+        replay_changes(World::new(), &r),
+        replay_changes(World::new(), &events)
+    );
+}
+
+#[test]
+fn evt19_changes_are_not_merged_across_a_checkpoint_save() {
+    // a→b を保存してから b→c。まとめると保存の時点の値が c に見えるが、チェックポイントが持つのは b。
+    let mut s = Session::new(ir());
+    s.apply(Op::Control(Control::Begin("s-1".into())));
+    let mut events = s
+        .apply(Op::Input(Input::Command("/make-note first-note".into())))
+        .to_vec();
+    let mut saved = false;
+    while let Some(addr) = next_tick(s.state()) {
+        events.extend(s.apply(Op::Tick(addr)).to_vec());
+        if !saved {
+            events.extend(s.apply(Op::Control(Control::Save)).to_vec());
+            saved = true;
+        }
+    }
+    let at = events
+        .iter()
+        .position(|e| matches!(e, Event::CheckpointSaved { .. }))
+        .expect("保存した");
+    let r = result_only(&events);
+    let at_r = r
+        .iter()
+        .position(|e| matches!(e, Event::CheckpointSaved { .. }))
+        .expect("保存が残る");
+    // 保存より前の変化だけを当てた世界状態が、元の列と結果だけの列で一致する（保存の時点の値が変わらない）。
+    assert_eq!(
+        replay_changes(World::new(), &r[..at_r]),
+        replay_changes(World::new(), &events[..at])
+    );
+    assert_eq!(
+        replay_changes(World::new(), &r),
+        replay_changes(World::new(), &events)
+    );
+}
+
+#[test]
+fn evt19_changes_are_not_merged_across_a_new_input() {
+    // 同じ世代・同じ Step でも、間に受講者の入力（新しい操作）があればまとめない。
+    let s1 = stamp(1, "main/st-1");
+    let events = vec![
+        changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::InputReceived {
+            at: s1.clone(),
+            input: Input::Command("/x".into()),
+        },
+        Event::Accepted { at: s1.clone() },
+        changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
+    ];
+    assert_eq!(
+        result_only(&events),
+        events,
+        "受付になった入力で区間が切れる"
+    );
+}
+
+#[test]
+fn evt19_the_final_tick_of_a_confirm_none_step_merges_with_earlier_ticks() {
+    // `confirm: none` の最後の進行は、達成と遷移の後に変化を記録する。処理の中なので、途中の変化とまとまる。
+    let s1 = stamp(1, "main/st-1");
+    let events = vec![
+        Event::Accepted { at: s1.clone() },
+        changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::Progress {
+            at: s1.clone(),
+            name: "last".into(),
+            index: 0,
+            total: 1,
+        },
+        Event::Achieved {
+            at: s1.clone(),
+            explicit_skip: false,
+        },
+        Event::Transitioned {
+            at: s1.clone(),
+            to: StepUid("main/st-2".into()),
+        },
+        Event::Entered {
+            at: stamp(1, "main/st-2"),
+        },
+        changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(
+        count(&r, |e| matches!(e, Event::Changed { .. })),
+        1,
+        "{r:?}"
+    );
+    assert_eq!(
+        replay_changes(World::new(), &r),
+        replay_changes(World::new(), &events)
+    );
+}
+
+#[test]
+fn evt19_opening_a_hint_during_processing_does_not_split_the_changes() {
+    // 処理中にヒントを開いても、処理は続く。同じ処理の変化は 1 件にまとまる。
+    let s1 = stamp(1, "main/st-1");
+    let events = vec![
+        Event::Accepted { at: s1.clone() },
+        Event::Progress {
+            at: s1.clone(),
+            name: "p0".into(),
+            index: 0,
+            total: 2,
+        },
+        changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::HintOpened {
+            at: s1.clone(),
+            opened: 1,
+            total: 3,
+        },
+        changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(
+        count(&r, |e| matches!(e, Event::Changed { .. })),
+        1,
+        "{r:?}"
+    );
+}
+
+#[test]
+fn evt19_a_merged_change_keeps_the_first_position_and_before_and_the_last_after_and_cause() {
+    let at = stamp(1, "main/st-1");
+    let events = vec![
+        Event::Accepted { at: at.clone() },
+        changed(at.clone(), None, Some(el("a")), Cause::Input),
+        Event::Progress {
+            at: at.clone(),
+            name: "p".into(),
+            index: 0,
+            total: 1,
+        },
+        changed(at.clone(), Some(el("a")), Some(el("b")), Cause::Stop),
+    ];
+    let r = result_only(&events);
+    assert_eq!(
+        r,
+        vec![
+            Event::Accepted { at: at.clone() },
+            changed(at, None, Some(el("b")), Cause::Stop),
+        ],
+        "最初の位置・最初の変更前・最後の変更後と原因"
+    );
+}
+
+#[test]
+fn evt19_an_input_rejected_during_processing_does_not_split_the_changes() {
+    // 処理中に断られた入力（受付にならない）は処理を止めないので、前後の進行の変化は 1 件にまとまる。
+    let s1 = stamp(1, "main/st-1");
+    let events = vec![
+        Event::Accepted { at: s1.clone() },
+        Event::Progress {
+            at: s1.clone(),
+            name: "p0".into(),
+            index: 0,
+            total: 2,
+        },
+        changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::InputReceived {
+            at: s1.clone(),
+            input: Input::Command("/x".into()),
+        },
+        changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(
+        count(&r, |e| matches!(e, Event::Changed { .. })),
+        1,
+        "{r:?}"
+    );
+}
+
+#[test]
+fn evt19_the_confirm_after_the_processing_is_not_merged() {
+    // 処理の後の確認の操作は、最後の進行で区間が閉じた後なので、処理の変化とまとめない。
+    let s1 = stamp(1, "main/st-1");
+    let events = vec![
+        Event::Accepted { at: s1.clone() },
+        Event::Progress {
+            at: s1.clone(),
+            name: "p".into(),
+            index: 0,
+            total: 1,
+        },
+        changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::InputReceived {
+            at: s1.clone(),
+            input: Input::Command("/x".into()),
+        },
+        changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(
+        count(&r, |e| matches!(e, Event::Changed { .. })),
+        2,
+        "{r:?}"
+    );
+}
+
+#[test]
+fn evt19_a_wait_step_processing_starts_at_its_first_tick() {
+    // 入った時点から処理中の wait の Step は、受付の前の 0 番の進行で区間が始まり、最後の進行の受付まで 1 つにまとまる。
+    let s1 = stamp(1, "main/st-2");
+    let tick = |index| Event::Progress {
+        at: s1.clone(),
+        name: format!("p{index}"),
+        index,
+        total: 2,
+    };
+    let events = vec![
+        tick(0),
+        changed(s1.clone(), None, Some(el("running")), Cause::Input),
+        tick(1),
+        Event::Accepted { at: s1.clone() },
+        changed(s1, Some(el("running")), Some(el("done")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(
+        count(&r, |e| matches!(e, Event::Changed { .. })),
+        1,
+        "{r:?}"
+    );
+}
+
+#[test]
+fn evt19_an_accepted_input_without_processing_closes_its_segment() {
+    // 処理を持たない受付の操作の変化は、その操作だけでまとめ、後の操作の変化とはまとめない。
+    let s1 = stamp(1, "main/st-1");
+    let events = vec![
+        Event::Accepted { at: s1.clone() },
+        changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::InputReceived {
+            at: s1.clone(),
+            input: Input::Command("/x".into()),
+        },
+        changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(
+        count(&r, |e| matches!(e, Event::Changed { .. })),
+        2,
+        "{r:?}"
+    );
+}

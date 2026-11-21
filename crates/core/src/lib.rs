@@ -105,6 +105,7 @@ pub mod recorded_session;
 mod reject_guard;
 pub mod rejection_text;
 mod reload;
+pub mod result_only;
 pub mod secret_scan;
 pub mod select_judge;
 pub mod session;
