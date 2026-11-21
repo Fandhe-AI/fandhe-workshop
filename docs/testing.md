@@ -14420,10 +14420,10 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 
 - 目的: `input: { kind: wait }`・`processing`・`confirm: none` の Step は、入ると処理中になり、最後の進行で受付・達成になって最初の無条件の `next` へ移る（#2205）。
   そのような Step だけで戻る輪は、受講者の入力なしに進行が続いて止まらない（エンジンの遷移の上限〔SAFE-23〕は 1 操作の中だけを数え、進行の操作にまたがる輪は数えない）。教材を配る前に `validate` で断る。
-- 実装: `crates/pack/src/reach.rs` の `auto_cycles`。名前空間（章はまとめて 1 つ、モジュールは 1 つずつ）ごとに、確認を省く `wait` の Step だけを最初の無条件の `next` でたどり、同じ Step に戻れば、その Step に `E-STRUCTURE`（「wait steps with confirm none form a cycle without learner input」）を 1 件出す。
-  新しい診断コードは足さず、既存の `E-STRUCTURE`（構造の誤り）で出す（診断コードの一覧の版は変えない）。`use` の呼び出しをまたぐ輪は見ない。
-- 試験: `crates/pack/tests/wait_auto_cycle.rs`（3 件）。`w1 → w2 → w1` の 2 つの Step で 2 件、`w1 → w1` で 1 件。輪の一部が承認を待つ Step なら出ない（対照）。
-- 結果（2026-11-22。base は `7cfdf96e`。手元の macOS）: 3 件合格。既存の教材・試験の教材の `validate` の結果は変わらない（`make test`）。
+- 実装: `crates/pack/src/reach.rs` の `check_auto_cycles`（`validate` の展開の後の検査から呼ぶ）。展開の後の Step（モジュールの引数の置換の後）で、確認を省く `wait` の Step だけを最初の無条件の `next` でたどり、同じ Step に戻れば、その Step に `E-STRUCTURE`（「wait steps with confirm none form a cycle without learner input」）を 1 件出す。各 Step の自動の次は高々 1 本なので、たどり済みの印を付けて 1 回ずつ見る（線形）。
+  新しい診断コードは足さず、既存の `E-STRUCTURE`（構造の誤り）で出す（診断コードの一覧の版は変えない）。`use` の呼び出しをまたぐ輪は見ない。章をまたぐ辺は展開の前に `E-REF-STEP` で断られる。
+- 試験: `crates/pack/tests/wait_auto_cycle.rs`（5 件）。`w1 → w2 → w1` の 2 つの Step で 2 件、`w1 → w1` で 1 件。輪の一部が承認を待つ Step なら出ない（対照）。モジュールの確認の種類を引数で `none` にした実体だけが輪として出る。確認を省く `wait` の Step が 2,000 段続いて終わる鎖は出ず、10 秒以内に終わる。
+- 結果（2026-11-22。base は `7cfdf96e`。手元の macOS）: 5 件合格。既存の教材・試験の教材の `validate` の結果は変わらない（`make test`）。
 - 限界: 学習モジュールの呼び出し（`use`）をまたぐ輪と、条件つきの辺は見ない（静的な近似）。試験の作成者は AI で、人の確認は得ていない。
 
 ### 5.539 狭い画面のタブの既定と Step をまたぐ保持（TASK-522 1/2。SHELL-2・A11Y-21。#1037。#1013 の決定）

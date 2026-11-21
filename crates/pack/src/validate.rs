@@ -167,6 +167,8 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
     // 引数に依存する `remove`・`set_attr` の経路も、展開の後の Step で検査する（`validate` だけの検査）。
     let missing = crate::element_check::check_missing_elements_expanded(pack, &ex.nodes, &starts);
     ex.diags.extend(missing);
+    // 確認を省く `wait` の Step だけの輪（#2209）。引数の置換の後で決まる値があるため、展開の後で見る（`validate` だけ）。
+    let auto_cycles = crate::reach::check_auto_cycles(pack, &ex.nodes);
     let mut seen = BTreeSet::new();
     ex.diags
         .into_iter()
@@ -192,6 +194,7 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
                 // 読めない `use`（`guidance` など採らなかった欄を含む。PACK-45、D-55）。捨てると `compile` で止まる教材を通す。
                 || (d.code() == DiagCode::Parse && d.message() == crate::expand::INVALID_USE)
         })
+        .chain(auto_cycles)
         .filter(|d| seen.insert(format!("{d:?}")))
         .collect()
 }

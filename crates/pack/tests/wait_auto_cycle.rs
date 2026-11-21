@@ -74,3 +74,47 @@ fn a_cycle_through_a_step_that_waits_for_input_is_not_refused() {
     ));
     assert!(cycle_items(&t).is_empty());
 }
+
+#[test]
+fn a_cycle_that_appears_after_module_argument_substitution_is_refused() {
+    // モジュールの確認の種類が引数で決まる。`none` を渡した実体だけが、輪になる。
+    let module = |c: &str| {
+        let t = Tmp::new("wait-cycle-module");
+        t.put("workshop.yaml", WORKSHOP.as_bytes());
+        t.put(
+            "chapters/c1/chapter.yaml",
+            format!("id: c1\ntitle: C\nstarts: [{{id: s1, node: u1}}]\nsteps:\n  - {{id: u1, title: U, use: {{module: m, instance: i1, args: {{c: {c}}}}}, next: [{{to: z}}]}}\n  - {{id: z, title: Z, final: true}}\n").as_bytes(),
+        );
+        t.put(
+            "modules/m/module.yaml",
+            b"id: m\ntitle: M\nparams: {c: approve}\nsteps:\n  - {id: w1, title: W1, next: [{to: w2}], input: {kind: wait}, processing: [{name: p1, effects: []}], confirm: {kind: '${c}', reason: r}}\n  - {id: w2, title: W2, next: [{to: w1}], input: {kind: wait}, processing: [{name: p2, effects: []}], confirm: {kind: '${c}', reason: r}}\n",
+        );
+        t
+    };
+    assert_eq!(
+        cycle_items(&module("none")),
+        vec!["w1".to_owned(), "w2".to_owned()]
+    );
+    assert!(
+        cycle_items(&module("approve")).is_empty(),
+        "承認を待つ実体は輪でも止まる"
+    );
+}
+
+#[test]
+fn a_long_chain_without_a_cycle_is_not_refused() {
+    // 確認を省く wait の Step が 2,000 段続いて終わる（輪ではない）。たどり済みの印で 1 回ずつ見る。
+    let mut steps = String::new();
+    for i in 1..=2000 {
+        steps.push_str(&wait_step(&format!("w{i}"), &format!("w{}", i + 1), NONE));
+    }
+    steps.push_str("  - {id: w2001, title: end, final: true}\n");
+    let t = pack(&steps);
+    let started = std::time::Instant::now();
+    assert!(cycle_items(&t).is_empty());
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(10),
+        "{:?}",
+        started.elapsed()
+    );
+}
