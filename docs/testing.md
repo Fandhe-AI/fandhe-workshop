@@ -14392,24 +14392,6 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 - 限界: Chromium だけ。案内の置き場（通知欄。root の先頭）と文面は仮置きで、最終の配置は TASK-534・TASK-548。
   人が案内を読んで分かるかは確かめていない。試験の作成者は AI で、人の確認は得ていない。
 
-### 5.538 `wait` の Step に入ると処理中を始め、進行の完了で受付にする（EP-1・EVT-20。#2205。#985 の前提）
-
-実行日: 2026-11-22。
-
-- 目的: 語彙 v1 の EP-1（`input: { kind: wait }` と `processing`。進行の完了で受付になり、受講者の入力は要らない）を core に実装する。
-  これまでは `wait` の Step に入っても処理中が始まらず、周回の試験は `GoTo` で飛ばしていた（5.258・5.260）。
-- 実装:
-  - `transit::land`（遷移・`Begin`・`GoTo` の着地の 1 か所）で、`wait` の Step なら `run.busy` を最初の進行から立てる（状態は `Entered`）。
-  - `tick` の最後の進行で、`wait` の Step がまだ `Entered` なら `Accepted` を出して受付にする。`confirm: none` なら続けて達成にする（従来の経路）。
-  - 入口の写し（`entry_derive`）は、処理中なのに状態が `Entered` の Step（`wait`）では、その Step の `Entered` を入口にし、処理中を最初の進行から始め直す値にする。導出は IR を読まない約束のまま、状態で見分ける。
-  - 停止（`stop`）は、入口の写しの処理中の値をそのまま使う。通常の Step は従来どおり処理中を解き、`wait` の Step は最初の進行から始め直す（EVT-20 の今の動き。#981 の決定）。
-- 試験: `crates/core/tests/wait_step.rs`（3 件）。`min-3step` の st-2 を 2 段の `wait`・`confirm: none` にした IR で、入ると入力なしに処理中（`Entered`）、
-  途中の進行では受付にならず、最後の進行で `Accepted` → `Achieved` の順に出て st-3 へ移る。処理中に停止すると世代 +1・`entered`・処理中は 0/2 から・進行の効果は入った時点の値に戻り、続けて 2 回の進行で受付・達成になる。`wait` でない Step は入った時点で処理中にならない。
-- 試験の模型の追従: `crates/pack/tests/common/round_gen.rs` の `entry_boundary`（性質テスト S-6 の入口の境目）に、処理中で状態が `Entered` の Step の `Entered` を入口にする規則を足した（製品の導出と同じ）。
-- 結果（2026-11-22。base は `c1e45a6f`。手元の macOS）: `cargo test --workspace --locked --no-fail-fast` で 4,327 件合格・失敗 0。凍結した IR・履歴の期待は変わらなかった。
-- 範囲外: 周回の試験の `GoTo` の回避（1 周目・2 周目の `st-7-2`）を外すこと、画面での確認、教材（fandhe-tutorials の `packs/bbs-tutorial`）の回避の除去（後続の PR）。`wait` の停止の試験の確定（#985）。
-- 限界: 試験の作成者は AI で、人の確認は得ていない。
-||||||| c1e45a6f
 ### 5.533 周回ごとの案内レベルの割り当てを教材の宣言どおりに切り替える（TASK-299。GUIDE-9・D-55。#952）
 
 実行日: 2026-11-21。
@@ -14432,3 +14414,22 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 - 範囲外: 水準ごとの `do`・本文の選び方（GUIDE-13。`run_wide_guidance_rounds.rs`）、閉じた周回への `GoTo` の拒否（`round_closed_goto.rs`）、
   教育上の適切さ（人の試行。GUIDE-9 の検討中の理由）。
 - 限界: 計画は未実装の部品のため 1 周目 3 か所・2 周目以降 2 か所を `GoTo` で飛ばす（5.258・5.260）。試験の作成者は AI で、人の確認は得ていない。
+
+### 5.538 `wait` の Step に入ると処理中を始め、進行の完了で受付にする（EP-1・EVT-20。#2205。#985 の前提）
+
+実行日: 2026-11-22。
+
+- 目的: 語彙 v1 の EP-1（`input: { kind: wait }` と `processing`。進行の完了で受付になり、受講者の入力は要らない）を core に実装する。
+  これまでは `wait` の Step に入っても処理中が始まらず、周回の試験は `GoTo` で飛ばしていた（5.258・5.260）。
+- 実装:
+  - `transit::land`（遷移・`Begin`・`GoTo` の着地の 1 か所）で、`wait` の Step なら `run.busy` を最初の進行から立てる（状態は `Entered`）。
+  - `tick` の最後の進行で、`wait` の Step がまだ `Entered` なら `Accepted` を出して受付にする。`confirm: none` なら続けて達成にする（従来の経路）。
+  - 入口の写し（`entry_derive`）は、処理中なのに状態が `Entered` の Step（`wait`）では、その Step の `Entered` を入口にし、処理中を最初の進行から始め直す値にする。導出は IR を読まない約束のまま、状態で見分ける。
+  - 停止（`stop`）は、入口の写しの処理中の値をそのまま使う。通常の Step は従来どおり処理中を解き、`wait` の Step は最初の進行から始め直す（EVT-20 の今の動き。#981 の決定）。
+- 試験: `crates/core/tests/wait_step.rs`（3 件）。`min-3step` の st-2 を 2 段の `wait`・`confirm: none` にした IR で、入ると入力なしに処理中（`Entered`）、
+  途中の進行では受付にならず、最後の進行で `Accepted` → `Achieved` の順に出て st-3 へ移る。処理中に停止すると世代 +1・`entered`・処理中は 0/2 から・進行の効果は入った時点の値に戻り、続けて 2 回の進行で受付・達成になる。`wait` でない Step は入った時点で処理中にならない。
+- 試験の模型の追従: `crates/pack/tests/common/round_gen.rs` の `entry_boundary`（性質テスト S-6 の入口の境目）に、処理中で状態が `Entered` の Step の `Entered` を入口にする規則を足した（製品の導出と同じ）。
+- 結果（2026-11-22。base は `c1e45a6f`。手元の macOS）: `cargo test --workspace --locked --no-fail-fast` で 4,327 件合格・失敗 0。凍結した IR・履歴の期待は変わらなかった。
+- 範囲外: 周回の試験の `GoTo` の回避（1 周目・2 周目の `st-7-2`）を外すこと、画面での確認、教材（fandhe-tutorials の `packs/bbs-tutorial`）の回避の除去（後続の PR）。`wait` の停止の試験の確定（#985）。
+- 限界: 試験の作成者は AI で、人の確認は得ていない。
+||||||| c1e45a6f
