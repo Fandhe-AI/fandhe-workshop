@@ -779,3 +779,23 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 ### 根拠の試験
 
 - `crates/pack/tests/fast_forward_default.rs`・`crates/web/tests/fast_forward_host.rs`・`tools/browser/fast-forward-toggle.test.mjs` の場面 I・J。記録は `docs/testing.md` の 5.529
+
+## GUIDE-14: `{{input_head}}` は案内レベルで伏せない（#953）
+
+### 状態
+
+- 2026-11-21: 順序違い（`wrong_order`）の拒否の次の行動の `{{step_do}}` は、案内レベルに合う `do`（`do_levels`）を選ぶ。水準 B で skill・flow の名前は `do` から出ない
+
+### 限界
+
+- 拒否・問い返しの文面の `{{input_head}}` は、受講者が打った語の頭（例: `/beta-cmd`）をそのまま返す。水準 B で伏せる種類（`pack.guidance_levels.B.hide_command_kinds`）のコマンド名でも伏せない
+- `validate` の漏れの検査は `do`・本文を見るが、拒否の文面に書いた `{{input_head}}` の差し込み後の値は見ない（値は実行時に受講者が決めるため）
+- 受講者自身が打った語が戻るだけで、教材が skill 名を先に見せることにはならない。直す（伏せる）かは決めていない
+
+### 回避
+
+- 伏せたい水準で使う拒否の文面には `{{input_head}}` を書かず、固定の言い方（「そのコマンド」など）にする
+
+### 根拠の試験
+
+- `crates/pack/tests/do_levels.rs` の `task301_input_head_echoes_the_typed_hidden_command_even_at_level_b`（観察として固定）と `pack50_level_b_wrong_order_next_action_hides_skill_name`
