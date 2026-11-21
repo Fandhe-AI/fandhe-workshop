@@ -11,7 +11,7 @@
 //! 2. 同じ時点（世代と Step。`Stamp`）の `Changed` が続く区間の中で、同じ経路の `Changed` を 1 件にまとめる。置き場は最初の
 //!    1 件の位置、変更前は最初の 1 件の値、変更後と原因は最後の 1 件の値にする。まとめた結果の前後が同じなら除く（途中で戻った変化）。
 //!    別の時点の `Changed` が現れたら区間を切る（同じ世代で別の Step を挟んで戻ったとき、間の Step の変化を飛び越えてまとめない）。
-//!    新しい操作の始まり（`InputReceived`・`Stopped`・`Moved`・`Begun`）と、チェックポイントの保存・復帰（`CheckpointSaved`・
+//!    新しい操作の始まり（受付になった入力の `InputReceived`・`Stopped`・`Moved`・`Begun`）と、チェックポイントの保存・復帰（`CheckpointSaved`・
 //!    `Restored`）でも区間を切る（入力を挟んで同じ Step に戻ったときや、保存の時点の値を、後の変化と混ぜない）。処理の中の
 //!    達成・遷移・ヒント（`Achieved`・`Transitioned`・`Entered`・`HintOpened` など）では切らない
 //! 3. それ以外のイベントは順のまま残す
@@ -27,6 +27,15 @@ use std::collections::BTreeMap;
 use crate::addr::{Generation, StepUid};
 use crate::event::Event;
 
+/// 位置 `at` の `InputReceived` の操作が、次の `InputReceived` までに受付（`Accepted`）を出すか。
+fn accepted_before_next_input(events: &[Event], at: usize) -> bool {
+    events
+        .iter()
+        .skip(at.saturating_add(1))
+        .take_while(|e| !matches!(e, Event::InputReceived { .. }))
+        .any(|e| matches!(e, Event::Accepted { .. }))
+}
+
 /// 結果だけのイベント列を返す（規則はモジュールの説明）。入力は変えない。
 #[must_use]
 pub fn result_only(events: &[Event]) -> Vec<Event> {
@@ -35,9 +44,14 @@ pub fn result_only(events: &[Event]) -> Vec<Event> {
     let mut slot: BTreeMap<String, usize> = BTreeMap::new();
     // いまの区間の時点（世代と Step）。別の時点の `Changed` か、区間を切るイベントが来たら区間を切る。
     let mut segment: Option<(Generation, StepUid)> = None;
-    for e in events {
+    for (i, e) in events.iter().enumerate() {
         match e {
             Event::Progress { .. } => {}
+            // 入力の操作は、受付（`Accepted`）になったときだけ新しい処理の始まりとして区間を切る。処理中に断られた入力は
+            // 処理を止めないので切らない。
+            Event::InputReceived { .. } if !accepted_before_next_input(events, i) => {
+                out.push(e.clone());
+            }
             Event::Changed {
                 at,
                 path,

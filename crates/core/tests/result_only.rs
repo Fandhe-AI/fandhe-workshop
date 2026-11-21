@@ -208,9 +208,14 @@ fn evt19_changes_are_not_merged_across_a_new_input() {
             at: s1.clone(),
             input: Input::Command("/x".into()),
         },
+        Event::Accepted { at: s1.clone() },
         changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
     ];
-    assert_eq!(result_only(&events), events, "入力で区間が切れる");
+    assert_eq!(
+        result_only(&events),
+        events,
+        "受付になった入力で区間が切れる"
+    );
 }
 
 #[test]
@@ -287,5 +292,25 @@ fn evt19_a_merged_change_keeps_the_first_position_and_before_and_the_last_after_
             changed(at, None, Some(el("b")), Cause::Stop),
         ],
         "最初の位置・最初の変更前・最後の変更後と原因"
+    );
+}
+
+#[test]
+fn evt19_an_input_rejected_during_processing_does_not_split_the_changes() {
+    // 処理中に断られた入力（受付にならない）は処理を止めないので、前後の進行の変化は 1 件にまとまる。
+    let s1 = stamp(1, "main/st-1");
+    let events = vec![
+        changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::InputReceived {
+            at: s1.clone(),
+            input: Input::Command("/x".into()),
+        },
+        changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(
+        count(&r, |e| matches!(e, Event::Changed { .. })),
+        1,
+        "{r:?}"
     );
 }
