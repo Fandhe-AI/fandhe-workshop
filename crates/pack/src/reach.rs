@@ -122,7 +122,7 @@ fn auto_next(n: &Node) -> Option<&str> {
 
 /// 展開の後の Step（`nodes`）で、確認を省く `wait` の Step だけを最初の無条件の `next` でたどって戻る輪を探し、輪に入る
 /// Step ごとに `E-STRUCTURE` を 1 件出す（#2209）。各 Step の自動の次は高々 1 本なので、たどり済みの印を付けて
-/// 1 回ずつ見る（線形）。同じ定義の実体ごとに重なる診断は呼び出し側が 1 件にする。
+/// 各 Step を 1 回ずつ見る（索引は `BTreeMap` で、全体は Step の数 n に対して O(n log n)）。同じ定義の実体ごとに重なる診断は呼び出し側が 1 件にする。
 pub(crate) fn check_auto_cycles(pack: &LoadedPack, nodes: &[Node]) -> Vec<Diagnostic> {
     let index: BTreeMap<&str, &Node> = nodes.iter().map(|n| (n.uid.as_str(), n)).collect();
 
@@ -155,10 +155,16 @@ pub(crate) fn check_auto_cycles(pack: &LoadedPack, nodes: &[Node]) -> Vec<Diagno
             mark.insert(u, 2);
         }
     }
-    let file_of = |unit: &str| {
+    // 章とモジュールは同じ ID を使えるので、実体の根（`scope`。章は `main`）で種類を決めてから定義元を引く。
+    let file_of = |n: &Node| {
+        let kind = if n.scope == "main" {
+            ScopeKind::Chapter
+        } else {
+            ScopeKind::Module
+        };
         pack.scopes
             .iter()
-            .find(|s| s.src.id == unit)
+            .find(|s| s.kind == kind && s.src.id == n.unit)
             .map_or(pack.workshop_file.as_str(), |s| s.file.as_str())
     };
     nodes
@@ -166,7 +172,7 @@ pub(crate) fn check_auto_cycles(pack: &LoadedPack, nodes: &[Node]) -> Vec<Diagno
         .filter(|n| cyclic.contains(n.uid.as_str()))
         .map(|n| {
             diag(
-                file_of(&n.unit),
+                file_of(n),
                 &format!("step:{}", n.step.id),
                 DiagCode::Structure,
                 format!(

@@ -118,3 +118,25 @@ fn a_long_chain_without_a_cycle_is_not_refused() {
         started.elapsed()
     );
 }
+
+#[test]
+fn the_cycle_in_a_module_is_reported_in_the_module_file_even_if_a_chapter_has_the_same_id() {
+    // 章とモジュールが同じ ID（c1）でも、モジュールの輪はモジュールのファイルに出す。
+    let t = Tmp::new("wait-cycle-same-id");
+    t.put("workshop.yaml", WORKSHOP.as_bytes());
+    t.put(
+        "chapters/c1/chapter.yaml",
+        b"id: c1\ntitle: C\nstarts: [{id: s1, node: u1}]\nsteps:\n  - {id: u1, title: U, use: {module: c1, instance: i1}, next: [{to: z}]}\n  - {id: z, title: Z, final: true}\n",
+    );
+    t.put(
+        "modules/c1/module.yaml",
+        b"id: c1\ntitle: M\nsteps:\n  - {id: w1, title: W1, next: [{to: w1}], input: {kind: wait}, processing: [{name: p1, effects: []}], confirm: {kind: none, reason: r}}\n",
+    );
+    let hits: Vec<String> = validate_dir(&t.0)
+        .iter()
+        .filter(|d| d.to_string().contains(CYCLE))
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert!(hits[0].contains("modules/c1/module.yaml"), "{hits:?}");
+}
