@@ -113,7 +113,10 @@ const screenFaults = (page) => page.evaluate(([operable, targets, w]) => {
     const vb = Math.min(r.bottom, window.innerHeight);
     const cx = (vl + vr) / 2;
     const cy = (vt + vb) / 2;
-    if (vr > vl && vb > vt) {
+    if (!(vr > vl && vb > vt)) {
+      // スクロールで入れても表示領域と重ならない（届かない）要素は見えない。
+      faults.push({ id: id(el), kind: '見えない' });
+    } else {
       const top = document.elementFromPoint(cx, cy);
       // 祖先が返る（`pointer-events: none` など）のも押せないに数える。
       if (!(top !== null && (top === el || el.contains(top)))) faults.push({ id: id(el), kind: '押せない' });
