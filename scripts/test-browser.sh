@@ -309,6 +309,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/list-fold.test.mjs" \
   "${ROOT_DIR}/tools/browser/artifact-limit.test.mjs" \
   "${ROOT_DIR}/tools/browser/log-limit.test.mjs" \
+  "${ROOT_DIR}/tools/browser/log-copy.test.mjs" \
   "${ROOT_DIR}/tools/browser/confirm-burst.test.mjs" \
   "${ROOT_DIR}/tools/browser/stop-move-ignore.test.mjs" \
   "${ROOT_DIR}/tools/browser/reload-ignore.test.mjs" \
