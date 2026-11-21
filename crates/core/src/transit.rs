@@ -98,6 +98,22 @@ fn set_status(ir: &Ir, state: &mut SessionState, uid: &str, status: StepStatus) 
         .insert(uid, status);
 }
 
+/// `wait` の Step（`input.kind == "wait"` で `processing` を持つ）なら、最初の進行を待つ処理中の値を返す（EP-1・EVT-20）。
+/// それ以外の Step は `None`（入った時点では処理中でない）。総数が `u32` に収まらなければ最大値に倒す（`accept` と同じ）。
+pub(crate) fn wait_busy(step: &fandhe_workshop_contract::ir::Step) -> Option<crate::session::Busy> {
+    let is_wait = step
+        .input
+        .as_ref()
+        .and_then(|v| v.get("kind"))
+        .and_then(Value::as_str)
+        .and_then(fandhe_workshop_contract::input_spec::InputKind::from_str_opt)
+        == Some(fandhe_workshop_contract::input_spec::InputKind::Wait);
+    (is_wait && !step.processing.is_empty()).then(|| crate::session::Busy {
+        done: 0,
+        total: u32::try_from(step.processing.len()).unwrap_or(u32::MAX),
+    })
+}
+
 /// Step に入るたびに、状態の入口の写しを無効にする（MOD-10、TASK-242 1/2。不変条件 I-1）。
 ///
 /// 状態が持つ写しは「無い」か「現在の Step のもの」の 1 つだけにする。置き換えの実体は、新しい Step の写しを
@@ -322,6 +338,8 @@ fn land(
             state.run.current = Some(uid.clone());
             replace_entry_on_enter(state);
             set_status(ir, state, &node.uid, StepStatus::Entered);
+            // `wait` の Step は入った時点で処理中になる（EP-1）。受付は最後の進行で行う（`tick`）。
+            state.run.busy = wait_busy(&node.step);
             events.push(Event::Entered {
                 at: Stamp {
                     generation,

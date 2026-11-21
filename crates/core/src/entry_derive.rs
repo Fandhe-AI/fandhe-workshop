@@ -19,7 +19,8 @@
 //! 1. `Changed` は、変更前の値を控える（後で戻す）。`apply` は操作 1 件につき経路ごと 1 件・変更前は操作前の値で
 //!    記録する（EVT-13）ので、新しい方から順に変更前の値を当てると、受付の直前の世界状態に一意に戻る
 //! 2. 処理中に起きても実行状態を変えないか、世代だけを変えるイベント（`Progress`・`Flag`・`Warning`・`Ignored`・
-//!    `InputReceived`・`Judged`・`Refused`・`CheckpointSaved`・`Reloaded`）は読み飛ばす。処理中に拒否された
+//!    `InputReceived`・`Judged`・`Refused`・`CheckpointSaved`・`Reloaded`・`HintOpened`）は読み飛ばす。処理中にヒントを開いても
+//!    処理は続き、`run` は変わらない。処理中に拒否された
 //!    再送は `InputReceived` と `Judged` だけなので、受付の時点を動かさない
 //! 3. `Restored` は、そのチェックポイントの `run` で起点を置き換え、位置を保存の時点（`log_len`）へ移す。
 //!    復帰は `run` を写しへ丸ごと戻すので、それより後の差分は捨てる。写しが無い・`log_len` が控えと合わない・
@@ -27,7 +28,11 @@
 //! 4. 現在の Step の `Accepted` に当たったら、そこが受付の時点である。控えた変更前の値を世界状態へ当て、Step の
 //!    状態を `Entered`、`busy` を空にする。受付は `Entered` で処理中でない Step でだけ起きる（`accept` の
 //!    `Phase::AwaitInput`）ので、この 2 つは一意に決まる。写しの `log_len` は受付の操作の先頭（`InputReceived`）の位置
-//! 5. それ以外のイベント（Step の出入り・達成・遷移・停止・移動・上限での停止・別の Step の受付・未知のもの）に
+//! 5. `wait` の Step（処理中なのに状態が `Entered`。入った時点から処理中で受付を持たない。EP-1）では、現在の Step の
+//!    `Entered`（入った操作）か `Stopped`（前の停止。停止の後も処理中を始め直す）に当たったら、そこが入口である。境目は
+//!    その操作の末尾にまとめて記録された変化（`changed::record_changes`）の後ろで、それらは戻さない。Step の状態は
+//!    `Entered`、`busy` は最初の進行から始め直す値にする（EVT-20 の今の動き。#981 の決定）
+//! 6. それ以外のイベント（Step の出入り・達成・遷移・停止・移動・上限での停止・別の Step の受付・未知のもの）に
 //!    当たる、ログの先頭まで受付が無い、のどちらかなら、受付の時点を一意に決められないので導かない（`None`）
 //!
 //! 導けないときの扱いは呼び出し元が決め、どちらも取り消しをしない側に倒す。停止は `Warning` だけで状態を変えず、
@@ -172,7 +177,8 @@ pub(crate) fn derive(
             | Event::Judged { .. }
             | Event::Refused { .. }
             | Event::CheckpointSaved { .. }
-            | Event::Reloaded { .. } => {}
+            | Event::Reloaded { .. }
+            | Event::HintOpened { .. } => {}
             Event::Restored { id, log_len, .. } => {
                 let cp = checkpoints.get(id)?;
                 let saved_at = usize::try_from(*log_len).ok().filter(|p| *p < at)?;
@@ -189,16 +195,7 @@ pub(crate) fn derive(
             }
             Event::Accepted { at: stamp } if &stamp.step == current => {
                 let start = op_start(log, at)?;
-                for (path, before) in undo {
-                    match before {
-                        Some(el) => {
-                            base.world.insert(path.to_string(), el.clone());
-                        }
-                        None => {
-                            base.world.remove(path);
-                        }
-                    }
-                }
+                revert_world(&mut base.world, undo);
                 // 処理中（`busy`）の Step は呼び出しの Step にならないので、`owner_of` でなく `root_of` で足りる。
                 base.slices
                     .get_mut(&crate::instance::root_of(current))?
@@ -210,10 +207,68 @@ pub(crate) fn derive(
                     log_len: u32::try_from(start).unwrap_or(u32::MAX),
                 });
             }
+            // `wait` の Step は入った時点から処理中で、`Accepted` を持たず状態は `Entered` のまま。入った操作（`Entered`）か、
+            // 前の停止（`Stopped`。停止の後も処理中を始め直す）を入口にし、処理中は最初の進行から始め直す値にする
+            // （EVT-20 の今の動き。#981 の決定）。IR は読まないので、処理中なのに状態が `Entered` であること
+            // （受付で処理中になった Step は `Accepted`）で `wait` を見分ける。
+            Event::Entered { at: stamp } | Event::Stopped { at: stamp, .. }
+                if &stamp.step == current
+                    && current_status(run, current) == Some(StepStatus::Entered) =>
+            {
+                // その操作の世界状態の差分は、操作の末尾にまとめて記録される（`changed::record_changes`）。入口はその後ろで、
+                // まとめた分（入る前の Step の達成の効果・停止の巻き戻し）は戻さない。歩いた向きが逆なので、`undo` の末尾にある。
+                let own = log
+                    .get(at.saturating_add(1)..)?
+                    .iter()
+                    .take_while(|e| matches!(e, Event::Changed { .. }))
+                    .count();
+                let mut undo = undo;
+                undo.truncate(undo.len().checked_sub(own)?);
+                revert_world(&mut base.world, undo);
+                base.slices
+                    .get_mut(&crate::instance::root_of(current))?
+                    .status
+                    .insert(current.clone(), StepStatus::Entered);
+                base.busy = run.busy.as_ref().map(|b| crate::session::Busy {
+                    done: 0,
+                    total: b.total,
+                });
+                return Some(EntryCopy {
+                    run: base,
+                    log_len: u32::try_from(at.saturating_add(1).saturating_add(own))
+                        .unwrap_or(u32::MAX),
+                });
+            }
             _ => return None,
         }
     }
     None
+}
+
+/// 控えた変更前の値（新しいものから順）を世界状態に当てて、入口の時点の世界状態へ戻す。
+fn revert_world(
+    world: &mut crate::world::World,
+    undo: Vec<(&str, &Option<crate::world::Element>)>,
+) {
+    for (path, before) in undo {
+        match before {
+            Some(el) => {
+                world.insert(path.to_string(), el.clone());
+            }
+            None => {
+                world.remove(path);
+            }
+        }
+    }
+}
+
+/// 現在の Step の状態（`main` などの根の切り身から読む）。処理中の Step は呼び出しの Step にならないので `root_of` で足りる。
+fn current_status(run: &RunState, current: &crate::addr::StepUid) -> Option<StepStatus> {
+    run.slices
+        .get(&crate::instance::root_of(current))?
+        .status
+        .get(current)
+        .copied()
 }
 
 /// 位置 `accepted` の `Accepted` を出した受付の操作の先頭（`InputReceived`）の位置。

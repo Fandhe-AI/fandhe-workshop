@@ -15,7 +15,8 @@
 //! 2. 現在の Step が IR に無い、`busy.total` が `processing` の数と合わない、`busy.done` が範囲の外、
 //!    進行の宣言が読めない、のいずれかなら、固定文の `Warning` だけを出して状態を変えない（fail-closed）
 //! 3. `Progress`（番号は適用した進行の 0 始まり）→ 効果のイベントの順に出し、`busy.done` を 1 つ進める
-//! 4. 最後の進行なら処理中を解く。Step の状態は `Accepted` のまま残す。ただし `confirm: none` の Step は
+//! 4. 最後の進行なら処理中を解く。`wait` の Step（入った時点で処理中。`transit::wait_busy`）は、ここで `Accepted` を出して
+//!    受付にする（EP-1。受講者の入力は要らない）。Step の状態は `Accepted` のまま残す。ただし `confirm: none` の Step は
 //!    続けて達成の処理（`Achieved` → 効果 → `Transitioned` → `Entered`）を行う（EVT-5）
 //!
 //! `Tick` は `Judged` を出さない（版 3 の契約サンプル e07 の形。無視も `Ignored` 1 件だけ）。
@@ -23,8 +24,7 @@
 //! # 扱わないこと
 //!
 //! - 二重の届き専用の無視の理由（版上げの契約タスク。現状は `Stale`）
-//! - `wait` の Step の、入った時点からの処理中と処理の完了での受付（EVT-20。Step に入るときの処理を持つタスク）
-//! - 停止・移動・復帰（TASK-211・213・214）
+//! - 停止・移動・復帰（TASK-211・213・214）。`wait` の Step の処理中は着地（`transit::land`）が立てる
 //!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!`・添字の直接参照を使わない）で決定的。I/O・時刻・乱数を持たない。
 //! 世代は変えない（[`crate::session::apply`] の関門が強制する）。`Warning` の文面は固定文で、教材の値を埋め込まない。
@@ -131,6 +131,15 @@ pub(crate) fn on_tick(ir: &Ir, state: &mut SessionState, addr: TickAddr) -> Vec<
         return events;
     }
     state.run.busy = None;
+    // `wait` の Step は入力を待たず、最後の進行で受付になる（EP-1）。入った時点の状態（`Entered`）のままここへ来る。
+    if crate::transit::wait_busy(step).is_some()
+        && crate::instance::status_of(ir, &state.run, &current) == StepStatus::Entered
+    {
+        crate::instance::slice_mut(&mut state.run, crate::instance::owner_of(ir, &current))
+            .status
+            .insert(current.clone(), StepStatus::Accepted);
+        events.push(Event::Accepted { at: at.clone() });
+    }
     let accepted = crate::instance::status_of(ir, &state.run, &current) == StepStatus::Accepted;
     if let (Some(items), true) = (achieve_items, accepted) {
         events.extend(confirm::achieve_with(ir, state, node, &at, &items));
