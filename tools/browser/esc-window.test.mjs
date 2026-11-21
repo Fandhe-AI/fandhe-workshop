@@ -7,7 +7,7 @@
 //   W1  止めずに待つと、進行の行が 20 件出て確認待ちになる（指す確認の行が指せる形で出る）。隣り合う行の間隔の中央値が 300ms 前後（250〜450ms）で、
 //       最初の行から最後の行までが 5,000ms 以上（Esc を押せる時間の長さ）
 //   W2  10 件目の進行の行が出た時点で Esc を押すと、状態表示が「停止」（data-state=stopped）になり、停止の行が 1 件出て、
-//       停止になった時点と 1,000ms 後の進行の行が、Esc を押す直前の件数のまま（20 件に届かない）
+//       停止になった時点と 1,000ms 後の進行の行が、Esc の keydown が文書に届いた時点の件数のまま（20 件に届かない）
 //   共通 早送りは切のまま（既定）。ページ内のエラー・CSP 違反が 0 件。CSP あり・なしで流す
 // 範囲外: 人が押せるか（人の確認。TERM-34 の検討中の理由）、早送り（SHELL-24。fast-forward-toggle）、試験の設定での停止の網羅（esc-once・ch1-keyboard）。
 // 入力: FANDHE_WEB_DIR（配信する設定）。未設定・不在は skip にせず失敗にする。
@@ -125,9 +125,15 @@ for (const csp of [true, false]) {
     await scene(csp, async (page) => {
       await page.waitForFunction(([s, n]) => document.querySelectorAll(s).length >= n, [PROGRESS, STOP_AT], { timeout: T });
       assert.equal(await runState(page), 'busy', 'still processing when Esc is pressed');
-      // 基準は Esc を押す直前の件数（押した後に適用された進行も見逃さない）。
-      const beforeEsc = await progressRows(page);
+      // 基準は Esc の keydown が文書に届いた時点の件数（読み取りと押下の間に段が進んでも食い違わない）。capture で先に記録する。
+      await page.evaluate((sel) => {
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && window.__escRows === undefined) window.__escRows = document.querySelectorAll(sel).length;
+        }, { capture: true });
+      }, PROGRESS);
       await page.keyboard.press('Escape');
+      const beforeEsc = await page.evaluate(() => window.__escRows);
+      assert.equal(typeof beforeEsc, 'number', 'the Escape keydown reached the document');
       await page.waitForFunction((s) => document.querySelector(s)?.getAttribute('data-state') === 'stopped', RUN, { timeout: T });
       const atStop = await progressRows(page);
       await page.waitForTimeout(1000);
