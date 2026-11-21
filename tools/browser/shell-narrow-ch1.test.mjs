@@ -108,6 +108,8 @@ const screenFaults = (page) => page.evaluate(([operable, targets, w]) => {
   for (const el of document.querySelectorAll(operable)) {
     if (!shown(el)) continue;
     if (transparent(el)) faults.push({ id: id(el), kind: '見えない' });
+    // 無効の要素は押せない（CH-1 の通しの時点で無効にするボタンは無い。2026-11-22 の観察）。
+    if (el.disabled === true || el.getAttribute('aria-disabled') === 'true') faults.push({ id: id(el), kind: '押せない' });
     let r = el.getBoundingClientRect();
     if (r.left < 0 || r.right > w + 0.5) faults.push({ id: id(el), kind: 'はみ出す' });
     if (r.bottom <= 0 || r.top >= window.innerHeight) {
@@ -129,6 +131,8 @@ const screenFaults = (page) => page.evaluate(([operable, targets, w]) => {
       // 祖先が返る（`pointer-events: none` など）のも押せないに数える。
       if (!(top !== null && (top === el || el.contains(top)))) faults.push({ id: id(el), kind: '押せない' });
     }
+    // 次の要素の測定に前の要素のスクロール（縦・横）を持ち越さない。
+    window.scrollTo(sx, sy);
   }
   window.scrollTo(sx, sy);
   const small = [...document.querySelectorAll(targets)]
@@ -194,13 +198,9 @@ function measuringDriver(page, inner, record, beforeNext) {
 async function run(srv) {
   const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport: { width: WIDTH, height: HEIGHT } });
   const L = ledger();
-  // 欠けの組（Step, 要素, 種類）。測定元（target = (1)、screen = (2)）ごとにも残し、負の対照で別々に確かめる。
+  // 欠けの組（Step, 要素, 種類）。
   const faults = new Set();
-  const bySource = { target: new Set(), screen: new Set() };
-  const add = (source, key) => {
-    faults.add(key);
-    bySource[source].add(key);
-  };
+  const add = (key) => faults.add(key);
   const overflow = new Set();
   const small = new Set();
   let current = 'main/st-1-1';
@@ -221,7 +221,7 @@ async function run(srv) {
   };
   const scan = async (uid, status, pane) => {
     const o = await screenFaults(page);
-    for (const f of o.faults) add('screen', `${uid} ${f.id} ${f.kind}`);
+    for (const f of o.faults) add(`${uid} ${f.id} ${f.kind}`);
     if (o.scrollWidth > WIDTH) overflow.add(`${uid}/${status}/${pane}`);
     for (const s of o.small) small.add(`${uid} ${s}`);
   };
@@ -236,7 +236,7 @@ async function run(srv) {
     }
     if (selected) await selectPane(selected);
   };
-  const record = (id, kind) => add('target', `${current} ${id} ${kind}`);
+  const record = (id, kind) => add(`${current} ${id} ${kind}`);
   // 章の終わり（st-1-6 の達成の後。「次の章へ進む」が出ている）の画面も、操作のタブで (2)〜(4) を走査する。
   const beforeNext = async () => {
     await selectPane('pane-tab-ops');
@@ -261,7 +261,7 @@ async function run(srv) {
   L.check('end', 'ページ内のエラー・CSP 違反が 0 件', s.pageErrors === 0 && s.csp === 0);
   await context.close();
   return {
-    L, faults: [...faults], target: [...bySource.target], screen: [...bySource.screen], overflow: [...overflow], small: [...small], points,
+    L, faults: [...faults], overflow: [...overflow], small: [...small], points,
   };
 }
 
@@ -322,6 +322,14 @@ test('対照: 幅 500px の要素・送信ボタンの覆い・pointer-events �
       document.body.prepend(small);
     });
     assert.ok((await screenFaults(page)).small.some((id) => id.includes('[small-probe]')), '(4) a 20px-high button is a small target');
+
+    // 無効にした書き出しのボタンは、画面全体の走査 (2) で押せないに数える。
+    const disabled = await openPage(browser, { origin: srv.origin, viewport: { width: WIDTH, height: HEIGHT } });
+    await disabled.page.goto(`${srv.url}${QUERY}`);
+    await waitMounted(disabled.page);
+    await disabled.page.evaluate(() => { document.querySelector('[data-testid="shell-export"]').disabled = true; });
+    assert.ok((await screenFaults(disabled.page)).faults.some((f) => f.id.includes('[shell-export]') && f.kind === '押せない'), '(2) disabled export button');
+    await disabled.context.close();
 
     // 透明な送信ボタンは (1) で見えないに数え、画面全体の走査 (2) でも見えないに数える。
     const faded = await openPage(browser, { origin: srv.origin, viewport: { width: WIDTH, height: HEIGHT } });
