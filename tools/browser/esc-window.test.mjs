@@ -6,7 +6,7 @@
 // 操作は入力欄への入力と Enter・Esc のキーだけで、観察は DOM だけで行う（右のログの進行の行の出現時刻は MutationObserver で記録する）。
 //   W1  止めずに待つと、進行の行が 20 件出て確認待ちになる（指す確認の行が指せる形で出る）。隣り合う行の間隔の中央値が 300ms 前後（250〜450ms）で、
 //       最初の行から最後の行までが 5,000ms 以上（Esc を押せる時間の長さ）
-//   W2  10 件目の進行の行が出た時点で Esc を押すと、状態表示が「停止」（data-state=stopped）になり、停止の行が 1 件出て、
+//   W2  10 件目の進行の行が出た後（状態の確かめと記録の準備の後）に Esc を押すと、状態表示が「停止」（data-state=stopped）になり、停止の行が 1 件出て、
 //       停止になった時点と 1,000ms 後の進行の行が、Esc の keydown が文書に届いた時点の件数のまま（20 件に届かない）
 //   共通 早送りは切のまま（既定）。ページ内のエラー・CSP 違反が 0 件。CSP あり・なしで流す
 // 範囲外: 人が押せるか（人の確認。TERM-34 の検討中の理由）、早送り（SHELL-24。fast-forward-toggle）、試験の設定での停止の網羅（esc-once・ch1-keyboard）。
@@ -48,17 +48,14 @@ after(async () => {
   if (browser) await browser.close();
 });
 
-// min-3step の st-1 の処理を 20 段にした IR。元の 5 段の効果（左の行の状態）は最初と最後の段に残す。
+// min-3step の st-1 の処理を 20 段にした IR。元の段は順のまま等間隔（0・5・10・15・19 段目）に置き、効果（左の行の状態の変化）を
+// 1 つも落とさない。間は効果の無い待ちの段で埋める。
 function irText() {
   const ir = JSON.parse(fs.readFileSync(MIN_IR, 'utf8'));
   const steps = ir.nodes[0].step.processing;
-  const first = steps[0];
-  const last = steps[steps.length - 1];
-  ir.nodes[0].step.processing = Array.from({ length: STAGES }, (_, i) => {
-    if (i === 0) return first;
-    if (i === STAGES - 1) return last;
-    return { name: `p-wait-${i}`, effects: [] };
-  });
+  const at = new Map(steps.map((p, k) => [Math.round((k * (STAGES - 1)) / (steps.length - 1)), p]));
+  assert.equal(at.size, steps.length, 'every original stage keeps its own slot');
+  ir.nodes[0].step.processing = Array.from({ length: STAGES }, (_, i) => at.get(i) ?? { name: `p-wait-${i}`, effects: [] });
   return JSON.stringify(ir);
 }
 
