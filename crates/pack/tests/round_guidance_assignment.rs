@@ -1,6 +1,6 @@
 //! 周回ごとの案内レベルの割り当てを、教材の宣言どおりに切り替えることの受け入れ試験（TASK-299。GUIDE-9・D-55。記録は `docs/testing.md` の 5.533）。
 //!
-//! エンジンが「どの周回にどの水準を使うか」を固定せず、2 周と 3 周の教材のどちらも宣言どおりに扱うことを、割り当ての違う 4 本の教材パックで確かめる。
+//! エンジンが「どの周回にどの水準を使うか」を固定せず、2 周と 3 周の教材のどちらも宣言どおりに扱うことを、割り当ての違う 5 本の教材パックで確かめる。
 //! 4 周目以降は扱わない（3 周で打ち切る回帰はこの試験では検出しない）。
 //! 教材は `module-reuse-rounds` の写しで、`pack.guidance`（1 周目。開始点 `s-r1` は宣言を持たない）と、2 周目・3 周目の開始点の
 //! `guidance` だけを書き換える。3 周目は `round_three.rs` と同じく `step5/ch-round3.chapter.yaml` を足して作る。
@@ -167,4 +167,10 @@ fn guide9_first_round_begin_is_the_first_plan_step() {
         B,
         "1 手目の Begin で pack.guidance に切り替わる"
     );
+}
+
+#[test]
+fn guide9_three_rounds_c_in_the_middle_as_declared() {
+    // 2 周目に C、3 周目に A を置く（周回ごとの決まった水準に寄せる回帰を見分ける）。
+    assert_follows(&[A, C, A]);
 }

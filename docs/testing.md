@@ -14395,9 +14395,9 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 
 実行日: 2026-11-21。
 
-- 目的: エンジンが「どの周回にどの水準を使うか」を固定せず、2 周と 3 周の教材のどちらでも、教材が開始点に宣言した割り当てのとおりに案内レベルを切り替えることを、割り当ての違う 4 本の教材パックで確かめる。4 周目以降は扱わない（3 周で打ち切る回帰はこの試験では検出しない）。
+- 目的: エンジンが「どの周回にどの水準を使うか」を固定せず、2 周と 3 周の教材のどちらでも、教材が開始点に宣言した割り当てのとおりに案内レベルを切り替えることを、割り当ての違う 5 本の教材パックで確かめる。4 周目以降は扱わない（3 周で打ち切る回帰はこの試験では検出しない）。
 - 教材: `module-reuse-rounds` の写し。1 周目は `pack.guidance`（開始点 `s-r1` は宣言なし）、2 周目は `s-r2`・`s-r2-fresh` の `guidance`、3 周目は `step5/ch-round3.chapter.yaml` を足した `s-r3` の `guidance` を書き換える（`testdata` は書き換えない）。
-- 試験: `crates/pack/tests/round_guidance_assignment.rs`（5 件）。共有の計画（`common/rounds.rs`）で周回を順に通し、各周回で (1) `Begin` がちょうど 1 件の `Begun` を出し拒否が無い、(2) 開始の直後から周回の計画の 1 手ごとに `run.guidance_level` が宣言値のまま、(3) 周回の終わりにその周回の呼び出しの Step（`rN-idea`・`rN-impl`）が達成、を確かめる。
+- 試験: `crates/pack/tests/round_guidance_assignment.rs`（6 件）。共有の計画（`common/rounds.rs`）で周回を順に通し、各周回で (1) `Begin` がちょうど 1 件の `Begun` を出し拒否が無い、(2) 開始の直後から周回の計画の 1 手ごとに `run.guidance_level` が宣言値のまま、(3) 周回の終わりにその周回の呼び出しの Step（`rN-idea`・`rN-impl`）が達成、を確かめる。
 
 | 試験 | 割り当て（1 周目→） | 期待 |
 | --- | --- | --- |
@@ -14405,9 +14405,10 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 | `guide9_two_rounds_all_a_as_declared` | A → A | 同上 |
 | `guide9_three_rounds_a_b_c_as_declared` | A → B → C（周回数 3） | 同上 |
 | `guide9_three_rounds_not_in_order_as_declared` | C → A → B（順に上げない） | 同上 |
+| `guide9_three_rounds_c_in_the_middle_as_declared` | A → C → A（2 周目に C・3 周目に A） | 同上 |
 | `guide9_first_round_begin_is_the_first_plan_step` | B → A | 開始前は既定の A で、計画の 1 手目（`Begin("s-r1")`）の後に B（測り方の前提の確認） |
 
-- 結果（2026-11-21。base は `aae34671`。手元の macOS）: 5 件合格。
+- 結果（2026-11-21。base は `aae34671`。手元の macOS）: 6 件合格。
 - 前提の確認: issue のコメントにあった「web の起動が開始点の水準を反映しない」は、#2164 で起動が `Session::begun_at`（`Control::Begin` と同じ規則）に移り解消済み（`crates/web/src/start_select.rs`）。
 - 範囲外: 水準ごとの `do`・本文の選び方（GUIDE-13。`run_wide_guidance_rounds.rs`）、閉じた周回への `GoTo` の拒否（`round_closed_goto.rs`）、
   教育上の適切さ（人の試行。GUIDE-9 の検討中の理由）。
