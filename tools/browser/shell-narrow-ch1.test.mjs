@@ -15,7 +15,7 @@
 //   進まないこと、章の境目）と、開始点・終わりの確かめを合わせたもの。
 // 送信は入力を済ませた後に送信ボタンを測ってから実クリックで押す（Enter は glue がボタンの click() を呼び、ポインターで押せなくても通るため）。
 // 負の対照（CSSOM の el.style だけで変える）: 幅 500px の要素は (3) を、送信ボタンの覆いは (1)・(2) の押せないを、
-// `pointer-events: none` のボタン（中心で祖先が返る）は (2) の押せないを、透明にしたボタンは (1) の見えないを出す。
+// `pointer-events: none` のボタン（中心で祖先が返る）は (2) の押せないを、透明にしたボタンは (1) の見えないを、高さ 20px のボタンは (4) を出す。
 // 範囲外: 4 幅の観察（TASK-368）、縦の長さ・読みやすさ（人の評価。TASK-387）、Tab の出入り（tab-exit・shell-boundary）。
 // 出力には testid・件数・合否だけを出す（入力した値は出さない）。
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は失敗にする。
@@ -286,6 +286,17 @@ test('対照: 幅 500px の要素・送信ボタンの覆い・pointer-events �
     const o = await screenFaults(page);
     assert.ok(covered(o.faults), '(2) covered submit button on the screen scan');
     assert.ok(o.scrollWidth > WIDTH, '(3) wide element makes horizontal scroll');
+
+    // 高さ 20px のボタンは (4) の 24px 未満に数える。
+    await page.evaluate(() => {
+      const small = document.createElement('button');
+      small.type = 'button';
+      small.setAttribute('data-testid', 'small-probe');
+      small.textContent = 'x';
+      small.style.cssText = 'min-height: 0; height: 20px; width: 40px;';
+      document.body.prepend(small);
+    });
+    assert.ok((await screenFaults(page)).small.some((id) => id.includes('[small-probe]')), '(4) a 20px-high button is a small target');
 
     // 透明な送信ボタンは (1) で見えないに数える。
     const faded = await openPage(browser, { origin: srv.origin, viewport: { width: WIDTH, height: HEIGHT } });
