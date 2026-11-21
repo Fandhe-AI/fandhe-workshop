@@ -16,12 +16,19 @@
 //! Step の巡回は、検査に足さない（PACK-30・D-43）。教材テストで補う。検出しないことは
 //! `tests/static_limits.rs` が限界パックで固定している。
 //!
+//! 確認を省く `wait` の Step の輪（`E-STRUCTURE`。#2209）: `wait` の Step（`input.kind: wait` で `processing` を持つ）に
+//! `confirm: none` を付けると、語彙 v1 の EP-1 の意味（#2205 で core に実装する）では、入ると処理中になり、最後の進行で受付・達成になって最初の無条件の `next` へ移る（エンジンの
+//! `transit::after_achieved` と同じ辺）。そのような Step だけをたどって同じ Step に戻る輪は、受講者の入力なしに進行が続き
+//! 止まらない（エンジンの遷移の上限は 1 操作の中だけを数える）。輪に入る Step ごとに 1 件出す。モジュールの引数の置換の後で
+//! 決まる値もあるため、展開の後の Step（[`check_auto_cycles`]。`validate` だけ）で判定する。章をまたぐ辺は展開の前に
+//! `E-REF-STEP` で断られるので、ここには来ない。上の「Step の巡回は検査に足さない」の例外である。
+//!
 //! 探索は明示的なスタックによる反復で、教材データが深い鎖でもスタックあふれを起こさない。診断に写す ID は
 //! `safe_ident` を通ったものだけである。
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use fandhe_workshop_contract::ir::Step;
+use fandhe_workshop_contract::ir::{Node, Step};
 use serde_json::Value;
 
 use crate::diag::{DiagCode, Diagnostic};
@@ -86,6 +93,95 @@ pub(crate) fn check_reach(pack: &LoadedPack) -> Vec<Diagnostic> {
         }
     }
     out
+}
+
+/// 入ると処理中になり、受講者の入力なしに達成して次へ移る Step（`wait` の入力・`processing` あり・`confirm: none`）。
+fn is_auto(step: &Step) -> bool {
+    let kind = |v: &Option<Value>| {
+        v.as_ref()
+            .and_then(|x| x.get("kind"))
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    };
+    kind(&step.input).as_deref() == Some("wait")
+        && !step.processing.is_empty()
+        && kind(&step.confirm).as_deref() == Some("none")
+}
+
+/// 確認を省く `wait` の Step なら、達成の後に移る先（最初の無条件の `next`）。それ以外は `None`。
+fn auto_next(n: &Node) -> Option<&str> {
+    if !is_auto(&n.step) {
+        return None;
+    }
+    n.step
+        .next
+        .iter()
+        .find(|t| !is_conditional(&t.when))
+        .map(|t| t.to.as_str())
+}
+
+/// 展開の後の Step（`nodes`）で、確認を省く `wait` の Step だけを最初の無条件の `next` でたどって戻る輪を探し、輪に入る
+/// Step ごとに `E-STRUCTURE` を 1 件出す（#2209）。各 Step の自動の次は高々 1 本なので、たどり済みの印を付けて
+/// 各 Step を 1 回ずつ見る（索引は `BTreeMap` で、全体は Step の数 n に対して O(n log n)）。同じ定義の実体ごとに重なる診断は呼び出し側が 1 件にする。
+pub(crate) fn check_auto_cycles(pack: &LoadedPack, nodes: &[Node]) -> Vec<Diagnostic> {
+    let index: BTreeMap<&str, &Node> = nodes.iter().map(|n| (n.uid.as_str(), n)).collect();
+
+    // 0: 未着手、1: いまの道の上、2: 済み。
+    let mut mark: BTreeMap<&str, u8> = BTreeMap::new();
+    let mut cyclic: BTreeSet<&str> = BTreeSet::new();
+    for n in nodes {
+        let mut path: Vec<&str> = Vec::new();
+        let mut at = n.uid.as_str();
+        loop {
+            match mark.get(at).copied().unwrap_or(0) {
+                2 => break,
+                1 => {
+                    // いまの道で `at` に戻った。`at` から先が輪。
+                    if let Some(p) = path.iter().position(|u| *u == at) {
+                        cyclic.extend(path.get(p..).unwrap_or_default().iter().copied());
+                    }
+                    break;
+                }
+                _ => {}
+            }
+            mark.insert(at, 1);
+            path.push(at);
+            match index.get(at).and_then(|node| auto_next(node)) {
+                Some(next) if index.contains_key(next) => at = next,
+                _ => break,
+            }
+        }
+        for u in path {
+            mark.insert(u, 2);
+        }
+    }
+    // 章とモジュールは同じ ID を使えるので、実体の根（`scope`。章は `main`）で種類を決めてから定義元を引く。
+    let file_of = |n: &Node| {
+        let kind = if n.scope == "main" {
+            ScopeKind::Chapter
+        } else {
+            ScopeKind::Module
+        };
+        pack.scopes
+            .iter()
+            .find(|s| s.kind == kind && s.src.id == n.unit)
+            .map_or(pack.workshop_file.as_str(), |s| s.file.as_str())
+    };
+    nodes
+        .iter()
+        .filter(|n| cyclic.contains(n.uid.as_str()))
+        .map(|n| {
+            diag(
+                file_of(n),
+                &format!("step:{}", n.step.id),
+                DiagCode::Structure,
+                format!(
+                    "wait steps with confirm none form a cycle without learner input: {}",
+                    shown(&n.step.id)
+                ),
+            )
+        })
+        .collect()
 }
 
 /// 条件つきの遷移か（`when` が欠けているか `null` なら無条件）。
