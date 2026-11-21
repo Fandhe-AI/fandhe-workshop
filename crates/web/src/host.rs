@@ -254,9 +254,24 @@ enum ExportShown {
         file_name: String,
         /// URL と破棄の責務。
         link: ExportLink,
+        /// 書き出しに未送信の下書きが入る案内（SHELL-22）を枠の通知欄に出しているか。閉じると偽になる。
+        draft_notice: bool,
     },
     /// 出せない理由の固定の文。
     Status(&'static str),
+}
+
+impl ExportShown {
+    /// 書き出しに未送信の下書きが入る案内を出しているか。
+    fn draft_notice(&self) -> bool {
+        matches!(
+            self,
+            ExportShown::Link {
+                draft_notice: true,
+                ..
+            }
+        )
+    }
 }
 
 /// ホストが受ける action。
@@ -1451,8 +1466,27 @@ impl EngineHost {
 
     /// 書き出しの結果を外す（URL は drop で破棄する）。出ていたときだけ field を dirty に積む。
     fn clear_export_result(&mut self) {
-        if self.export_result.take().is_some() && !self.dirty.contains(&EXPORT_RESULT_FIELD.name) {
+        let Some(old) = self.export_result.take() else {
+            return;
+        };
+        if !self.dirty.contains(&EXPORT_RESULT_FIELD.name) {
             self.dirty.push(EXPORT_RESULT_FIELD.name);
+        }
+        // 案内はリンクと一緒に消す（リンクを作り直すと、そのときの下書きで判定し直す）。
+        if old.draft_notice() && !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+            self.dirty.push(SHELL_NOTICES_FIELD.name);
+        }
+    }
+
+    /// 書き出しに未送信の下書きが入る案内（SHELL-22）を閉じる。出ているときだけ消す。リンクは残す。
+    fn dismiss_export_draft(&mut self) {
+        if let Some(ExportShown::Link { draft_notice, .. }) = self.export_result.as_mut() {
+            if *draft_notice {
+                *draft_notice = false;
+                if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+                    self.dirty.push(SHELL_NOTICES_FIELD.name);
+                }
+            }
         }
     }
 
@@ -1487,6 +1521,8 @@ impl EngineHost {
                     Some(link) => ExportShown::Link {
                         file_name: crate::history_export::file_name(&pack),
                         link,
+                        // リンク（ダウンロードの前の段）と同時に出し、押す前に知らせる（D-52）。判定は書き出すバイト列と同じ源の口。
+                        draft_notice: self.export_includes_unsent_draft(),
                     },
                     None => ExportShown::Status(crate::history_export::FAILED_STATUS),
                 }
@@ -1496,6 +1532,9 @@ impl EngineHost {
                     .unwrap_or(crate::history_export::EMPTY_STATUS),
             ),
         };
+        if shown.draft_notice() && !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+            self.dirty.push(SHELL_NOTICES_FIELD.name);
+        }
         self.export_result = Some(shown);
         if !self.dirty.contains(&EXPORT_RESULT_FIELD.name) {
             self.dirty.push(EXPORT_RESULT_FIELD.name);
@@ -3243,6 +3282,7 @@ impl Component for EngineHost {
                 match kind {
                     crate::shell::NoticeKind::VersionConverted => self.set_version_notice(false),
                     crate::shell::NoticeKind::BrowserNotice => self.dismiss_browser_notice(),
+                    crate::shell::NoticeKind::ExportDraft => self.dismiss_export_draft(),
                     // 起動時の通知は閉じない（`dismissable` が偽。保存が止まっていることを隠さない）。
                     // `CorruptHistory` も閉じない（下の `_`。消えるのは保存済みの履歴を消したときと「捨てて始める」だけ）。
                     crate::shell::NoticeKind::ImportRefused
@@ -3414,6 +3454,7 @@ impl Component for EngineHost {
                         false,
                         false,
                         Some(code),
+                        false,
                     ),
                 ],
             );
@@ -3440,7 +3481,9 @@ impl Component for EngineHost {
         let [tablist, panes] = crate::shell_frame::frame(left, right, self.pane);
         // 履歴の書き出し・読み込みの操作は通知欄の後ろ・tablist の前に置く（仮置き。最終の配置は TASK-534・TASK-548）。
         let shown = self.export_result.as_ref().map(|r| match r {
-            ExportShown::Link { file_name, link } => ExportResult::Link {
+            ExportShown::Link {
+                file_name, link, ..
+            } => ExportResult::Link {
                 href: link.url.as_str(),
                 file_name: file_name.as_str(),
             },
@@ -3466,6 +3509,9 @@ impl Component for EngineHost {
                 self.delete_pending,
                 self.delete_failed,
                 None,
+                self.export_result
+                    .as_ref()
+                    .is_some_and(ExportShown::draft_notice),
             ),
             history_ops(shown.as_ref()),
             tablist,

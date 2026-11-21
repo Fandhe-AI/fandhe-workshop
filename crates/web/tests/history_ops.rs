@@ -297,3 +297,66 @@ fn 枠の操作の復号は書き出しと読み込みだけを受ける() {
     assert!(EngineHost::decode_action("discard-and-start", "x").is_none());
     assert!(EngineHost::decode_action("import-history", "").is_some());
 }
+
+/// 枠の通知欄に、書き出しに未送信の下書きが入る案内（SHELL-22。TASK-537）が出ている件数。
+fn draft_notices(v: &Node) -> usize {
+    format!("{:?}", all(v, "shell-notice"))
+        .matches(fandhe_workshop_web::shell_notice::EXPORT_DRAFT_NOTICE)
+        .count()
+}
+
+#[test]
+fn 下書きがあると書き出しのリンクと一緒に案内が出て_閉じるとリンクだけ残る() {
+    let mut h = host();
+    with_maker(&mut h);
+    go(&mut h);
+    act(&mut h, "draft", "memo draft text");
+    assert_eq!(draft_notices(&h.view()), 0, "押す前には出ない");
+    act(&mut h, "export-history", "");
+    assert!(h.dirty_fields().contains(&"shell_notices"));
+    let v = h.view();
+    assert_eq!(all(&v, "export-download").len(), 1);
+    assert_eq!(draft_notices(&v), 1);
+    assert!(
+        !format!("{:?}", all(&v, "shell-notice")).contains("memo draft text"),
+        "案内に下書きの値を出さない"
+    );
+    shell::check_complete_v2(&v).unwrap();
+    a11y::check_no_undefined(&v).unwrap();
+    act(&mut h, "dismiss-notice", "export-draft");
+    let v = h.view();
+    assert_eq!(draft_notices(&v), 0);
+    assert_eq!(all(&v, "export-download").len(), 1, "リンクは残る");
+}
+
+#[test]
+fn 下書きが無いと案内は出ず_書き出しの後に打つとリンクと案内が消える() {
+    let mut h = host();
+    with_maker(&mut h);
+    go(&mut h);
+    act(&mut h, "export-history", "");
+    let v = h.view();
+    assert_eq!(all(&v, "export-download").len(), 1);
+    assert_eq!(draft_notices(&v), 0, "対照: 下書きなしでは出ない");
+
+    act(&mut h, "draft", "memo draft text");
+    act(&mut h, "export-history", "");
+    assert_eq!(draft_notices(&h.view()), 1);
+    act(&mut h, "draft", "memo draft text 2");
+    assert!(h.dirty_fields().contains(&"shell_notices"));
+    let v = h.view();
+    assert_eq!(all(&v, "export-download").len(), 0);
+    assert_eq!(draft_notices(&v), 0, "リンクと一緒に消える");
+}
+
+#[test]
+fn 保存を挟んで消した下書きは入力欄が空でも案内が出る() {
+    let mut h = host();
+    with_maker(&mut h);
+    go(&mut h);
+    act(&mut h, "draft", "memo draft text");
+    act(&mut h, "save-checkpoint", "");
+    act(&mut h, "draft", "");
+    act(&mut h, "export-history", "");
+    assert_eq!(draft_notices(&h.view()), 1, "D-111");
+}

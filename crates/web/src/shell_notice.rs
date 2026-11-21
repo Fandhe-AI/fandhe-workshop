@@ -1,7 +1,8 @@
 //! 枠の通知欄（`shell-notice`）の描画。「保存できなかった」通知（SHELL-18・SAVE-10。TASK-534 1/2）と、
 //! 「版の違いを変換して開いた」通知（SHELL-20。TASK-535 1/2）と、
 //! 「開かない履歴」の理由の通知（SHELL-16・VER-8。TASK-176 2/2）と、
-//! 「教材（IR）を読み込めない」通知（SHELL-31。TASK-545。旧 `ir-notice` の置き場）を出す。
+//! 「教材（IR）を読み込めない」通知（SHELL-31。TASK-545。旧 `ir-notice` の置き場）と、
+//! 「書き出しに未送信の下書きが入る」案内（SHELL-22。TASK-537）を出す。
 //!
 //! 呼び出し元は `host::EngineHost::view` だけで、変換して開いたか（真偽）と開かない通知（理由のコードと閉じられるか）を
 //! 履歴ファイルの読み込みと起動時の復元の判定結果から、保存の失敗の種類を `HostModel::save_failure` から受け取る。判定そのものは core（`history_open`）が持ち、本モジュールは条件を複製しない。
@@ -69,6 +70,10 @@ pub const DELETE_FAILED_NOTICE: &str = "削除できませんでした。一部�
 /// 削除の対象（この教材の保存済みの履歴）と、書き出し済みのファイルは消えないことを示す。書き出しの促しは足さない（D-57）。
 /// 固定の文言だけで、教材の ID・名前など履歴・IR 由来の値を含めない（SAFE-40）。
 pub const DELETE_CONFIRM_NOTICE: &str = "この教材の保存済みの履歴を、このブラウザから削除します。どの章から開いた分も含みます。削除すると最初の Step から始まります。書き出し済みのファイルは消えません。";
+
+/// 書き出しに未送信の下書きが入る案内の文（SHELL-22。TASK-537。仕様は文面を決めていない）。
+/// 入力欄に残る文字だけでなく、打った後に消した文字も対象になる（D-111）ため、両方を書く。下書きの値そのものは入れない。
+pub const EXPORT_DRAFT_NOTICE: &str = "書き出すファイルには、送信していない入力の文字（入力欄に残っている文字や、打った後に消した文字）も含まれます。ファイルを人に渡すと、その文字も渡ります。";
 
 /// 次の行動の文（仮置き。固定の文言だけで、履歴由来の値を含めない）。
 pub fn next_action_text(a: LoadNextAction) -> &'static str {
@@ -194,7 +199,7 @@ fn op_label(op: ShellOp) -> &'static str {
 }
 
 /// 通知欄を作る。`save_failure` があれば保存の失敗の通知を、`version_converted` が真なら「変換して開いた」通知を、
-/// `corrupt_history` があれば壊れた履歴の通知を、`import_refused` があれば開かない通知を、`browser_notice` が真ならブラウザの案内（`browser_notice` モジュールの判定）を出す。`delete_confirm` が真なら削除の確認（SHELL-38。TASK-539 1/2。ホストの確認待ちの印）を最後に出す。並びは `NoticeKind::ALL` の順（保存の失敗が先頭）。
+/// `corrupt_history` があれば壊れた履歴の通知を、`import_refused` があれば開かない通知を、`browser_notice` が真ならブラウザの案内（`browser_notice` モジュールの判定）を出す。`export_draft` が真なら書き出しに未送信の下書きが入る案内（SHELL-22。TASK-537）を、`delete_confirm` が真なら削除の確認（SHELL-38。TASK-539 1/2。ホストの確認待ちの印）を最後に出す。並びは `NoticeKind::ALL` の順（保存の失敗が先頭）。
 ///
 /// 通知の値が契約に反して作れなければ（起きない想定）、項目を出さず panic もしない。
 #[allow(
@@ -210,6 +215,7 @@ pub fn notice_area(
     delete_confirm: bool,
     delete_failed: bool,
     pack_unloadable: Option<&'static str>,
+    export_draft: bool,
 ) -> Node {
     let mut items: Vec<(String, Node)> = Vec::new();
     // 教材を読めないときは、この通知だけが画面の主役になるので先頭に置く（SHELL-31。TASK-545）。
@@ -240,6 +246,11 @@ pub fn notice_area(
     }
     if browser_notice {
         if let Some(item) = browser_notice_item() {
+            items.push(item);
+        }
+    }
+    if export_draft {
+        if let Some(item) = export_draft_item() {
             items.push(item);
         }
     }
@@ -318,6 +329,19 @@ fn browser_notice_item() -> Option<(String, Node)> {
     Some(item_of(&notice, crate::shell::BROWSER_NOTICE_TEXT))
 }
 
+/// 「書き出しに未送信の下書きが入る」案内の項目（SHELL-22・D-52・D-111。TASK-537）。閉じる操作だけを置く。
+/// 出す時機（書き出しのリンクを出したときに、案内の対象の下書きがある）はホストが決める（`EngineHost::export_press`）。
+fn export_draft_item() -> Option<(String, Node)> {
+    let notice = Notice::new(
+        NoticeKind::ExportDraft,
+        None,
+        MessageId::ExportDraft,
+        &[ShellOp::DismissNotice],
+    )
+    .ok()?;
+    Some(item_of(&notice, EXPORT_DRAFT_NOTICE))
+}
+
 /// 「削除の確認」の項目（SHELL-38・D-75。TASK-539 1/2）。理由のコードは持たず、「削除する」「やめる」の 2 操作を置く。
 /// 確認の前には何も消さない。確定はホストの確認待ちの印があるときだけ口を呼ぶ（`EngineHost::delete_confirm`）。
 fn delete_confirm_item(failed: bool) -> Option<(String, Node)> {
@@ -393,7 +417,7 @@ mod tests {
 
     #[test]
     fn browser_notice_area_has_one_item_and_dismiss() {
-        let n = notice_area(false, None, None, None, true, false, false, None);
+        let n = notice_area(false, None, None, None, true, false, false, None, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("browser-notice"), "{s}");
@@ -407,14 +431,14 @@ mod tests {
     fn empty_area_has_no_items() {
         let s = format!(
             "{:?}",
-            notice_area(false, None, None, None, false, false, false, None)
+            notice_area(false, None, None, None, false, false, false, None, false)
         );
         assert!(!s.contains("shell-notice-item"), "{s}");
     }
 
     #[test]
     fn converted_area_has_one_item_and_dismiss() {
-        let n = notice_area(true, None, None, None, false, false, false, None);
+        let n = notice_area(true, None, None, None, false, false, false, None, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("shell-dismiss"));
@@ -425,7 +449,17 @@ mod tests {
 
     #[test]
     fn refused_area_has_one_item_with_reason_and_dismiss() {
-        let n = notice_area(false, refused(true), None, None, false, false, false, None);
+        let n = notice_area(
+            false,
+            refused(true),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+            false,
+        );
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("import-refused"), "{s}");
@@ -439,7 +473,17 @@ mod tests {
     fn refused_without_dismiss_has_no_button() {
         let s = format!(
             "{:?}",
-            notice_area(false, refused(false), None, None, false, false, false, None)
+            notice_area(
+                false,
+                refused(false),
+                None,
+                None,
+                false,
+                false,
+                false,
+                None,
+                false
+            )
         );
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(!s.contains("shell-dismiss"), "{s}");
@@ -447,7 +491,17 @@ mod tests {
 
     #[test]
     fn both_notices_show_two_items() {
-        let n = notice_area(true, refused(true), None, None, false, false, false, None);
+        let n = notice_area(
+            true,
+            refused(true),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+            false,
+        );
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 2, "{s}");
         assert!(crate::shell::check_no_undefined(&n).is_ok());
@@ -542,7 +596,7 @@ mod tests {
             StorageError::Unavailable,
             StorageError::Failed,
         ] {
-            let n = notice_area(false, None, None, Some(f), false, false, false, None);
+            let n = notice_area(false, None, None, Some(f), false, false, false, None, false);
             let s = format!("{n:?}");
             assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
             assert!(s.contains("save-failed"), "{s}");
@@ -565,6 +619,7 @@ mod tests {
             false,
             false,
             None,
+            false,
         );
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 3, "{s}");
@@ -583,6 +638,7 @@ mod tests {
             false,
             false,
             None,
+            false,
         );
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
@@ -607,6 +663,7 @@ mod tests {
             false,
             false,
             None,
+            false,
         );
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 4, "{s}");
@@ -625,6 +682,7 @@ mod tests {
             false,
             false,
             Some("too_large"),
+            false,
         );
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
@@ -680,7 +738,7 @@ mod tests {
 
     #[test]
     fn delete_confirm_area_has_one_item_with_two_buttons() {
-        let n = notice_area(false, None, None, None, false, true, false, None);
+        let n = notice_area(false, None, None, None, false, true, false, None, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("delete-confirm"), "{s}");
@@ -692,14 +750,14 @@ mod tests {
         assert!(crate::a11y::check_no_undefined(&n).is_ok());
         let off = format!(
             "{:?}",
-            notice_area(false, None, None, None, false, false, false, None)
+            notice_area(false, None, None, None, false, false, false, None, false)
         );
         assert!(!off.contains("delete-confirm"), "{off}");
     }
 
     #[test]
     fn delete_failed_adds_failure_text_and_keeps_both_buttons() {
-        let n = notice_area(false, None, None, None, false, true, true, None);
+        let n = notice_area(false, None, None, None, false, true, true, None, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains(DELETE_FAILED_NOTICE), "{s}");
@@ -707,7 +765,7 @@ mod tests {
         assert_eq!(s.matches("shell-delete-cancel").count(), 1, "{s}");
         let ok = format!(
             "{:?}",
-            notice_area(false, None, None, None, false, true, false, None)
+            notice_area(false, None, None, None, false, true, false, None, false)
         );
         assert!(!ok.contains(DELETE_FAILED_NOTICE), "{ok}");
     }
