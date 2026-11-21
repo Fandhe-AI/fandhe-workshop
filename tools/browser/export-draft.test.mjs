@@ -12,7 +12,8 @@
 //   D-5 打った後にチェックポイントの保存（エンジンの操作）を挟んで欄を空にすると、欄も `snapshot.drafts` も空のまま、
 //       `ops` に値が残り口が真で、ファイルから求めた真偽と口が一致する（D-111）。対照: 保存を挟んでも送った下書きは偽。
 //   各場面で外部への要求・CSP 違反・ページのエラーが 0 件。URL に状態が載らない。
-// 限界: Chromium だけ。実 IME ではない。案内の画面は TASK-537（SHELL-22）が持つ。挟む操作は保存の 1 種だけ（進行・ポインタの
+//   各書き出しで、リンクが出た時点の枠の通知欄の案内（SHELL-22。TASK-537）が口の真偽どおりに 1 件か 0 件（D-3 が負の対照）。
+// 限界: Chromium だけ。実 IME ではない。挟む操作は保存の 1 種だけ（進行・ポインタの
 //   操作は core・web の試験）。
 // 下書きの値は平文の試験値（秘密情報の形に当たらない）。失敗の文・診断には値を出さず、長さと真偽だけを出す。
 import { test, before, after } from 'node:test';
@@ -28,6 +29,7 @@ const SUBMIT = '[data-testid="submit-input"]';
 const EXPORT_BTN = '[data-testid="shell-export"]';
 const SAVE_BTN = '[data-testid="checkpoint-save"]';
 const LINK = '[data-testid="export-download"]';
+const DRAFT_NOTICE = '[data-testid="shell-notice"] [data-notice-kind="export-draft"]';
 const DRAFT = 'memo draft text';
 const DRAFT2 = 'second memo text';
 const ACCEPTED = '/make-note first-note';
@@ -70,11 +72,22 @@ async function waitFlag(page, expected, label) {
   ).catch(() => assert.fail(`${label}: exportIncludesUnsentDraft did not become ${expected}`));
 }
 
-// 画面の操作だけで書き出し、ファイルの JSON を返す。
+// 画面の操作だけで書き出し、ファイルの JSON を返す。リンクが出た時点（ダウンロードの前）に、枠の通知欄の案内
+// （SHELL-22。TASK-537）が口の真偽どおりに 1 件か 0 件で、出るときは見えていて下書きの値を含まないことも確かめる。
 async function exportByUi(page) {
   await page.locator(EXPORT_BTN).click();
   const link = page.locator(LINK);
   await link.waitFor({ state: 'visible', timeout: 10000 });
+  await settle(page);
+  const flag = (await engine(page)).exportIncludesUnsentDraft;
+  const notice = page.locator(DRAFT_NOTICE);
+  assert.equal(await notice.count(), flag ? 1 : 0, `SHELL-22 notice count follows the port (${flag})`);
+  if (flag) {
+    assert.ok(await notice.isVisible(), 'SHELL-22 notice is visible before the download');
+    const text = await notice.innerText();
+    assert.ok(text.includes('送信していない入力の文字'), 'SHELL-22 notice says unsent text is included');
+    assert.ok(![DRAFT, DRAFT2].some((d) => text.includes(d)), 'SHELL-22 notice does not echo the draft');
+  }
   const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
   const file = path.join(tmpDir, `${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
   await download.saveAs(file);
