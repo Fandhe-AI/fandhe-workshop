@@ -95,10 +95,17 @@ const screenFaults = (page) => page.evaluate(([operable, targets, w]) => {
     return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
   };
   const faults = [];
+  // 縦に画面の外の要素は、スクロールで表示領域に入れてから測る（最後に元のスクロール位置へ戻す）。
+  const sx = window.scrollX;
+  const sy = window.scrollY;
   for (const el of document.querySelectorAll(operable)) {
     if (!shown(el)) continue;
-    const r = el.getBoundingClientRect();
+    let r = el.getBoundingClientRect();
     if (r.left < 0 || r.right > w + 0.5) faults.push({ id: id(el), kind: 'はみ出す' });
+    if (r.bottom <= 0 || r.top >= window.innerHeight) {
+      el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+      r = el.getBoundingClientRect();
+    }
     // 覆われているかは、表示領域と重なる部分の中心で判定する（一部だけ見えている要素も測る。外の部分は elementFromPoint が引けない）。
     const vl = Math.max(r.left, 0);
     const vr = Math.min(r.right, window.innerWidth);
@@ -112,6 +119,7 @@ const screenFaults = (page) => page.evaluate(([operable, targets, w]) => {
       if (!(top !== null && (top === el || el.contains(top)))) faults.push({ id: id(el), kind: '押せない' });
     }
   }
+  window.scrollTo(sx, sy);
   const small = [...document.querySelectorAll(targets)]
     .filter((el) => shown(el) && (el.getBoundingClientRect().width < 24 || el.getBoundingClientRect().height < 24))
     .map(id);
