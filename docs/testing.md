@@ -14413,3 +14413,15 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 - 範囲外: 水準ごとの `do`・本文の選び方（GUIDE-13。`run_wide_guidance_rounds.rs`）、閉じた周回への `GoTo` の拒否（`round_closed_goto.rs`）、
   教育上の適切さ（人の試行。GUIDE-9 の検討中の理由）。
 - 限界: 計画は未実装の部品のため 1 周目 3 か所・2 周目以降 2 か所を `GoTo` で飛ばす（5.258・5.260）。試験の作成者は AI で、人の確認は得ていない。
+
+### 5.541 確認を省く `wait` の Step の輪を validate で断る（#2209。PR #2207 のレビューから）
+
+実行日: 2026-11-22。
+
+- 目的: `input: { kind: wait }`・`processing`・`confirm: none` の Step は、入ると処理中になり、最後の進行で受付・達成になって最初の無条件の `next` へ移る（#2205）。
+  そのような Step だけで戻る輪は、受講者の入力なしに進行が続いて止まらない（エンジンの遷移の上限〔SAFE-23〕は 1 操作の中だけを数え、進行の操作にまたがる輪は数えない）。教材を配る前に `validate` で断る。
+- 実装: `crates/pack/src/reach.rs` の `auto_cycles`。名前空間（章はまとめて 1 つ、モジュールは 1 つずつ）ごとに、確認を省く `wait` の Step だけを最初の無条件の `next` でたどり、同じ Step に戻れば、その Step に `E-STRUCTURE`（「wait steps with confirm none form a cycle without learner input」）を 1 件出す。
+  新しい診断コードは足さず、既存の `E-STRUCTURE`（構造の誤り）で出す（診断コードの一覧の版は変えない）。`use` の呼び出しをまたぐ輪は見ない。
+- 試験: `crates/pack/tests/wait_auto_cycle.rs`（3 件）。`w1 → w2 → w1` の 2 つの Step で 2 件、`w1 → w1` で 1 件。輪の一部が承認を待つ Step なら出ない（対照）。
+- 結果（2026-11-22。base は `7cfdf96e`。手元の macOS）: 3 件合格。既存の教材・試験の教材の `validate` の結果は変わらない（`make test`）。
+- 限界: 学習モジュールの呼び出し（`use`）をまたぐ輪と、条件つきの辺は見ない（静的な近似）。試験の作成者は AI で、人の確認は得ていない。

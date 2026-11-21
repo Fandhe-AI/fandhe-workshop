@@ -16,6 +16,11 @@
 //! Step の巡回は、検査に足さない（PACK-30・D-43）。教材テストで補う。検出しないことは
 //! `tests/static_limits.rs` が限界パックで固定している。
 //!
+//! 確認を省く `wait` の Step の輪（`E-STRUCTURE`。#2209）: `wait` の Step（`input.kind: wait` で `processing` を持つ）に
+//! `confirm: none` を付けると、入ると処理中になり、最後の進行で受付・達成になって最初の無条件の `next` へ移る（エンジンの
+//! `transit::after_achieved` と同じ辺）。そのような Step だけをたどって同じ Step に戻る輪は、受講者の入力なしに進行が続き
+//! 止まらない（エンジンの遷移の上限は 1 操作の中だけを数える）。輪に入る Step ごとに 1 件出す。
+//!
 //! 探索は明示的なスタックによる反復で、教材データが深い鎖でもスタックあふれを起こさない。診断に写す ID は
 //! `safe_ident` を通ったものだけである。
 
@@ -41,6 +46,40 @@ pub(crate) fn check_reach(pack: &LoadedPack) -> Vec<Diagnostic> {
     });
 
     let mut out = Vec::new();
+    // 名前空間（章はまとめて 1 つ、モジュールは 1 つずつ）ごとに、確認を省く `wait` の Step の輪を探す。
+    let mut cyclic: BTreeSet<(usize, &str)> = BTreeSet::new();
+    let module_spaces: Vec<Vec<usize>> = pack
+        .scopes
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.kind == ScopeKind::Module)
+        .map(|(i, _)| vec![i])
+        .collect();
+    let chapter_space: Vec<usize> = pack
+        .scopes
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.kind == ScopeKind::Chapter)
+        .map(|(i, _)| i)
+        .collect();
+    for space in std::iter::once(chapter_space).chain(module_spaces) {
+        cyclic.extend(auto_cycles(pack, &space));
+    }
+    for (i, scope) in pack.scopes.iter().enumerate() {
+        for step in &scope.src.steps {
+            if cyclic.contains(&(i, step.id.as_str())) {
+                out.push(diag(
+                    &scope.file,
+                    &format!("step:{}", step.id),
+                    DiagCode::Structure,
+                    format!(
+                        "wait steps with confirm none form a cycle without learner input: {}",
+                        shown(&step.id)
+                    ),
+                ));
+            }
+        }
+    }
     for scope in &pack.scopes {
         let module_reach;
         let reach: Option<&BTreeSet<&str>> = match scope.kind {
@@ -83,6 +122,61 @@ pub(crate) fn check_reach(pack: &LoadedPack) -> Vec<Diagnostic> {
                     ),
                 ));
             }
+        }
+    }
+    out
+}
+
+/// 入ると処理中になり、受講者の入力なしに達成して次へ移る Step（`wait` の入力・`processing` あり・`confirm: none`）。
+fn is_auto(step: &Step) -> bool {
+    let kind = |v: &Option<Value>| {
+        v.as_ref()
+            .and_then(|x| x.get("kind"))
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    };
+    kind(&step.input).as_deref() == Some("wait")
+        && !step.processing.is_empty()
+        && kind(&step.confirm).as_deref() == Some("none")
+}
+
+/// 名前空間 `space`（`pack.scopes` の添字の集まり）の中で、確認を省く `wait` の Step だけをたどって戻る輪に入る Step。
+/// 各 Step の次は、最初の無条件の `next`（エンジンが達成の後にたどる辺）だけとする。
+fn auto_cycles<'a>(pack: &'a LoadedPack, space: &[usize]) -> BTreeSet<(usize, &'a str)> {
+    // ID から（scope の添字, 確認を省く wait か, 次の ID）。ID の重複は最初のものを使う（重複は `E-DUP-ID`）。
+    let mut node: BTreeMap<&'a str, (usize, bool, Option<&'a str>)> = BTreeMap::new();
+    for &i in space {
+        let Some(scope) = pack.scopes.get(i) else {
+            continue;
+        };
+        for step in &scope.src.steps {
+            let next = step
+                .next
+                .iter()
+                .find(|t| !is_conditional(&t.when))
+                .map(|t| t.to.as_str());
+            node.entry(step.id.as_str())
+                .or_insert((i, is_auto(step), next));
+        }
+    }
+    let mut out = BTreeSet::new();
+    for (&start, &(_, auto, _)) in &node {
+        if !auto {
+            continue;
+        }
+        // 確認を省く wait の Step だけをたどり、`node` の数を超えずに `start` へ戻れば輪に入る。
+        let mut at = start;
+        for _ in 0..node.len() {
+            let Some(&(_, true, Some(next))) = node.get(at) else {
+                break;
+            };
+            if next == start {
+                if let Some(&(i, _, _)) = node.get(start) {
+                    out.insert((i, start));
+                }
+                break;
+            }
+            at = next;
         }
     }
     out
