@@ -199,20 +199,68 @@ fn evt19_changes_are_not_merged_across_a_checkpoint_save() {
 }
 
 #[test]
-fn evt19_changes_are_not_merged_across_a_step_entry() {
-    // 同じ世代で S の変化 → T へ遷移（世界状態は変えない）→ S へ戻って同じ経路の変化。遷移を飛び越えてまとめない。
+fn evt19_changes_are_not_merged_across_a_new_input() {
+    // 同じ世代・同じ Step でも、間に受講者の入力（新しい操作）があればまとめない。
     let s1 = stamp(1, "main/st-1");
     let events = vec![
         changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::InputReceived {
+            at: s1.clone(),
+            input: Input::Command("/x".into()),
+        },
+        changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
+    ];
+    assert_eq!(result_only(&events), events, "入力で区間が切れる");
+}
+
+#[test]
+fn evt19_the_final_tick_of_a_confirm_none_step_merges_with_earlier_ticks() {
+    // `confirm: none` の最後の進行は、達成と遷移の後に変化を記録する。処理の中なので、途中の変化とまとまる。
+    let s1 = stamp(1, "main/st-1");
+    let events = vec![
+        changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::Achieved {
+            at: s1.clone(),
+            explicit_skip: false,
+        },
+        Event::Transitioned {
+            at: s1.clone(),
+            to: StepUid("main/st-2".into()),
+        },
         Event::Entered {
             at: stamp(1, "main/st-2"),
         },
-        Event::Entered { at: s1.clone() },
         changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
     ];
+    let r = result_only(&events);
     assert_eq!(
-        result_only(&events),
-        events,
-        "Step への出入りで区間が切れる"
+        count(&r, |e| matches!(e, Event::Changed { .. })),
+        1,
+        "{r:?}"
+    );
+    assert_eq!(
+        replay_changes(World::new(), &r),
+        replay_changes(World::new(), &events)
+    );
+}
+
+#[test]
+fn evt19_opening_a_hint_during_processing_does_not_split_the_changes() {
+    // 処理中にヒントを開いても、処理は続く。同じ処理の変化は 1 件にまとまる。
+    let s1 = stamp(1, "main/st-1");
+    let events = vec![
+        changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::HintOpened {
+            at: s1.clone(),
+            opened: 1,
+            total: 3,
+        },
+        changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(
+        count(&r, |e| matches!(e, Event::Changed { .. })),
+        1,
+        "{r:?}"
     );
 }

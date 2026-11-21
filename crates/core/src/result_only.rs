@@ -11,9 +11,9 @@
 //! 2. 同じ時点（世代と Step。`Stamp`）の `Changed` が続く区間の中で、同じ経路の `Changed` を 1 件にまとめる。置き場は最初の
 //!    1 件の位置、変更前は最初の 1 件の値、変更後と原因は最後の 1 件の値にする。まとめた結果の前後が同じなら除く（途中で戻った変化）。
 //!    別の時点の `Changed` が現れたら区間を切る（同じ世代で別の Step を挟んで戻ったとき、間の Step の変化を飛び越えてまとめない）。
-//!    1 つの処理の中で起きるイベント（`Flag`・`Warning`・`Ignored`・`InputReceived`・`Judged`・`Accepted`）以外のイベント
-//!    （Step への出入り・遷移・移動・停止・チェックポイントの保存と復帰など）でも区間を切る（世界状態を変えない遷移を挟んで
-//!    同じ Step に戻ったときや、保存の時点の値を、後の変化と混ぜない）
+//!    新しい操作の始まり（`InputReceived`・`Stopped`・`Moved`・`Begun`）と、チェックポイントの保存・復帰（`CheckpointSaved`・
+//!    `Restored`）でも区間を切る（入力を挟んで同じ Step に戻ったときや、保存の時点の値を、後の変化と混ぜない）。処理の中の
+//!    達成・遷移・ヒント（`Achieved`・`Transitioned`・`Entered`・`HintOpened` など）では切らない
 //! 3. それ以外のイベントは順のまま残す
 //!
 //! 時点が違えば（停止で世代が進む・別の Step に移る）まとめない。停止の巻き戻しの `Changed` を、その前の処理の変化と混ぜないため。
@@ -61,19 +61,21 @@ pub fn result_only(events: &[Event]) -> Vec<Event> {
                     out.push(e.clone());
                 }
             }
-            // 1 つの処理の中で起きうるイベントは区間を切らない（受付・進行の効果をまとめるため）。
-            Event::Flag { .. }
-            | Event::Warning { .. }
-            | Event::Ignored { .. }
-            | Event::InputReceived { .. }
-            | Event::Judged { .. }
-            | Event::Accepted { .. } => out.push(e.clone()),
-            // それ以外（Step への出入り・遷移・移動・停止・保存・復帰など）は区間を切る。
-            other => {
+            // 新しい操作の始まり（受講者の入力・停止・移動・周回の開始）と、保存・復帰は区間を切る。
+            // 世界状態の変化は操作の末尾にまとめて記録される（`changed::record_changes`）ので、受付の操作の変化と
+            // 続く進行の変化は、間に入力が無ければ 1 つの区間に入る。処理の中の達成・遷移・ヒントは切らない
+            // （`confirm: none` の最後の進行は `Achieved` と遷移の後に変化を記録する）。
+            Event::InputReceived { .. }
+            | Event::Stopped { .. }
+            | Event::Moved { .. }
+            | Event::Begun { .. }
+            | Event::CheckpointSaved { .. }
+            | Event::Restored { .. } => {
                 slot.clear();
                 segment = None;
-                out.push(other.clone());
+                out.push(e.clone());
             }
+            other => out.push(other.clone()),
         }
     }
     out.retain(|e| !matches!(e, Event::Changed { before, after, .. } if before == after));
