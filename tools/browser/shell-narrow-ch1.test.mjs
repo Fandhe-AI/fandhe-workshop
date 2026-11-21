@@ -38,7 +38,8 @@ const TARGETS = 'button, select, input:not([type="hidden"]), [data-action]';
 // 幅 959px 以下の tablist の 2 つのタブ（DOM の id）。
 const PANES = ['pane-tab-ops', 'pane-tab-artifacts'];
 // PoC-12 の (2) の「操作可能な要素」。
-const OPERABLE = 'button, textarea, select, input:not([type="hidden"]), a[href], [role="tab"], [tabindex]:not([tabindex^="-"])';
+// 読み込みのファイル選択を開く label（`.sh-import-label`）も含める（shell-narrow と同じく、ファイル入力とは別に測る）。
+const OPERABLE = 'button, textarea, select, input:not([type="hidden"]), a[href], [role="tab"], [tabindex]:not([tabindex^="-"]), .sh-import-label';
 let browser;
 
 before(async () => {
@@ -117,7 +118,8 @@ const screenFaults = (page) => page.evaluate(([operable, targets, w]) => {
 // 操作の直前に対象を測る包み。`point` は成果物のタブ、それ以外は操作のタブを paneAware が選んだ後に測る。
 // 送信は、入力（改行・補完を含む）を済ませた後に送信ボタンを測ってから実クリックで押す（Enter は glue がボタンの click() を
 // 呼ぶため、ポインターで押せないボタンでも通ってしまう）。
-function measuringDriver(page, inner, record) {
+// `beforeNext` は「次の章へ進む」を押す直前に呼ぶ口（章の終わりの画面を走査する。ボタンの大きさは (4) で測る）。
+function measuringDriver(page, inner, record, beforeNext) {
   const measure = async (sel) => {
     const { id, kinds } = await targetFaults(page, sel);
     for (const kind of kinds) record(id, kind);
@@ -156,7 +158,10 @@ function measuringDriver(page, inner, record) {
       await clickSubmit();
     },
     esc: before(() => [DRAFT], inner.esc),
-    nextChapter: before(() => [NEXT], inner.nextChapter),
+    nextChapter: before(() => [NEXT], async () => {
+      await beforeNext();
+      return inner.nextChapter();
+    }),
   }, { clicks: 0 });
 }
 
@@ -184,7 +189,9 @@ async function run(srv) {
     await page.waitForFunction((id) => {
       const tab = document.getElementById(id);
       const panel = document.getElementById(tab?.getAttribute('aria-controls') ?? '');
-      return tab?.getAttribute('aria-selected') === 'true' && !!panel && !panel.hidden && panel.getBoundingClientRect().height > 0;
+      if (!(tab?.getAttribute('aria-selected') === 'true' && panel && !panel.hidden)) return false;
+      const cs = getComputedStyle(panel);
+      return cs.display !== 'none' && cs.visibility === 'visible' && Number(cs.opacity) > 0 && panel.getBoundingClientRect().height > 0;
     }, pane, { timeout: T });
   };
   const scan = async (uid, status, pane) => {
@@ -205,13 +212,20 @@ async function run(srv) {
     if (selected) await selectPane(selected);
   };
   const record = (id, kind) => add('target', `${current} ${id} ${kind}`);
-  const d = measuringDriver(page, mouseDriver(page), record);
+  // 章の終わり（st-1-6 の達成の後。「次の章へ進む」が出ている）の画面も、操作のタブで (2)〜(4) を走査する。
+  const beforeNext = async () => {
+    await selectPane('pane-tab-ops');
+    await scan(current, 'chapter-end', 'pane-tab-ops');
+    points += 1;
+  };
+  const d = measuringDriver(page, mouseDriver(page), record, beforeNext);
   // 操作が失敗して通しが止まっても、それまでに数えた欠けと止まった Step を出してから失敗させる。
   try {
     await journey(page, d, '360px', L, 'main/st-2-1', { chaptered: true, onStep, from: 'main/st-1-1' });
   } catch (err) {
     await context.close();
-    assert.fail(`journey stopped at ${current}: ${err.message.split('\n')[0]}; faults=${JSON.stringify([...faults])}`);
+    assert.fail(`journey stopped at ${current}: ${err.message.split('\n')[0]}; faults=${JSON.stringify([...faults])}`
+      + ` overflow=${JSON.stringify([...overflow])} small=${JSON.stringify([...small])}`);
   }
   const e = await engine(page);
   L.check('end', 'main/st-2-1 に入った', e.current === 'main/st-2-1');
@@ -233,8 +247,8 @@ test('幅 360px で CH-1 を s-1-1 から模範解答で通すと、操作の欠
     assert.deepEqual(r.L.failed(), [], 'flow checks');
     // journey の CH-1 の 18 項目と、開始点・終わりの 5 項目（docs/testing.md 5.532）。
     assert.equal(r.L.items.length, 23, 'flow checks count');
-    // 入力待ち 6 時点（st-1-1〜st-1-6）と確認待ち 4 時点（st-1-1・st-1-4・st-1-5・st-1-6）。
-    assert.equal(r.points, 10, 'measured 10 screen states');
+    // 入力待ち 6 時点（st-1-1〜st-1-6）と確認待ち 4 時点（st-1-1・st-1-4・st-1-5・st-1-6）と章の終わり 1 時点。
+    assert.equal(r.points, 11, 'measured 11 screen states');
     assert.deepEqual(r.faults, [], 'operation faults (step, element, kind)');
     assert.deepEqual(r.overflow, [], 'horizontal scroll (scrollWidth > 360)');
     assert.deepEqual(r.small, [], 'targets smaller than 24x24');
