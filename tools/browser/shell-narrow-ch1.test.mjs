@@ -7,7 +7,8 @@
 //   (1) 模範解答の操作の対象（選択肢・指す行・入力欄と送信ボタン・「次の章へ進む」）は、操作の直前に、見えない・押せない・はみ出すを数える
 //       （見えない = 描画されていないか、スクロールで入れた後も表示領域と重ならない。押せない = 中心の elementFromPoint が自身か子孫でない。
 //       はみ出す = 左端が 0 より左か、右端が 360px を 0.5px 超える）
-//   (2) 各 Step に入った時点と確認待ちになった時点で、描画されている操作可能な要素の全部について、はみ出す・押せない（覆われている）を数える
+//   (2) 各 Step に入った時点と確認待ちになった時点で、操作・成果物の両方のタブを開き、描画されている操作可能な要素の全部について、
+//       はみ出す・押せない（覆われている）を数える（(3)(4) も両方のタブで測る）
 //   (3) 同じ時点で、ページの scrollWidth が 360 以下（横スクロール。1 つの時点につき 1 件）
 //   (4) 同じ時点で、24×24 CSS ピクセル未満の操作対象（a11y::TARGET_SIZE_SELECTOR と同じ集合）が 0 件
 //   欠けの 1 件は（Step, 要素, 種類）の組を重複なしで数える。流れの確認は journey の台帳（入力待ち・確認待ちの口、拒否・問い返しで
@@ -34,6 +35,8 @@ const WIDTH = 360;
 const HEIGHT = 900;
 // a11y::TARGET_SIZE_SELECTOR の写し（正は crates/web/src/a11y.rs）。
 const TARGETS = 'button, select, input:not([type="hidden"]), [data-action]';
+// 幅 959px 以下の tablist の 2 つのタブ（DOM の id）。
+const PANES = ['pane-tab-ops', 'pane-tab-artifacts'];
 // PoC-12 の (2) の「操作可能な要素」。
 const OPERABLE = 'button, textarea, select, input:not([type="hidden"]), a[href], [role="tab"], [tabindex]:not([tabindex^="-"])';
 let browser;
@@ -61,7 +64,7 @@ async function targetFaults(page, sel) {
     const id = (el) => {
       const extra = ['data-choice', 'data-row', 'data-decision', 'data-revise-target']
         .map((a) => el.getAttribute(a)).filter((v) => v !== null);
-      return `${el.tagName.toLowerCase()}[${el.getAttribute('data-testid') ?? (el.id || '-')}${extra.length ? `:${extra.join(':')}` : ''}]`;
+      return `${el.tagName.toLowerCase()}[${el.getAttribute('data-testid') ?? '-'}${el.id ? `#${el.id}` : ''}${extra.length ? `:${extra.join(':')}` : ''}]`;
     };
     const b = node.getBoundingClientRect();
     const kinds = [];
@@ -79,7 +82,7 @@ const screenFaults = (page) => page.evaluate(([operable, targets, w]) => {
   const id = (el) => {
     const extra = ['data-choice', 'data-row', 'data-decision', 'data-revise-target']
       .map((a) => el.getAttribute(a)).filter((v) => v !== null);
-    return `${el.tagName.toLowerCase()}[${el.getAttribute('data-testid') ?? (el.id || '-')}${extra.length ? `:${extra.join(':')}` : ''}]`;
+    return `${el.tagName.toLowerCase()}[${el.getAttribute('data-testid') ?? '-'}${el.id ? `#${el.id}` : ''}${extra.length ? `:${extra.join(':')}` : ''}]`;
   };
   const shown = (el) => {
     const r = el.getBoundingClientRect();
@@ -170,17 +173,32 @@ async function run(srv) {
   await page.goto(`${srv.url}${QUERY}`);
   await waitMounted(page);
   L.check('open', '開始点 s-1-1 の CH-1 の先頭で開く', (await engine(page)).current === 'main/st-1-1');
+  const scan = async (uid, status, pane) => {
+    const o = await screenFaults(page);
+    for (const f of o.faults) add('screen', `${uid} ${f.id} ${f.kind}`);
+    if (o.scrollWidth > WIDTH) overflow.add(`${uid}/${status}/${pane}`);
+    for (const s of o.small) small.add(`${uid} ${s}`);
+  };
+  // 各時点で、操作・成果物の両方のタブを開いて走査し、元のタブに戻す（見えている側だけでは片方の欠けを見逃す）。
   const onStep = async (uid, status) => {
     current = uid;
     points += 1;
-    const o = await screenFaults(page);
-    for (const f of o.faults) add('screen', `${uid} ${f.id} ${f.kind}`);
-    if (o.scrollWidth > WIDTH) overflow.add(`${uid}/${status}`);
-    for (const s of o.small) small.add(`${uid} ${s}`);
+    const selected = await page.getAttribute('[data-testid="pane-tab"][aria-selected="true"]', 'id');
+    for (const pane of PANES) {
+      await page.click(`#${pane}`, { timeout: T });
+      await scan(uid, status, pane);
+    }
+    if (selected) await page.click(`#${selected}`, { timeout: T });
   };
   const record = (id, kind) => add('target', `${current} ${id} ${kind}`);
   const d = measuringDriver(page, mouseDriver(page), record);
-  await journey(page, d, '360px', L, 'main/st-2-1', { chaptered: true, onStep, from: 'main/st-1-1' });
+  // 操作が失敗して通しが止まっても、それまでに数えた欠けと止まった Step を出してから失敗させる。
+  try {
+    await journey(page, d, '360px', L, 'main/st-2-1', { chaptered: true, onStep, from: 'main/st-1-1' });
+  } catch (err) {
+    await context.close();
+    assert.fail(`journey stopped at ${current}: ${err.message.split('\n')[0]}; faults=${JSON.stringify([...faults])}`);
+  }
   const e = await engine(page);
   L.check('end', 'main/st-2-1 に入った', e.current === 'main/st-2-1');
   L.check('end', 'CH-1 の 6 Step がすべて達成', ['1', '2', '3', '4', '5', '6']
