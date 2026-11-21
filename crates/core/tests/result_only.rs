@@ -262,6 +262,12 @@ fn evt19_opening_a_hint_during_processing_does_not_split_the_changes() {
     let s1 = stamp(1, "main/st-1");
     let events = vec![
         Event::Accepted { at: s1.clone() },
+        Event::Progress {
+            at: s1.clone(),
+            name: "p0".into(),
+            index: 0,
+            total: 2,
+        },
         changed(s1.clone(), None, Some(el("a")), Cause::Input),
         Event::HintOpened {
             at: s1.clone(),
@@ -309,6 +315,12 @@ fn evt19_an_input_rejected_during_processing_does_not_split_the_changes() {
     let s1 = stamp(1, "main/st-1");
     let events = vec![
         Event::Accepted { at: s1.clone() },
+        Event::Progress {
+            at: s1.clone(),
+            name: "p0".into(),
+            index: 0,
+            total: 2,
+        },
         changed(s1.clone(), None, Some(el("a")), Cause::Input),
         Event::InputReceived {
             at: s1.clone(),
@@ -372,6 +384,27 @@ fn evt19_a_wait_step_processing_starts_at_its_first_tick() {
     assert_eq!(
         count(&r, |e| matches!(e, Event::Changed { .. })),
         1,
+        "{r:?}"
+    );
+}
+
+#[test]
+fn evt19_an_accepted_input_without_processing_closes_its_segment() {
+    // 処理を持たない受付の操作の変化は、その操作だけでまとめ、後の操作の変化とはまとめない。
+    let s1 = stamp(1, "main/st-1");
+    let events = vec![
+        Event::Accepted { at: s1.clone() },
+        changed(s1.clone(), None, Some(el("a")), Cause::Input),
+        Event::InputReceived {
+            at: s1.clone(),
+            input: Input::Command("/x".into()),
+        },
+        changed(s1, Some(el("a")), Some(el("b")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(
+        count(&r, |e| matches!(e, Event::Changed { .. })),
+        2,
         "{r:?}"
     );
 }

@@ -17,7 +17,9 @@
 //! 世界状態の差分は操作ごとに 1 経路 1 件で、操作の末尾にまとめて記録される（`changed::record_changes`）。区間は
 //! 「処理を始めた操作」から「最後の進行の操作」までの操作の列で、次で決める。
 //!
-//! - 始まり: 区間の外で、`Accepted`（受付。入力の操作の受付は、その操作の変化より前に出る）か、`Progress` の 0 番
+//! - 始まり: 区間の外で、`Accepted`（受付。入力の操作の受付は、その操作の変化より前に出る）か、`Progress` の 0 番。
+//!   受付で始めた区間は、続く操作が進行ならそのまま処理の途中になり、別の操作（入力・停止・移動・開始・復帰・保存・
+//!   ヒント・再読み込み・拒否）が始まれば、受付の操作だけで閉じる（処理を持たない受付）
 //!   （入った時点から処理中の `wait` の Step。#2205）を見たとき
 //! - 終わり: 最後の進行（`Progress` の `index + 1 == total`）を見た後、その操作の末尾の変化が済んだとき。末尾の変化の
 //!   後の最初の `Changed` でないイベントで閉じる（最後の進行の操作に変化が無いときは、次の操作の始まりで閉じる）
@@ -40,10 +42,28 @@ use crate::event::Event;
 enum Segment {
     /// 区間の外。
     Outside,
+    /// 受付の操作の中。続く操作が進行なら処理の途中へ、別の操作が始まれば閉じる（処理を持たない受付）。
+    Accepted,
     /// 処理の途中。
     Running,
     /// 最後の進行を見た。その操作の末尾の変化を待つ（`seen_change` はその変化を 1 件以上見たか）。
     Ending { seen_change: bool },
+}
+
+/// 受付の操作の後に、別の操作の始まりとして現れるイベントか（受付の操作の中の達成・遷移・変化は含まない）。
+fn starts_another_operation(e: &Event) -> bool {
+    matches!(
+        e,
+        Event::InputReceived { .. }
+            | Event::Stopped { .. }
+            | Event::Moved { .. }
+            | Event::Begun { .. }
+            | Event::Restored { .. }
+            | Event::CheckpointSaved { .. }
+            | Event::HintOpened { .. }
+            | Event::Reloaded { .. }
+            | Event::Refused { .. }
+    )
 }
 
 /// 結果だけのイベント列を返す（規則はモジュールの説明）。入力は変えない。
@@ -54,6 +74,11 @@ pub fn result_only(events: &[Event]) -> Vec<Event> {
     let mut slot: BTreeMap<String, usize> = BTreeMap::new();
     let mut seg = Segment::Outside;
     for e in events {
+        // 処理を持たない受付の操作は、次の操作が始まったところで閉じる（進行が来れば処理の途中へ移る）。
+        if seg == Segment::Accepted && starts_another_operation(e) {
+            seg = Segment::Outside;
+            slot.clear();
+        }
         // 最後の進行の後、末尾の変化が済んだら（または変化の無いまま次のイベントが来たら）閉じる。
         if let Segment::Ending { seen_change } = seg {
             let is_change = matches!(e, Event::Changed { .. });
@@ -66,6 +91,9 @@ pub fn result_only(events: &[Event]) -> Vec<Event> {
         }
         match e {
             Event::Progress { index, total, .. } => {
+                if seg == Segment::Accepted {
+                    seg = Segment::Running;
+                }
                 if seg == Segment::Outside && *index == 0 {
                     seg = Segment::Running;
                     slot.clear();
@@ -76,7 +104,7 @@ pub fn result_only(events: &[Event]) -> Vec<Event> {
             }
             Event::Accepted { .. } => {
                 if seg == Segment::Outside {
-                    seg = Segment::Running;
+                    seg = Segment::Accepted;
                     slot.clear();
                 }
                 out.push(e.clone());
