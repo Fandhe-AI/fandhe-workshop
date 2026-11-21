@@ -15,17 +15,21 @@
 // 停止（Esc）: 早送りの入でも、進行は最大 4 件の区切りごとに event loop へ戻るため、区切りの間の停止は受け付ける（5.526。native の
 //   fast_forward_host.rs が通常の速さと同じ結果を確かめる）。ただし数 ms で終わるため、受講者が止める場面は `normal_speed` の Step に置く（SHELL-26）。
 //   その画面の確認は fast-forward-toggle の G・H（5.528）が持つ。この試験は停止を扱わない。
-// 入・切で進行の数・ops・左の最終的な変化が一致することは TASK-542 2/2（#1048）の担当。
+//   C   （TASK-542 2/2。#1048）同じ入力列（journey の 20 Step）を切と入で流し、進行の記録（世代と番号の列）・イベントの種類の列・ログを除いた状態・
+//       書き出した履歴の ops・左の成果物の最終の行（パスと文字）が一致する。入は開いた直後に切り替えを押した列で、ops に早送りの値が入らない（D-54・EVT-27）
 // 出力に入力した値は出さない。入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は skip にせず失敗にする。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   launchBrowser, channelFromEnv, withServer, openPage, summarize, waitMounted,
 } from './harness.mjs';
 import {
   ledger, mouseDriver, journey, engine, at, rowSel, DRAFT, T,
 } from './ch0-3-journey.mjs';
+import { exportByUi } from './shell-journey-trips.mjs';
 
 const BASE = '/fandhe-fast-forward-journey/';
 const QUERY = '?fixture=ch0-3-chapters';
@@ -51,9 +55,12 @@ const ACCEPTED = [
 const HOLD_MS = 700;
 // 処理中の段を持つ Step と段の数（試験用の教材 `crates/web/tests/data/ch0_3/ir.json` の `processing`）。
 const PROCESSING = { 'main/st-1-5': 4, 'main/st-2-5': 2 };
+const ROWS = '[data-testid="part-artifact-view"] [data-row]';
 let browser;
+let tmpDir;
 
 before(async () => {
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-ff-journey-'));
   const dir = process.env.FANDHE_WEB_TEST_DIR;
   assert.ok(
     dir && fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory(),
@@ -64,6 +71,7 @@ before(async () => {
 
 after(async () => {
   if (browser) await browser.close();
+  if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 const statusOf = async (page, uid) => (await engine(page)).stateWithoutLog.run.slices.main?.status?.[uid] ?? 'entered';
@@ -129,14 +137,16 @@ function holdingDriver(page, inner, L, held) {
   return wrapped;
 }
 
-async function openOn(srv) {
+async function openOn(srv, { on = true } = {}) {
   const opened = await openPage(browser, { origin: srv.origin, viewport: { width: 1280, height: 800 } });
   const { page } = opened;
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto(`${srv.url}${QUERY}`);
   await waitMounted(page);
-  await page.click(TOGGLE);
-  await page.waitForFunction((s) => document.querySelector(s)?.getAttribute('data-fast-forward') === 'on', STATUS, { timeout: T });
+  if (on) {
+    await page.click(TOGGLE);
+    await page.waitForFunction((s) => document.querySelector(s)?.getAttribute('data-fast-forward') === 'on', STATUS, { timeout: T });
+  }
   return opened;
 }
 
@@ -223,5 +233,58 @@ test('早送りが入でも、チェックポイントへの復帰の後は入�
     console.log(`diagnostic fast-forward restore: ledger=${L.summary()}`);
     assert.deepEqual(L.failed(), [], JSON.stringify(summarize(rec)));
     await context.close();
+  });
+});
+
+// 1 回の通し（切か入）の観察。入力した値は比べるだけで出力しない。
+// `extra` が真なら、通しの後に操作を 1 つ足す（比べ方が違いを見分けることの対照）。
+async function observeRun(srv, on, { extra = false } = {}) {
+  const { page, context, rec } = await openOn(srv, { on });
+  const L = ledger();
+  await journey(page, mouseDriver(page), on ? 'C-on' : 'C-off', L, null, { chaptered: true });
+  if (extra) {
+    // 最後の Step の後は入力欄が無いため、チェックポイントの保存（ops に記録される操作）を 1 つ足す。
+    const n = await page.locator(RESTORE).count();
+    await page.click(SAVE, { timeout: T });
+    await page.waitForFunction(([sel, k]) => document.querySelectorAll(sel).length === k + 1, [RESTORE, n], { timeout: T });
+  }
+  const e = await engine(page);
+  const rows = await page.evaluate((sel) => [...document.querySelectorAll(sel)]
+    .map((el) => `${el.getAttribute('data-row')}|${(el.textContent ?? '').trim()}`), ROWS);
+  const file = await exportByUi(page, tmpDir);
+  const ops = JSON.parse(fs.readFileSync(file, 'utf8')).ops;
+  fs.rmSync(file, { force: true });
+  finish(L, 'C', e, rec);
+  const ff = await ffState(page);
+  await context.close();
+  return {
+    failed: L.failed(), ff, ticks: e.ticks, kinds: e.log.map((r) => r.kind), state: JSON.stringify(e.stateWithoutLog), ops, rows,
+  };
+}
+
+test('通常の速さと早送りで、進行の記録・ops・左の最終的な変化が一致する（C）', { timeout: 600000 }, async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
+    const off = await observeRun(srv, false);
+    const on = await observeRun(srv, true);
+    assert.deepEqual([off.failed, on.failed], [[], []], 'both journeys pass');
+    assert.deepEqual([off.ff, on.ff], ['off', 'on'], 'fast-forward state of each run');
+    console.log(`diagnostic fast-forward compare: ticks=${off.ticks.length} events=${off.kinds.length} ops=${off.ops.length} rows=${off.rows.length}`);
+    const stages = Object.values(PROCESSING).reduce((a, b) => a + b, 0);
+    assert.equal(off.ticks.length, stages, 'progress records equal the stages of the processing steps');
+    assert.ok(off.rows.length >= 1, 'left pane has rows');
+    // 失敗の文には、入力値・履歴の本文・行の文字を出さない（一致したかと件数だけ）。
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    assert.ok(same(on.ticks, off.ticks), `progress records differ (${on.ticks.length} / ${off.ticks.length})`);
+    assert.ok(same(on.kinds, off.kinds), `event kinds differ (${on.kinds.length} / ${off.kinds.length})`);
+    assert.ok(on.state === off.state, 'state without log differs');
+    assert.ok(same(on.ops, off.ops), `history ops differ (${on.ops.length} / ${off.ops.length})`);
+    assert.ok(same(on.rows, off.rows), `final left rows differ (${on.rows.length} / ${off.rows.length})`);
+    // 早送りの入・切は履歴の操作の種類に現れない（ops の各要素の鍵は操作の種類）。
+    const opKinds = new Set(on.ops.flatMap((op) => (op && typeof op === 'object' ? Object.keys(op) : [String(op)])));
+    assert.ok(![...opKinds].some((k) => /fast|speed/i.test(k)), `ops kinds: ${[...opKinds].sort().join(',')}`);
+    // 対照: 操作を 1 つ足した列とは ops・イベントの種類が一致しない。
+    const extra = await observeRun(srv, true, { extra: true });
+    assert.ok(!same(extra.ops, off.ops), 'control: one extra operation changes ops');
+    assert.ok(!same(extra.kinds, off.kinds), 'control: one extra operation changes event kinds');
   });
 });
