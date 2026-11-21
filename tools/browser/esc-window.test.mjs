@@ -4,10 +4,10 @@
 // 呼び出し元は `make test-browser`（scripts/test-browser.sh）である。配信する設定（試験用の口が無い）の写しに、試験用の最小の教材
 // （min-3step）の st-1 の処理を 20 段にした IR を同梱して開く。20 段は試作の教材の ST-1.5 と同じ回数で、D-47 の「Esc の余裕は進行の回数で補う」の形。
 // 操作は入力欄への入力と Enter・Esc のキーだけで、観察は DOM だけで行う（右のログの進行の行の出現時刻は MutationObserver で記録する）。
-//   W1  止めずに待つと、進行の行が 20 件出て確認待ちになる。隣り合う行の間隔の中央値が 300ms 前後（250〜450ms）で、
+//   W1  止めずに待つと、進行の行が 20 件出て確認待ちになる（指す確認の行が指せる形で出る）。隣り合う行の間隔の中央値が 300ms 前後（250〜450ms）で、
 //       最初の行から最後の行までが 5,000ms 以上（Esc を押せる時間の長さ）
 //   W2  10 件目の進行の行が出た時点で Esc を押すと、状態表示が「停止」（data-state=stopped）になり、停止の行が 1 件出て、
-//       その後 1,000ms 待っても進行の行が増えない（20 件に届かない）
+//       停止になった時点と 1,000ms 後の進行の行が、Esc を押す直前の件数のまま（20 件に届かない）
 //   共通 早送りは切のまま（既定）。ページ内のエラー・CSP 違反が 0 件。CSP あり・なしで流す
 // 範囲外: 人が押せるか（人の確認。TERM-34 の検討中の理由）、早送り（SHELL-24。fast-forward-toggle）、試験の設定での停止の網羅（esc-once・ch1-keyboard）。
 // 入力: FANDHE_WEB_DIR（配信する設定）。未設定・不在は skip にせず失敗にする。
@@ -27,6 +27,8 @@ const RUN = '[data-testid="run-status"]';
 const STATUS = '[data-testid="fast-forward-status"]';
 const PROGRESS = '[data-testid="part-log-list"] li[data-kind="progress"]';
 const STOPPED = '[data-testid="part-log-list"] li[data-kind="stopped"]';
+// 確認（point_at）で指す行。受付の後に指せる形（data-action="ui"）で出る。
+const CONFIRM_ROW = '[data-testid="part-artifact-view"] [data-row="notes/draft"][data-action="ui"]';
 const STAGES = 20;
 const STOP_AT = 10;
 const T = 30000;
@@ -78,19 +80,23 @@ async function scene(csp, fn) {
     fs.writeFileSync(path.join(copy, 'ir', 'main.json'), irText());
     await withCspMode({ dir: copy, csp }, (d) => withServer({ dir: d, base: BASE }, async (srv) => {
       const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport: { width: 1280, height: 800 } });
-      await page.emulateMedia({ reducedMotion: 'no-preference' });
-      await page.goto(srv.url);
-      await waitMounted(page);
-      assert.equal(await page.evaluate(() => typeof window.__fandheTest), 'undefined', '配信する設定（試験用の口が無い）');
-      assert.equal(await page.evaluate((s) => document.querySelector(s)?.getAttribute('data-fast-forward'), STATUS), 'off', '早送りは切');
-      await watchProgress(page);
-      await page.fill(DRAFT, '/make-note first-note');
-      await page.press(DRAFT, 'Enter');
-      await fn(page);
-      const s = summarize(rec);
-      assert.equal(s.pageErrors, 0, JSON.stringify({ rec }));
-      assert.equal(s.csp, 0, JSON.stringify({ rec }));
-      await context.close();
+      // 失敗しても文脈を閉じる（残ったページのタイマーが後の場面に影響しないように）。
+      try {
+        await page.emulateMedia({ reducedMotion: 'no-preference' });
+        await page.goto(srv.url);
+        await waitMounted(page);
+        assert.equal(await page.evaluate(() => typeof window.__fandheTest), 'undefined', '配信する設定（試験用の口が無い）');
+        assert.equal(await page.evaluate((s) => document.querySelector(s)?.getAttribute('data-fast-forward'), STATUS), 'off', '早送りは切');
+        await watchProgress(page);
+        await page.fill(DRAFT, '/make-note first-note');
+        await page.press(DRAFT, 'Enter');
+        await fn(page);
+        const s = summarize(rec);
+        assert.equal(s.pageErrors, 0, JSON.stringify({ rec }));
+        assert.equal(s.csp, 0, JSON.stringify({ rec }));
+      } finally {
+        await context.close();
+      }
     }));
   });
 }
@@ -110,6 +116,8 @@ for (const csp of [true, false]) {
       console.log(`diagnostic esc-window: median-gap=${Math.round(median)}ms span=${Math.round(span)}ms`);
       assert.ok(median >= 250 && median <= 450, `median gap ${median}ms is about 300ms`);
       assert.ok(span >= 5000, `processing lasts ${span}ms (>= 5000ms)`);
+      // 確認待ち: 指す確認の行が指せる形で出ている。
+      assert.equal(await page.locator(CONFIRM_ROW).count(), 1, 'the confirm row is pointable after the processing');
     });
   });
 
@@ -117,11 +125,14 @@ for (const csp of [true, false]) {
     await scene(csp, async (page) => {
       await page.waitForFunction(([s, n]) => document.querySelectorAll(s).length >= n, [PROGRESS, STOP_AT], { timeout: T });
       assert.equal(await runState(page), 'busy', 'still processing when Esc is pressed');
+      // 基準は Esc を押す直前の件数（押した後に適用された進行も見逃さない）。
+      const beforeEsc = await progressRows(page);
       await page.keyboard.press('Escape');
       await page.waitForFunction((s) => document.querySelector(s)?.getAttribute('data-state') === 'stopped', RUN, { timeout: T });
       const atStop = await progressRows(page);
       await page.waitForTimeout(1000);
-      assert.equal(await progressRows(page), atStop, 'no progress after the stop');
+      assert.equal(atStop, beforeEsc, 'no progress between Esc and the stopped state');
+      assert.equal(await progressRows(page), beforeEsc, 'no progress after the stop');
       assert.ok(atStop < STAGES, `stopped before the last stage (${atStop})`);
       assert.equal(await page.locator(STOPPED).count(), 1, 'one stopped row');
     });
