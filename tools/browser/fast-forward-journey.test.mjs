@@ -5,7 +5,8 @@
 // 早送りの切り替え（`fast-forward-toggle`）を実クリックで入にしてから、ch0-3-journey.mjs の journey で CH-0〜CH-3 の 20 Step を実クリックで通す。
 //   N1  journey の台帳（入力待ち・確認待ちの口、拒否・問い返しで進まない、承認・差し戻し・対象つきの直す、章の境目）がすべて合格
 //   N2  確認待ちになった全 16 時点（Step の集合を照合）で、700ms（進行の間隔 300ms の 2 回分より長い）待っても確認待ちのまま・待機中
-//       （自動で達成・次の Step にならない）。拒否・問い返しの直後も、次の操作の前に 700ms 待って同じ Step・同じ状態・待機中
+//       （自動で達成・次の Step にならない）。入力待ちに入った全 20 時点でも、最初の入力（承認・差し戻しを含む）の前に同じく確かめる。
+//       拒否・問い返しの直後も、次の操作の前に 700ms 待って同じ Step・同じ状態・待機中で、測った 11 時点の Step と状態が期待の列と一致する
 //   N3  処理中の段を持つ Step（st-1-5・st-2-5）で、進行がすべて適用されてから確認待ちになり（段が省かれない）、その処理で「早送り中」が出た
 //       （早送りが実際に効いた。数 ms しか出ないため MutationObserver で記録する）
 //   R   入のまま、st-1-5 に入った時点でチェックポイントを保存し、st-2-1 で復帰すると st-1-5 の入力待ちに戻り、700ms 待っても進まない。
@@ -34,6 +35,12 @@ const SAVE = '[data-testid="checkpoint-save"]';
 const RESTORE = '[data-testid="checkpoint-restore"]';
 const RUN = '[data-testid="run-status"]';
 const ACTIVE = '[data-testid="fast-forward-active"]';
+// journey が拒否・問い返しを起こす 11 時点と、その時の Step の状態（試験用の教材の CH-0〜CH-3）。
+const REJECT_POINTS = [
+  'main/st-0-1:entered', 'main/st-0-1:entered', 'main/st-0-2a:accepted', 'main/st-1-1:entered', 'main/st-1-4:entered',
+  'main/st-1-4:entered', 'main/st-2-6:entered', 'main/st-2-6:entered', 'main/st-2-7:entered', 'main/st-2-7:accepted',
+  'main/st-3-1:entered',
+];
 const LOG_ROWS = '[data-testid="part-log-list"] li[data-kind="rejected"], [data-testid="part-log-list"] li[data-kind="clarified"]';
 // journey が確認待ちにする 16 時点（試験用の教材の CH-0〜CH-3）。
 const ACCEPTED = [
@@ -86,13 +93,15 @@ const logRows = (page) => page.evaluate((s) => document.querySelectorAll(s).leng
 
 // 拒否・問い返しの直後の静止を確かめる包み。各操作の前に、前の操作で拒否・問い返しの行が増えていれば、その時点の Step と状態が
 // 700ms 後も同じで待機中であることを台帳に積む（journey の reject・clarify は行が出た直後に 1 回だけ見るため）。
-function holdingDriver(page, inner, L) {
+// 測った時点は `held` に（Step:状態）で積み、呼び出し側が期待の列（REJECT_POINTS）と照合する。
+function holdingDriver(page, inner, L, held) {
   let rows = 0;
   const wrap = (fn) => async (...args) => {
     const now = await logRows(page);
     if (now > rows) {
       const uid = (await engine(page)).current;
       const status = await statusOf(page, uid);
+      held.push(`${uid}:${status}`);
       L.check('N2', `${uid} 拒否・問い返しの後も進まない（${now}）`, await holds(page, uid, status));
     }
     const result = await fn(...args);
@@ -124,9 +133,14 @@ test('早送りが入でも 20 Step の確認・承認・差し戻し・拒否�
     const { page, context, rec } = await openOn(srv);
     const L = ledger();
     const waits = [];
+    const entered = [];
+    const held = [];
     let enteredTicks = 0;
     const onStep = async (uid, status) => {
       if (status === 'entered') {
+        // 最初の入力（承認・差し戻しを含む）を送る前に、入力待ちのまま進まないことを確かめる。
+        entered.push(uid);
+        L.check('N2', `${uid} 入力待ちのまま進まない`, await holds(page, uid, 'entered'));
         enteredTicks = await tickCount(page);
         await watchActive(page);
         return;
@@ -138,8 +152,10 @@ test('早送りが入でも 20 Step の確認・承認・差し戻し・拒否�
       }
       L.check('N2', `${uid} 確認待ちのまま進まない`, await holds(page, uid, 'accepted'));
     };
-    await journey(page, holdingDriver(page, mouseDriver(page), L), 'N1', L, null, { chaptered: true, onStep });
+    await journey(page, holdingDriver(page, mouseDriver(page), L, held), 'N1', L, null, { chaptered: true, onStep });
     L.check('N2', '確認待ちの 16 時点をすべて測った', JSON.stringify(waits) === JSON.stringify(ACCEPTED));
+    L.check('N2', '入力待ちの 20 時点をすべて測った', entered.length === 20);
+    L.check('N2', `拒否・問い返しの後の 11 時点を期待の Step と状態で測った（${held.join(',')}）`, JSON.stringify(held) === JSON.stringify(REJECT_POINTS));
     L.check('end', '早送りが最後まで入', (await ffState(page)) === 'on');
     finish(L, 'end', await engine(page), rec);
     console.log(`diagnostic fast-forward on: ledger=${L.summary()} accepted-points=${waits.length}`);
