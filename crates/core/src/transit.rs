@@ -98,12 +98,6 @@ fn set_status(ir: &Ir, state: &mut SessionState, uid: &str, status: StepStatus) 
         .insert(uid, status);
 }
 
-/// Step に入るたびに、状態の入口の写しを無効にする（MOD-10、TASK-242 1/2。不変条件 I-1）。
-///
-/// 状態が持つ写しは「無い」か「現在の Step のもの」の 1 つだけにする。置き換えの実体は、新しい Step の写しを
-/// [`crate::entry_derive`] がログから導くこと（SAFE-35）で、ここでは古い Step の写しを残さない。
-/// `go_to` の移動もこの着地の無効化に依る（移動の側では無効化しない。#1865）。
-/// 呼び出し元は [`land`] の通常の Step への着地と、[`after_achieved`] の呼び出し元への戻りだけである。
 /// `wait` の Step（`input.kind == "wait"` で `processing` を持つ）なら、最初の進行を待つ処理中の値を返す（EP-1・EVT-20）。
 /// それ以外の Step は `None`（入った時点では処理中でない）。総数が `u32` に収まらなければ最大値に倒す（`accept` と同じ）。
 pub(crate) fn wait_busy(step: &fandhe_workshop_contract::ir::Step) -> Option<crate::session::Busy> {
@@ -120,6 +114,12 @@ pub(crate) fn wait_busy(step: &fandhe_workshop_contract::ir::Step) -> Option<cra
     })
 }
 
+/// Step に入るたびに、状態の入口の写しを無効にする（MOD-10、TASK-242 1/2。不変条件 I-1）。
+///
+/// 状態が持つ写しは「無い」か「現在の Step のもの」の 1 つだけにする。置き換えの実体は、新しい Step の写しを
+/// [`crate::entry_derive`] がログから導くこと（SAFE-35）で、ここでは古い Step の写しを残さない。
+/// `go_to` の移動もこの着地の無効化に依る（移動の側では無効化しない。#1865）。
+/// 呼び出し元は [`land`] の通常の Step への着地と、[`after_achieved`] の呼び出し元への戻りだけである。
 fn replace_entry_on_enter(state: &mut SessionState) {
     state.entry = None; // I-1: 入った Step の写しは導く
 }

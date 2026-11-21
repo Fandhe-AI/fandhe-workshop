@@ -157,3 +157,89 @@ fn ep1_other_steps_are_not_busy_on_entry() {
         "choice の st-2 は入った時点で処理中でない"
     );
 }
+
+#[test]
+fn evt20_a_second_stop_on_the_same_wait_step_rewinds_again() {
+    let mut s = at_wait(wait_ir());
+    tick(&mut s);
+    s.apply(Op::Control(Control::Stop));
+    let generation = s.state().run.generation;
+    tick(&mut s);
+    assert!(s.state().run.world.contains_key("checks/w"));
+    let ev = s.apply(Op::Control(Control::Stop)).to_vec();
+    assert!(
+        ev.iter().any(|e| matches!(e, Event::Stopped { .. })),
+        "2 回目の停止も効く: {ev:?}"
+    );
+    assert_eq!(s.state().run.generation.0, generation.0 + 1);
+    assert_eq!(s.state().run.busy, Some(Busy { done: 0, total: 2 }));
+    assert!(!s.state().run.world.contains_key("checks/w"));
+}
+
+#[test]
+fn evt20_stop_works_after_restoring_a_save_made_during_the_wait() {
+    // 処理中に保存し、最後の進行で受付・達成になった後にその保存へ復帰する。復帰で消えた受付は停止を妨げない。
+    let mut ir = wait_ir();
+    for n in &mut ir.nodes {
+        if n.uid == "main/st-2" {
+            n.step.confirm = Some(json!({ "kind": "approve" }));
+        }
+    }
+    let mut s = at_wait(ir);
+    tick(&mut s);
+    let saved = s.apply(Op::Control(Control::Save)).to_vec();
+    let id = saved
+        .iter()
+        .find_map(|e| match e {
+            Event::CheckpointSaved { id, .. } => Some(id.clone()),
+            _ => None,
+        })
+        .expect("保存した");
+    tick(&mut s);
+    assert_eq!(s.step_status(&uid("main/st-2")), StepStatus::Accepted);
+    s.apply(Op::Control(Control::Restore(id)));
+    assert_eq!(s.state().run.busy, Some(Busy { done: 1, total: 2 }));
+    assert_eq!(s.step_status(&uid("main/st-2")), StepStatus::Entered);
+    let ev = s.apply(Op::Control(Control::Stop)).to_vec();
+    assert!(
+        ev.iter().any(|e| matches!(e, Event::Stopped { .. })),
+        "{ev:?}"
+    );
+    assert_eq!(s.state().run.busy, Some(Busy { done: 0, total: 2 }));
+}
+
+#[test]
+fn evt20_stop_keeps_the_effects_of_the_operation_that_entered_the_wait_step() {
+    // 開始点の効果は、wait の Step に入った操作（Begin）の効果で、入口より前のもの。停止で戻さない。
+    let mut ir = wait_ir();
+    ir.starts.push(fandhe_workshop_contract::ir::Start {
+        id: "s-w".into(),
+        node: "main/st-2".into(),
+        effects: vec![json!({ "put": { "path": "start/x", "attrs": { "from": "start" } } })],
+        guidance: None,
+        requires: None,
+        unmet: None,
+    });
+    let mut s = Session::new(ir);
+    s.apply(Op::Control(Control::Begin("s-w".into())));
+    assert_eq!(
+        s.state().run.busy,
+        Some(Busy { done: 0, total: 2 }),
+        "開始点から wait の Step に入る"
+    );
+    assert!(s.state().run.world.contains_key("start/x"));
+    tick(&mut s);
+    let ev = s.apply(Op::Control(Control::Stop)).to_vec();
+    assert!(
+        ev.iter().any(|e| matches!(e, Event::Stopped { .. })),
+        "{ev:?}"
+    );
+    assert!(
+        s.state().run.world.contains_key("start/x"),
+        "入った操作の効果は残る"
+    );
+    assert!(
+        !s.state().run.world.contains_key("checks/w"),
+        "入った後の進行の効果は戻る"
+    );
+}

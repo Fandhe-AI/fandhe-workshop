@@ -957,9 +957,18 @@ fn entry_boundary(before: &SessionState, cur: &StepUid) -> Option<usize> {
                 at = usize::try_from(*log_len).ok().filter(|p| *p < at)?;
             }
             Event::Accepted { at: s } if &s.step == cur => return Some(at),
-            // `wait` の Step は入った時点から処理中で受付を持たない（状態は `Entered`）。入った時点を入口にする（EP-1・EVT-20）。
-            Event::Entered { at: s } if &s.step == cur && entered_while_busy(before, cur) => {
-                return Some(at);
+            // `wait` の Step は入った時点から処理中で受付を持たない（状態は `Entered`）。入った操作か前の停止を入口にし、
+            // その操作の末尾にまとめて記録された変化の後ろを境目にする（製品の `entry_derive` と同じ。EP-1・EVT-20）。
+            Event::Entered { at: s } | Event::Stopped { at: s, .. }
+                if &s.step == cur && entered_while_busy(before, cur) =>
+            {
+                let own = before
+                    .log
+                    .get(at + 1..)?
+                    .iter()
+                    .take_while(|e| matches!(e, Event::Changed { .. }))
+                    .count();
+                return Some(at + 1 + own);
             }
             _ => {}
         }

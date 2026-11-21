@@ -14424,12 +14424,12 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 - 実装:
   - `transit::land`（遷移・`Begin`・`GoTo` の着地の 1 か所）で、`wait` の Step なら `run.busy` を最初の進行から立てる（状態は `Entered`）。
   - `tick` の最後の進行で、`wait` の Step がまだ `Entered` なら `Accepted` を出して受付にする。`confirm: none` なら続けて達成にする（従来の経路）。
-  - 入口の写し（`entry_derive`）は、処理中なのに状態が `Entered` の Step（`wait`）では、その Step の `Entered` を入口にし、処理中を最初の進行から始め直す値にする。導出は IR を読まない約束のまま、状態で見分ける。
+  - 入口の写し（`entry_derive`）は、処理中なのに状態が `Entered` の Step（`wait`）では、その Step に入った操作（`Entered`）か前の停止（`Stopped`）を入口にし、処理中を最初の進行から始め直す値にする。境目はその操作の末尾にまとめて記録された変化（`changed::record_changes`）の後ろで、入る前の Step の達成・開始点の効果や停止の巻き戻しは戻さない。導出は IR を読まない約束のまま、状態で見分ける。
   - 停止（`stop`）は、入口の写しの処理中の値をそのまま使う。通常の Step は従来どおり処理中を解き、`wait` の Step は最初の進行から始め直す（EVT-20 の今の動き。#981 の決定）。
-- 試験: `crates/core/tests/wait_step.rs`（3 件）。`min-3step` の st-2 を 2 段の `wait`・`confirm: none` にした IR で、入ると入力なしに処理中（`Entered`）、
-  途中の進行では受付にならず、最後の進行で `Accepted` → `Achieved` の順に出て st-3 へ移る。処理中に停止すると世代 +1・`entered`・処理中は 0/2 から・進行の効果は入った時点の値に戻り、続けて 2 回の進行で受付・達成になる。`wait` でない Step は入った時点で処理中にならない。
-- 試験の模型の追従: `crates/pack/tests/common/round_gen.rs` の `entry_boundary`（性質テスト S-6 の入口の境目）に、処理中で状態が `Entered` の Step の `Entered` を入口にする規則を足した（製品の導出と同じ）。
+- 試験: `crates/core/tests/wait_step.rs`（6 件）。`min-3step` の st-2 を 2 段の `wait`・`confirm: none` にした IR で、入ると入力なしに処理中（`Entered`）、
+  途中の進行では受付にならず、最後の進行で `Accepted` → `Achieved` の順に出て st-3 へ移る。処理中に停止すると世代 +1・`entered`・処理中は 0/2 から・進行の効果は入った時点の値に戻り、続けて 2 回の進行で受付・達成になる。`wait` でない Step は入った時点で処理中にならない。同じ `wait` の Step で 2 回目の停止も効く。処理中に保存し、受付・達成の後にその保存へ復帰しても停止が効く。開始点から `wait` の Step に入ったとき、開始点の効果は停止で戻らず、入った後の進行の効果だけが戻る。
+- 遷移の上限: `confirm: none` の `wait` の最後の進行で、達成の後の遷移が上限に達すると、従来どおり入口へ戻して処理中を解く（`transit::return_after_limit`）。`wait` の Step は入力を待たないので、受講者はチェックポイントへの復帰などで抜ける。処理中を始め直すと、同じ遷移で上限に達し続けて止まらないため、始め直さない（fail-closed）。
+- 試験の模型の追従: `crates/pack/tests/common/round_gen.rs` の `entry_boundary`（性質テスト S-6 の入口の境目）に、処理中で状態が `Entered` の Step の `Entered`・`Stopped` を入口にし、その操作の末尾の変化の後ろを境目にする規則を足した（製品の導出と同じ）。
 - 結果（2026-11-22。base は `c1e45a6f`。手元の macOS）: `cargo test --workspace --locked --no-fail-fast` で 4,327 件合格・失敗 0。凍結した IR・履歴の期待は変わらなかった。
 - 範囲外: 周回の試験の `GoTo` の回避（1 周目・2 周目の `st-7-2`）を外すこと、画面での確認、教材（fandhe-tutorials の `packs/bbs-tutorial`）の回避の除去（後続の PR）。`wait` の停止の試験の確定（#985）。
 - 限界: 試験の作成者は AI で、人の確認は得ていない。
-||||||| c1e45a6f

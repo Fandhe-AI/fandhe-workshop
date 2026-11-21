@@ -201,14 +201,23 @@ pub(crate) fn derive(
                     log_len: u32::try_from(start).unwrap_or(u32::MAX),
                 });
             }
-            // `wait` の Step は入った時点から処理中で、`Accepted` を持たず状態は `Entered` のまま。入った時点（`Entered`）を
-            // 入口にし、処理中は最初の進行から始め直す値にする（EVT-20 の今の動き。#981 の決定）。IR は読まないので、
-            // 処理中なのに状態が `Entered` であること（受付で処理中になった Step は `Accepted`）で `wait` を見分ける。
-            Event::Entered { at: stamp }
+            // `wait` の Step は入った時点から処理中で、`Accepted` を持たず状態は `Entered` のまま。入った操作（`Entered`）か、
+            // 前の停止（`Stopped`。停止の後も処理中を始め直す）を入口にし、処理中は最初の進行から始め直す値にする
+            // （EVT-20 の今の動き。#981 の決定）。IR は読まないので、処理中なのに状態が `Entered` であること
+            // （受付で処理中になった Step は `Accepted`）で `wait` を見分ける。
+            Event::Entered { at: stamp } | Event::Stopped { at: stamp, .. }
                 if &stamp.step == current
-                    && current_status(run, current) == Some(StepStatus::Entered)
-                    && waits(log, at) =>
+                    && current_status(run, current) == Some(StepStatus::Entered) =>
             {
+                // その操作の世界状態の差分は、操作の末尾にまとめて記録される（`changed::record_changes`）。入口はその後ろで、
+                // まとめた分（入る前の Step の達成の効果・停止の巻き戻し）は戻さない。歩いた向きが逆なので、`undo` の末尾にある。
+                let own = log
+                    .get(at.saturating_add(1)..)?
+                    .iter()
+                    .take_while(|e| matches!(e, Event::Changed { .. }))
+                    .count();
+                let mut undo = undo;
+                undo.truncate(undo.len().checked_sub(own)?);
                 revert_world(&mut base.world, undo);
                 base.slices
                     .get_mut(&crate::instance::root_of(current))?
@@ -220,7 +229,8 @@ pub(crate) fn derive(
                 });
                 return Some(EntryCopy {
                     run: base,
-                    log_len: u32::try_from(at).unwrap_or(u32::MAX),
+                    log_len: u32::try_from(at.saturating_add(1).saturating_add(own))
+                        .unwrap_or(u32::MAX),
                 });
             }
             _ => return None,
@@ -253,17 +263,6 @@ fn current_status(run: &RunState, current: &crate::addr::StepUid) -> Option<Step
         .status
         .get(current)
         .copied()
-}
-
-/// 位置 `entered` の `Entered` の後に、同じ Step の `Accepted` が無い（入ったまま処理中の `wait` の Step）か。
-/// 受付のある Step では `Accepted` の腕が先に当たるので、ここへは来ない。念のため、後ろに同じ Step の受付が無いことを確かめる。
-fn waits(log: &[Event], entered: usize) -> bool {
-    let Some(Event::Entered { at: stamp }) = log.get(entered) else {
-        return false;
-    };
-    !log.iter()
-        .skip(entered.saturating_add(1))
-        .any(|e| matches!(e, Event::Accepted { at } if at.step == stamp.step))
 }
 
 /// 位置 `accepted` の `Accepted` を出した受付の操作の先頭（`InputReceived`）の位置。
