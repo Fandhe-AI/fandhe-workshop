@@ -739,6 +739,8 @@ pub struct EngineHost {
     input: HelloView,
     /// 960px 未満で見せる領域（TASK-517 2/2）。表示の状態で、履歴・保存先には書かず、Step が変わっても捨てない。
     pane: PaneTab,
+    /// 見えていない間に変化があったタブ（SHELL-5）。タブを選ぶと消す。表示の状態で、履歴・保存先には書かない。
+    pane_changed: Vec<PaneTab>,
     /// 変換して開いた通知（`shell-notice`。TASK-535 1/2。SHELL-20）を出すか。表示の状態で、`ops`・履歴・保存先には書かない。
     /// 実行環境の差し替え（`install_recorded`）で一度消し、変換して開いたときだけ立て直す。
     version_notice: bool,
@@ -923,6 +925,7 @@ impl EngineHost {
             registry: standard_registry(),
             input: HelloView::new(),
             pane: PaneTab::Ops,
+            pane_changed: Vec::new(),
             version_notice: false,
             receptors: ReceptorSettings::default(),
             consent: LearnerConsent::default(),
@@ -1094,6 +1097,7 @@ impl EngineHost {
             registry,
             input,
             pane: PaneTab::Ops,
+            pane_changed: Vec::new(),
             version_notice: false,
             receptors: ReceptorSettings::default(),
             consent: LearnerConsent::default(),
@@ -2412,6 +2416,13 @@ impl EngineHost {
             self.live_response = (0, String::new());
             self.dirty.push(LIVE_RESPONSE_FIELD.name);
         }
+        // タブの変化の印も前の履歴のもの（SHELL-5）。消したときだけ積む。
+        if !self.pane_changed.is_empty() {
+            self.pane_changed.clear();
+            if !self.dirty.contains(&PANE_TABS_FIELD.name) {
+                self.dirty.push(PANE_TABS_FIELD.name);
+            }
+        }
         // 変換して開いた通知は前の実行環境のものなので、持ち越さない（立て直すのは呼び出し側）。dirty の作り直しの後に消す。
         self.version_notice = false;
         self.refused_notice = None;
@@ -2604,6 +2615,29 @@ impl EngineHost {
                 crate::log_lines::line_from_event(e, t)
             })
             .collect();
+        // 見えていない側（選ばれていないタブ）に変化があれば、そのタブに印を付ける（SHELL-5。#1013 の決定）。
+        // 左は世界状態の変化（`Changed`）か、Step の移動（新しい Step の宣言で既定のビュー・指す行が替わる）、右はログに伸びた行
+        //（画面に出る行。進行の行を含む）が 1 つ以上ある操作で変化とみなす。
+        // 幅 960px 以上では両方が見えるが、web は幅を読まない（BUILD-6）ため区別しない（そのとき tablist は隠れている）。
+        let left_changed = log[from_event..]
+            .iter()
+            .any(|e| matches!(e, fandhe_workshop_core::event::Event::Changed { .. }));
+        // 右は画面に出る行だけで数える（動きを抑える設定では進行の行を出さない。A11Y-11・`motion::shows_line`）。
+        let reduced = self.model.reduced_motion;
+        let shown_lines = lines.iter().any(|l| crate::motion::shows_line(reduced, l));
+        // Step が変わると、左は新しい Step の宣言（既定のビュー・指す行）で描き直される。
+        let view_changed = session.state().run.current != prev_step;
+        for (tab, hit) in [
+            (PaneTab::Ops, shown_lines),
+            (PaneTab::Artifacts, left_changed || view_changed),
+        ] {
+            if hit && self.pane != tab && !self.pane_changed.contains(&tab) {
+                self.pane_changed.push(tab);
+                if !self.dirty.contains(&PANE_TABS_FIELD.name) {
+                    self.dirty.push(PANE_TABS_FIELD.name);
+                }
+            }
+        }
         if let Some(summary) = crate::live_region::response_summary(&lines) {
             let seq = self.live_response.0.saturating_add(1);
             self.live_response = (seq, crate::live_region::response_text(seq, &summary));
@@ -2955,9 +2989,14 @@ impl EngineHost {
 
     /// 960px 未満で見せる領域を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
     fn select_pane(&mut self, tab: PaneTab) {
-        if self.pane != tab {
+        let had_mark = self.pane_changed.contains(&tab);
+        // 選んだタブの変化の印は消す（見た側の変化は知らせ終えた。SHELL-5）。
+        self.pane_changed.retain(|t| *t != tab);
+        if self.pane != tab || had_mark {
             self.pane = tab;
-            self.dirty.push(PANE_TABS_FIELD.name);
+            if !self.dirty.contains(&PANE_TABS_FIELD.name) {
+                self.dirty.push(PANE_TABS_FIELD.name);
+            }
         }
     }
 
@@ -3478,7 +3517,8 @@ impl Component for EngineHost {
         let left = vec![el("div", vec![("data-testid", "workshop-parts")], left)];
         // 「次の章へ進む」は右のエリアの末尾に置く（仮置き。最終の配置は TASK-534・TASK-548）。
         right.push(next_chapter_list(self.next_chapter_offer().as_ref()));
-        let [tablist, panes] = crate::shell_frame::frame(left, right, self.pane);
+        let [tablist, panes] =
+            crate::shell_frame::frame(left, right, self.pane, &self.pane_changed);
         // 履歴の書き出し・読み込みの操作は通知欄の後ろ・tablist の前に置く（仮置き。最終の配置は TASK-534・TASK-548）。
         let shown = self.export_result.as_ref().map(|r| match r {
             ExportShown::Link {

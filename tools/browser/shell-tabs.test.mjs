@@ -11,7 +11,8 @@
 // 試験の設定（FANDHE_WEB_TEST_DIR）では、tab にフォーカスがある Esc がちょうど 1 回届くこと（FEND-6）を確かめる。
 // どちらも、CSP 違反・ページ内のエラー・コンソールのエラーが 0 件である。
 //
-// 確かめないこと: フォーカスの置き方の細部（A11Y-21。#1039）、変化があった側の印（SHELL-5。#1038）、
+//   - 変化の印（SHELL-5・#1038）: 見えていない側に変化があると、そのタブの名前に「（変化あり）」が付き、選ぶと消える（ファイル末尾）
+// 確かめないこと: フォーカスの置き方の細部（A11Y-21。#1039）、
 // 360px の横スクロールと 24px 未満の操作対象の件数（TASK-518・TASK-368 の担当）。
 //
 // 入力: FANDHE_WEB_DIR（配信設定）と FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は失敗にする。
@@ -216,3 +217,32 @@ test('境目: 959px で選んだ側が、960px で両方が見え、959px へ戻
     await context.close();
   });
 });
+
+// 見えていない側の変化の印（SHELL-5・A11Y-21。#1038。#1013 の決定）: 操作のタブで答えて左（成果物）が変わると、成果物のタブの名前に
+// 「（変化あり）」が付き、点線の下線のクラスが付く。成果物のタブを選ぶと消える。選ばれている操作のタブには付かない。
+for (const width of [959, 360]) {
+  test(`幅 ${width}px: 見えていない側の変化でタブに「（変化あり）」が付き、選ぶと消える（SHELL-5）`, async () => {
+    await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
+      const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport: { width, height: 800 } });
+      await page.goto(`${srv.url}?fixture=ch0-3-chapters`);
+      await waitMounted(page);
+      const tabs = () => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-testid="pane-tab"]')]
+        .map((t) => [t.id, { text: t.textContent, changed: t.classList.contains('sh-tab-changed') }])));
+      assert.deepEqual(await tabs(), {
+        'pane-tab-ops': { text: '操作', changed: false },
+        'pane-tab-artifacts': { text: '成果物', changed: false },
+      }, '開いた直後');
+      await page.click('[data-testid="choice-btn"][data-choice="opt-right"]');
+      await page.waitForFunction(() => document.getElementById('pane-tab-artifacts')?.textContent === '成果物（変化あり）', null, { timeout: 30000 });
+      assert.deepEqual(await tabs(), {
+        'pane-tab-ops': { text: '操作', changed: false },
+        'pane-tab-artifacts': { text: '成果物（変化あり）', changed: true },
+      }, '左が変わった後');
+      await page.click(TAB_ART);
+      await expectSelected(page, 'pane-tab-artifacts', ['left'], '成果物を選んだ後');
+      assert.deepEqual((await tabs())['pane-tab-artifacts'], { text: '成果物', changed: false }, '選ぶと消える');
+      noErrors(rec);
+      await context.close();
+    });
+  });
+}

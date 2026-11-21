@@ -76,19 +76,33 @@ pub fn pane_of(kind: PartKind) -> PaneMount {
     }
 }
 
+/// 見えていない側に変化があったタブの名前に足す文字（SHELL-5。#1013 の決定。色に頼らない）。
+pub const TAB_CHANGED_SUFFIX: &str = "（変化あり）";
+
+/// 変化の印のあるタブに付けるクラス（`static/app.css` が点線の下線を付ける。文字に加えて見た目でも示す。太字は選択中のタブの印）。
+pub const TAB_CHANGED_CLASS: &str = "sh-tab-changed";
+
 /// `tablist`。タブの順は `a11y::PaneTab::ALL`（操作→成果物）で、`selected` のタブが選択の状態になる。
+/// `changed` に入っているタブは、名前の後ろに [`TAB_CHANGED_SUFFIX`] を足し、[`TAB_CHANGED_CLASS`] を付ける。
 ///
 /// 項目が 2 件・キーが固定なので `keyed_view` は拒否しないが、拒否しても panic せず、親の `data-bind-list` を保った
 /// 一覧に退く（`keyed_view_or_notice`。全再描画を避ける）。
-fn tablist(selected: PaneTab) -> Node {
+fn tablist(selected: PaneTab, changed: &[PaneTab]) -> Node {
     let items = PaneTab::ALL
         .into_iter()
         .map(|t| {
             let on = t == selected;
+            let mark = changed.contains(&t);
+            let name = if mark {
+                format!("{}{TAB_CHANGED_SUFFIX}", t.label())
+            } else {
+                t.label().to_owned()
+            };
             let button = el(
                 "button",
                 vec![
                     ("type", "button"),
+                    ("class", if mark { TAB_CHANGED_CLASS } else { "" }),
                     ("role", "tab"),
                     ("data-testid", TAB_TESTID),
                     ("id", t.tab_id()),
@@ -98,7 +112,7 @@ fn tablist(selected: PaneTab) -> Node {
                     (ACTION_ATTR, ACTION_SELECT_PANE),
                     (PAYLOAD_ATTR, t.id()),
                 ],
-                vec![text(t.label())],
+                vec![text(&name)],
             );
             (t.id().to_owned(), button)
         })
@@ -139,14 +153,20 @@ fn pane(mount: PaneMount, children: Vec<Node>) -> Node {
 }
 
 /// 枠を組む。`[tablist, 入れ物]` を返し、呼び出し側が root の子として並べる。
-/// 入れ物の中の DOM 順は左→右で、2 列の grid の 1 列目が左になる。`selected` は 960px 未満で見せる領域である。
-pub fn frame(left: Vec<Node>, right: Vec<Node>, selected: PaneTab) -> [Node; 2] {
+/// 入れ物の中の DOM 順は左→右で、2 列の grid の 1 列目が左になる。`selected` は 960px 未満で見せる領域、`changed` は
+/// 見えていない間に変化があったタブ（SHELL-5）である。
+pub fn frame(
+    left: Vec<Node>,
+    right: Vec<Node>,
+    selected: PaneTab,
+    changed: &[PaneTab],
+) -> [Node; 2] {
     let panes = el(
         "div",
         vec![("class", PANES_CLASS)],
         vec![pane(PaneMount::Left, left), pane(PaneMount::Right, right)],
     );
-    [tablist(selected), panes]
+    [tablist(selected, changed), panes]
 }
 
 /// 上部の区画の CSS クラス。`static/app.css` の同名のクラスと一致させる（識別子は `data-testid` が持つ）。
