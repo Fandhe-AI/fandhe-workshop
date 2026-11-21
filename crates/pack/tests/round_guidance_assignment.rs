@@ -1,10 +1,11 @@
 //! 周回ごとの案内レベルの割り当てを、教材の宣言どおりに切り替えることの受け入れ試験（TASK-299。GUIDE-9・D-55。記録は `docs/testing.md` の 5.533）。
 //!
-//! エンジンが「どの周回にどの水準を使うか」「周回の数」を固定していないことを、割り当ての違う 4 本の教材パックで確かめる。
+//! エンジンが「どの周回にどの水準を使うか」を固定せず、2 周と 3 周の教材のどちらも宣言どおりに扱うことを、割り当ての違う 4 本の教材パックで確かめる。
+//! 4 周目以降は扱わない（3 周で打ち切る回帰はこの試験では検出しない）。
 //! 教材は `module-reuse-rounds` の写しで、`pack.guidance`（1 周目。開始点 `s-r1` は宣言を持たない）と、2 周目・3 周目の開始点の
 //! `guidance` だけを書き換える。3 周目は `round_three.rs` と同じく `step5/ch-round3.chapter.yaml` を足して作る。
-//! 各周回の開始（`Control::Begin`）の直後と、その周回を終えた時点で、実行全体の水準（`run.guidance_level`）が宣言どおりであること、
-//! 次の周回の開始までは水準が前の周回のまま変わらないことを見る。水準の意味（A・B・C で何を示すか）は教材側の約束で、ここでは見ない。
+//! 各周回の開始（`Control::Begin`）が成立し、その直後から周回の計画の 1 手ごとに実行全体の水準（`run.guidance_level`）が宣言どおりで、
+//! 周回の終わりに呼び出しの Step が達成していることを見る。水準の意味（A・B・C で何を示すか）は教材側の約束で、ここでは見ない。
 //! 形式 B の教材のコンパイルは pack にしかないため、core ではなく pack に置く。呼び出し元は CI の `make test` だけである。
 //! 試験では `unwrap`・`expect` を使ってよい。
 
@@ -17,10 +18,13 @@ use std::fs;
 use common::{copy_dir, testdata, Tmp};
 use fandhe_workshop_contract::guidance::GuidanceLevel::{self, A, B, C};
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_core::addr::StepUid;
+use fandhe_workshop_core::event::Event;
+use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::{load_ir, Session};
 use fandhe_workshop_pack::compile::compile_dir;
 use rounds::{
-    begin_round2_plan, begin_round3_plan, round1_plan, round2_plan, round3_plan, run_plan,
+    begin_round2_plan, begin_round3_plan, round1_plan, round2_plan, round3_plan, run_plan, PlanStep,
 };
 
 const PACK: &str = "module-reuse-rounds/test-data/pack";
@@ -78,35 +82,55 @@ fn pack_with(levels: &[GuidanceLevel]) -> (Tmp, Ir) {
     (t, ir)
 }
 
-/// 周回を順に通し、各周回の開始の直後と終わりの水準を返す（`[(開始の直後, 終わり)]`）。
-fn levels_through_rounds(ir: &Ir, rounds: usize) -> Vec<(GuidanceLevel, GuidanceLevel)> {
-    let mut s = Session::new(ir.clone());
-    let mut out = Vec::new();
-    let level = |s: &Session| s.state().run.guidance_level;
-    let r1 = round1_plan(ir);
-    run_plan(&mut s, &r1[..1]);
-    let begun = level(&s);
-    run_plan(&mut s, &r1[1..]);
-    out.push((begun, level(&s)));
-    run_plan(&mut s, &begin_round2_plan());
-    let begun = level(&s);
-    run_plan(&mut s, &round2_plan(ir));
-    out.push((begun, level(&s)));
-    if rounds == 3 {
-        run_plan(&mut s, &begin_round3_plan());
-        let begun = level(&s);
-        run_plan(&mut s, &round3_plan(ir));
-        out.push((begun, level(&s)));
-    }
-    out
-}
-
-/// 宣言どおりに切り替わり、周回の途中では変わらないこと。
+/// 周回を順に通し、宣言どおりの水準で進むことを確かめる。各周回で、(1) `Begin` がちょうど 1 件の `Begun` を出し拒否が無い、
+/// (2) 開始の直後から周回の計画の 1 手ごとに水準が宣言値のまま、(3) 周回の終わりにその周回の 2 つの呼び出しの Step が達成、を見る。
 fn assert_follows(levels: &[GuidanceLevel]) {
     let (_t, ir) = pack_with(levels);
-    let got = levels_through_rounds(&ir, levels.len());
-    let want: Vec<_> = levels.iter().map(|l| (*l, *l)).collect();
-    assert_eq!(got, want, "割り当て {levels:?}");
+    let mut s = Session::new(ir.clone());
+    let r1 = round1_plan(&ir);
+    let rounds: Vec<(Vec<PlanStep>, Vec<PlanStep>)> = [
+        Some((r1[..1].to_vec(), r1[1..].to_vec())),
+        Some((begin_round2_plan(), round2_plan(&ir))),
+        (levels.len() == 3).then(|| (begin_round3_plan(), round3_plan(&ir))),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    assert_eq!(rounds.len(), levels.len());
+    for (n, ((begin, body), want)) in rounds.iter().zip(levels).enumerate() {
+        let round = n + 1;
+        let ev = run_plan(&mut s, begin);
+        let begun = ev
+            .iter()
+            .filter(|e| matches!(e, Event::Begun { .. }))
+            .count();
+        assert_eq!(begun, 1, "{round} 周目の開始: {ev:?}");
+        assert!(
+            !ev.iter().any(|e| matches!(e, Event::Refused { .. })),
+            "{round} 周目の開始: {ev:?}"
+        );
+        assert_eq!(
+            s.state().run.guidance_level,
+            *want,
+            "{round} 周目の開始の直後（割り当て {levels:?}）"
+        );
+        for (k, step) in body.iter().enumerate() {
+            run_plan(&mut s, std::slice::from_ref(step));
+            assert_eq!(
+                s.state().run.guidance_level,
+                *want,
+                "{round} 周目の {k} 手目の後（割り当て {levels:?}）"
+            );
+        }
+        for id in ["idea", "impl"] {
+            let uid = StepUid(format!("main/r{round}-{id}"));
+            assert_eq!(
+                s.step_status(&uid),
+                StepStatus::Achieved,
+                "{round} 周目の終わりの {uid:?}"
+            );
+        }
+    }
 }
 
 #[test]

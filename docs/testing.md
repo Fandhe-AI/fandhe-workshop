@@ -14395,13 +14395,13 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 
 実行日: 2026-11-21。
 
-- 目的: エンジンが「どの周回にどの水準を使うか」「周回の数」を固定せず、教材が開始点に宣言した割り当てのとおりに案内レベルを切り替えることを、割り当ての違う 4 本の教材パックで確かめる。
+- 目的: エンジンが「どの周回にどの水準を使うか」を固定せず、2 周と 3 周の教材のどちらでも、教材が開始点に宣言した割り当てのとおりに案内レベルを切り替えることを、割り当ての違う 4 本の教材パックで確かめる。4 周目以降は扱わない（3 周で打ち切る回帰はこの試験では検出しない）。
 - 教材: `module-reuse-rounds` の写し。1 周目は `pack.guidance`（開始点 `s-r1` は宣言なし）、2 周目は `s-r2`・`s-r2-fresh` の `guidance`、3 周目は `step5/ch-round3.chapter.yaml` を足した `s-r3` の `guidance` を書き換える（`testdata` は書き換えない）。
-- 試験: `crates/pack/tests/round_guidance_assignment.rs`（5 件）。共有の計画（`common/rounds.rs`）で周回を順に通し、各周回の `Begin` の直後とその周回の終わりの `run.guidance_level` を比べる。
+- 試験: `crates/pack/tests/round_guidance_assignment.rs`（5 件）。共有の計画（`common/rounds.rs`）で周回を順に通し、各周回で (1) `Begin` がちょうど 1 件の `Begun` を出し拒否が無い、(2) 開始の直後から周回の計画の 1 手ごとに `run.guidance_level` が宣言値のまま、(3) 周回の終わりにその周回の呼び出しの Step（`rN-idea`・`rN-impl`）が達成、を確かめる。
 
 | 試験 | 割り当て（1 周目→） | 期待 |
 | --- | --- | --- |
-| `guide9_two_rounds_a_then_b_as_declared` | A → B（最初の教材。D-55） | 各周回の開始の直後と終わりが宣言どおり |
+| `guide9_two_rounds_a_then_b_as_declared` | A → B（最初の教材。D-55） | 各周回の開始が成立し、周回の全手で宣言どおりの水準、終わりに達成 |
 | `guide9_two_rounds_all_a_as_declared` | A → A | 同上 |
 | `guide9_three_rounds_a_b_c_as_declared` | A → B → C（周回数 3） | 同上 |
 | `guide9_three_rounds_not_in_order_as_declared` | C → A → B（順に上げない） | 同上 |
