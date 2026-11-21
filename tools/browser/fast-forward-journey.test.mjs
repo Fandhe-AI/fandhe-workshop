@@ -272,15 +272,19 @@ test('通常の速さと早送りで、進行の記録・ops・左の最終的�
     const stages = Object.values(PROCESSING).reduce((a, b) => a + b, 0);
     assert.equal(off.ticks.length, stages, 'progress records equal the stages of the processing steps');
     assert.ok(off.rows.length >= 1, 'left pane has rows');
-    assert.deepEqual(on.ticks, off.ticks, 'progress records (generation, index)');
-    assert.deepEqual(on.kinds, off.kinds, 'event kinds');
-    assert.equal(on.state, off.state, 'state without log');
-    assert.deepEqual(on.ops, off.ops, 'history ops');
-    assert.deepEqual(on.rows, off.rows, 'final left rows');
-    assert.ok(!JSON.stringify(on.ops).includes('fast'), 'fast-forward is not recorded in ops');
+    // 失敗の文には、入力値・履歴の本文・行の文字を出さない（一致したかと件数だけ）。
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    assert.ok(same(on.ticks, off.ticks), `progress records differ (${on.ticks.length} / ${off.ticks.length})`);
+    assert.ok(same(on.kinds, off.kinds), `event kinds differ (${on.kinds.length} / ${off.kinds.length})`);
+    assert.ok(on.state === off.state, 'state without log differs');
+    assert.ok(same(on.ops, off.ops), `history ops differ (${on.ops.length} / ${off.ops.length})`);
+    assert.ok(same(on.rows, off.rows), `final left rows differ (${on.rows.length} / ${off.rows.length})`);
+    // 早送りの入・切は履歴の操作の種類に現れない（ops の各要素の鍵は操作の種類）。
+    const opKinds = new Set(on.ops.flatMap((op) => (op && typeof op === 'object' ? Object.keys(op) : [String(op)])));
+    assert.ok(![...opKinds].some((k) => /fast|speed/i.test(k)), `ops kinds: ${[...opKinds].sort().join(',')}`);
     // 対照: 操作を 1 つ足した列とは ops・イベントの種類が一致しない。
     const extra = await observeRun(srv, true, { extra: true });
-    assert.notDeepEqual(extra.ops, off.ops, 'control: one extra operation changes ops');
-    assert.notDeepEqual(extra.kinds, off.kinds, 'control: one extra operation changes event kinds');
+    assert.ok(!same(extra.ops, off.ops), 'control: one extra operation changes ops');
+    assert.ok(!same(extra.kinds, off.kinds), 'control: one extra operation changes event kinds');
   });
 });
