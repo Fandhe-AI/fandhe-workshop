@@ -7,7 +7,7 @@
 //   W1  止めずに待つと、進行の行が 20 件出て確認待ちになる（指す確認の行が指せる形で出る）。隣り合う行の間隔の中央値が 300ms 前後（250〜450ms）で、
 //       最初の行から最後の行までが 5,000ms 以上（Esc を押せる時間の長さ）
 //   W2  10 件目の進行の行が出た後（状態の確かめと記録の準備の後）に Esc を押すと、状態表示が「停止」（data-state=stopped）になり、停止の行が 1 件出て、
-//       停止になった時点と 1,000ms 後の進行の行が、Esc の keydown が文書に届いた時点の件数のまま（20 件に届かない）
+//       停止になった時点と、止めなければ残りの段が届き終える時間（残り × 300ms + 500ms）の後の進行の行が、Esc の keydown が文書に届いた時点の件数のまま（20 件に届かない）
 //   共通 早送りは切のまま（既定）。ページ内のエラー・CSP 違反が 0 件。CSP あり・なしで流す
 // 範囲外: 人が押せるか（人の確認。TERM-34 の検討中の理由）、早送り（SHELL-24。fast-forward-toggle）、試験の設定での停止の網羅（esc-once・ch1-keyboard）。
 // 入力: FANDHE_WEB_DIR（配信する設定）。未設定・不在は skip にせず失敗にする。
@@ -133,10 +133,11 @@ for (const csp of [true, false]) {
       assert.equal(typeof beforeEsc, 'number', 'the Escape keydown reached the document');
       await page.waitForFunction((s) => document.querySelector(s)?.getAttribute('data-state') === 'stopped', RUN, { timeout: T });
       const atStop = await progressRows(page);
-      await page.waitForTimeout(1000);
+      // 止めなければ残りの段が届き終える長さ（残りの段 × 300ms）より長く見る。
+      await page.waitForTimeout((STAGES - STOP_AT) * 300 + 500);
       assert.equal(atStop, beforeEsc, 'no progress between Esc and the stopped state');
       assert.equal(await progressRows(page), beforeEsc, 'no progress after the stop');
-      assert.equal(await runState(page), 'stopped', 'still stopped after 1,000ms');
+      assert.equal(await runState(page), 'stopped', 'still stopped after the remaining processing time');
       assert.ok(atStop < STAGES, `stopped before the last stage (${atStop})`);
       assert.equal(await page.locator(STOPPED).count(), 1, 'one stopped row');
     });
