@@ -98,8 +98,16 @@ const screenFaults = (page) => page.evaluate(([operable, targets, w]) => {
   // 縦に画面の外の要素は、スクロールで表示領域に入れてから測る（最後に元のスクロール位置へ戻す）。
   const sx = window.scrollX;
   const sy = window.scrollY;
+  // 自身か祖先が透明（opacity 0）なら、寸法があっても見えない。
+  const transparent = (el) => {
+    for (let n = el; n instanceof Element; n = n.parentElement) {
+      if (Number(getComputedStyle(n).opacity) === 0) return true;
+    }
+    return false;
+  };
   for (const el of document.querySelectorAll(operable)) {
     if (!shown(el)) continue;
+    if (transparent(el)) faults.push({ id: id(el), kind: '見えない' });
     let r = el.getBoundingClientRect();
     if (r.left < 0 || r.right > w + 0.5) faults.push({ id: id(el), kind: 'はみ出す' });
     if (r.bottom <= 0 || r.top >= window.innerHeight) {
@@ -315,12 +323,13 @@ test('対照: 幅 500px の要素・送信ボタンの覆い・pointer-events �
     });
     assert.ok((await screenFaults(page)).small.some((id) => id.includes('[small-probe]')), '(4) a 20px-high button is a small target');
 
-    // 透明な送信ボタンは (1) で見えないに数える。
+    // 透明な送信ボタンは (1) で見えないに数え、画面全体の走査 (2) でも見えないに数える。
     const faded = await openPage(browser, { origin: srv.origin, viewport: { width: WIDTH, height: HEIGHT } });
     await faded.page.goto(`${srv.url}${QUERY}`);
     await waitMounted(faded.page);
     await faded.page.evaluate((sel) => { document.querySelector(sel).parentElement.style.opacity = '0'; }, SUBMIT);
     assert.ok((await targetFaults(faded.page, SUBMIT)).kinds.includes('見えない'), '(1) transparent submit button');
+    assert.ok((await screenFaults(faded.page)).faults.some((f) => f.id.includes('[submit-input]') && f.kind === '見えない'), '(2) transparent submit button');
     await faded.context.close();
 
     // 祖先が返る形（pointer-events: none）も (2) で押せないに数える。
