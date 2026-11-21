@@ -779,3 +779,23 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 ### 根拠の試験
 
 - `crates/pack/tests/fast_forward_default.rs`・`crates/web/tests/fast_forward_host.rs`・`tools/browser/fast-forward-toggle.test.mjs` の場面 I・J。記録は `docs/testing.md` の 5.529
+
+## GUIDE-14: `{{input_head}}` は案内レベルで伏せない（#953）
+
+### 状態
+
+- 2026-11-21: 順序違い（`wrong_order`）の拒否の次の行動の `{{step_do}}` は、案内レベルに合う `do`（`do_levels`）を選ぶ。名前を取り除く処理はしない。名前が出るかは選ばれた文（水準 B では `do_levels.B`、無ければ `do`）で決まる。試験の教材は、名前を含まない `do_levels.B` で伏せている
+
+### 限界
+
+- 拒否・問い返しの文面の `{{input_head}}` は、コマンドとして字句解析できて名前が空でない入力のとき、教材の接頭辞とコマンド名（例: `/beta-cmd`）を返す。それ以外の入力（自然文・字句解析できない入力）では値が無く、代替文（`{{input_head|そのコマンド}}` の「そのコマンド」）が使われる。水準 B で伏せる種類（`pack.guidance_levels.B.hide_command_kinds`）のコマンド名でも伏せない
+- `validate` の漏れの検査は、どの Step のどの水準で選ばれる文（`do`・本文。水準の文が無ければ濃い側へ倒れた文）を見るかを、開始点の水準と Step の `do_levels`・`body_levels` から決める（規則は `crates/pack/src/guidance.rs` の `definition_leak_targets`）。拒否の文面に書いた `{{input_head}}` の差し込み後の値は、どの場合も見ない（値は実行時に受講者が決めるため）
+- 受講者自身が打った語が戻るだけで、教材が skill 名を先に見せることにはならない。直す（伏せる）かは決めていない
+
+### 回避
+
+- 伏せたい水準で使う拒否の文面には `{{input_head}}` を書かず、固定の言い方（「そのコマンド」など）にする
+
+### 根拠の試験
+
+- `crates/pack/tests/do_levels.rs` の `task301_input_head_echoes_the_typed_hidden_command_even_at_level_b`（観察として固定）と `pack50_level_b_wrong_order_next_action_hides_skill_name`
