@@ -11,7 +11,7 @@
 //       （早送りが実際に効いた。数 ms しか出ないため MutationObserver で記録する）
 //   R   入のまま、st-1-5 に入った時点でチェックポイントを保存し、st-2-1 で復帰すると st-1-5 の入力待ちに戻り、700ms 待っても進まない。
 //       送り直すと「早送り中」が出て進行がすべて適用されて確認待ちになり、700ms 待っても達成にならず、指す確認で達成になる
-//   共通 早送りの状態の文字が最後まで「早送り: 入」。エンジンの警告・無視が 0 件。ページ内のエラー・CSP 違反が 0 件
+//   共通 早送りの状態の文字が、入力待ち・確認待ちの各時点と最後で「早送り: 入」。失敗の文には記録の件数だけを出す（記録の本文は出さない）。エンジンの警告・無視が 0 件。ページ内のエラー・CSP 違反が 0 件
 // 停止（Esc）: 早送りの入でも、進行は最大 4 件の区切りごとに event loop へ戻るため、区切りの間の停止は受け付ける（5.526。native の
 //   fast_forward_host.rs が通常の速さと同じ結果を確かめる）。ただし数 ms で終わるため、受講者が止める場面は `normal_speed` の Step に置く（SHELL-26）。
 //   その画面の確認は fast-forward-toggle の G・H（5.528）が持つ。この試験は停止を扱わない。
@@ -137,6 +137,8 @@ test('早送りが入でも 20 Step の確認・承認・差し戻し・拒否�
     const held = [];
     let enteredTicks = 0;
     const onStep = async (uid, status) => {
+      // 承認・差し戻し・拒否などの場面を通っても早送りが入のまま（各時点で確かめる）。
+      L.check('N1', `${uid} ${status} で早送りが入`, (await ffState(page)) === 'on');
       if (status === 'entered') {
         // 最初の入力（承認・差し戻しを含む）を送る前に、入力待ちのまま進まないことを確かめる。
         entered.push(uid);
@@ -159,7 +161,7 @@ test('早送りが入でも 20 Step の確認・承認・差し戻し・拒否�
     L.check('end', '早送りが最後まで入', (await ffState(page)) === 'on');
     finish(L, 'end', await engine(page), rec);
     console.log(`diagnostic fast-forward on: ledger=${L.summary()} accepted-points=${waits.length}`);
-    assert.deepEqual(L.failed(), [], JSON.stringify({ rec }));
+    assert.deepEqual(L.failed(), [], JSON.stringify(summarize(rec)));
     await context.close();
   });
 });
@@ -172,6 +174,7 @@ test('早送りが入でも、チェックポイントへの復帰の後は入�
     let saved = null;
     const listed = () => page.evaluate((sel) => [...document.querySelectorAll(sel)].map((b) => b.getAttribute('data-checkpoint')), RESTORE);
     const onStep = async (uid, status) => {
+      L.check('R', `${uid} ${status} で早送りが入`, (await ffState(page)) === 'on');
       if (uid === 'main/st-1-5' && status === 'entered' && saved === null) {
         const ids = await listed();
         await page.click(SAVE);
@@ -198,7 +201,7 @@ test('早送りが入でも、チェックポイントへの復帰の後は入�
     L.check('R', '早送りが最後まで入', (await ffState(page)) === 'on');
     finish(L, 'R', await engine(page), rec);
     console.log(`diagnostic fast-forward restore: ledger=${L.summary()}`);
-    assert.deepEqual(L.failed(), [], JSON.stringify({ rec }));
+    assert.deepEqual(L.failed(), [], JSON.stringify(summarize(rec)));
     await context.close();
   });
 });
