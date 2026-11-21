@@ -12,7 +12,9 @@
 //   (4) 同じ時点で、24×24 CSS ピクセル未満の操作対象（a11y::TARGET_SIZE_SELECTOR と同じ集合）が 0 件
 //   欠けの 1 件は（Step, 要素, 種類）の組を重複なしで数える。流れの確認は journey の台帳（入力待ち・確認待ちの口、拒否・問い返しで
 //   進まないこと、章の境目）と、開始点・終わりの確かめを合わせたもの。
-// 負の対照（CSSOM の el.style だけで変える）: 幅 500px の要素と、送信ボタンを覆う要素を入れると、(3) と (1) の押せないが検出する。
+// 送信は入力を済ませた後に送信ボタンを測ってから実クリックで押す（Enter は glue がボタンの click() を呼び、ポインターで押せなくても通るため）。
+// 負の対照（CSSOM の el.style だけで変える）: 幅 500px の要素は (3) を、送信ボタンの覆いは (1)・(2) の押せないを、
+// `pointer-events: none` のボタン（中心で祖先が返る）は (2) の押せないを出す。
 // 範囲外: 4 幅の観察（TASK-368）、縦の長さ・読みやすさ（人の評価。TASK-387）、Tab の出入り（tab-exit・shell-boundary）。
 // 出力には testid・件数・合否だけを出す（入力した値は出さない）。
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は失敗にする。
@@ -23,7 +25,7 @@ import {
   launchBrowser, channelFromEnv, withServer, openPage, summarize, waitMounted,
 } from './harness.mjs';
 import {
-  ledger, mouseDriver, journey, paneAware, engine, choiceSel, rowSel, decideSel, reviseSel, DRAFT, SUBMIT, NEXT,
+  ledger, mouseDriver, journey, paneAware, engine, choiceSel, rowSel, decideSel, reviseSel, DRAFT, SUBMIT, NEXT, T,
 } from './ch0-3-journey.mjs';
 
 const BASE = '/fandhe-shell-narrow-ch1/';
@@ -49,25 +51,36 @@ after(async () => {
   if (browser) await browser.close();
 });
 
-// (1) 操作の対象 1 つの観察。スクロールで表示領域に入れてから測る。
+// (1) 操作の対象 1 つの観察。スクロールで表示領域に入れてから測る。識別子と欠けの種類の列を返す。
 async function targetFaults(page, sel) {
   const loc = page.locator(sel).first();
-  if ((await loc.count()) === 0 || !(await loc.isVisible())) return ['見えない'];
+  if ((await loc.count()) === 0 || !(await loc.isVisible())) return { id: sel, kinds: ['見えない'] };
   await loc.scrollIntoViewIfNeeded();
   return loc.evaluate((node, [w, h]) => {
+    // 要素の識別子。testid に、選択肢・行・承認の決定・直す対象の値を足す（同じ testid の要素を区別する）。2 つの観察で同じ形にする。
+    const id = (el) => {
+      const extra = ['data-choice', 'data-row', 'data-decision', 'data-revise-target']
+        .map((a) => el.getAttribute(a)).filter((v) => v !== null);
+      return `${el.tagName.toLowerCase()}[${el.getAttribute('data-testid') ?? (el.id || '-')}${extra.length ? `:${extra.join(':')}` : ''}]`;
+    };
     const b = node.getBoundingClientRect();
-    const out = [];
-    if (b.width === 0 || b.height === 0 || b.bottom <= 0 || b.top >= h || b.right <= 0 || b.left >= w) out.push('見えない');
-    if (b.left < -0.5 || b.right > w + 0.5) out.push('はみ出す');
+    const kinds = [];
+    if (b.width === 0 || b.height === 0 || b.bottom <= 0 || b.top >= h || b.right <= 0 || b.left >= w) kinds.push('見えない');
+    if (b.left < 0 || b.right > w + 0.5) kinds.push('はみ出す');
     const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-    if (!(top !== null && (top === node || node.contains(top)))) out.push('押せない');
-    return out;
+    if (!(top !== null && (top === node || node.contains(top)))) kinds.push('押せない');
+    return { id: id(node), kinds };
   }, [WIDTH, HEIGHT]);
 }
 
-// (2)〜(4) その時点の画面全体の観察。要素は testid（無ければタグ名）で表す。
+// (2)〜(4) その時点の画面全体の観察。要素の識別子は (1) と同じ形。
 const screenFaults = (page) => page.evaluate(([operable, targets, w]) => {
-  const id = (el) => `${el.tagName.toLowerCase()}[${el.getAttribute('data-testid') ?? (el.id || '-')}]`;
+  // 要素の識別子。testid に、選択肢・行・承認の決定・直す対象の値を足す（同じ testid の要素を区別する）。2 つの観察で同じ形にする。
+  const id = (el) => {
+    const extra = ['data-choice', 'data-row', 'data-decision', 'data-revise-target']
+      .map((a) => el.getAttribute(a)).filter((v) => v !== null);
+    return `${el.tagName.toLowerCase()}[${el.getAttribute('data-testid') ?? (el.id || '-')}${extra.length ? `:${extra.join(':')}` : ''}]`;
+  };
   const shown = (el) => {
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
@@ -76,13 +89,14 @@ const screenFaults = (page) => page.evaluate(([operable, targets, w]) => {
   for (const el of document.querySelectorAll(operable)) {
     if (!shown(el)) continue;
     const r = el.getBoundingClientRect();
-    if (r.left < -0.5 || r.right > w + 0.5) faults.push(`${id(el)} はみ出す`);
+    if (r.left < 0 || r.right > w + 0.5) faults.push({ id: id(el), kind: 'はみ出す' });
     // 覆われているかは、表示領域の中にある要素だけで判定する（外にある要素は elementFromPoint が引けない）。
     const cx = r.left + r.width / 2;
     const cy = r.top + r.height / 2;
     if (cx >= 0 && cx < window.innerWidth && cy >= 0 && cy < window.innerHeight) {
       const top = document.elementFromPoint(cx, cy);
-      if (!(top !== null && (top === el || el.contains(top) || top.contains(el)))) faults.push(`${id(el)} 押せない`);
+      // 祖先が返る（`pointer-events: none` など）のも押せないに数える。
+      if (!(top !== null && (top === el || el.contains(top)))) faults.push({ id: id(el), kind: '押せない' });
     }
   }
   const small = [...document.querySelectorAll(targets)]
@@ -93,50 +107,78 @@ const screenFaults = (page) => page.evaluate(([operable, targets, w]) => {
 }, [OPERABLE, TARGETS, WIDTH]);
 
 // 操作の直前に対象を測る包み。`point` は成果物のタブ、それ以外は操作のタブを paneAware が選んだ後に測る。
+// 送信は、入力（改行・補完を含む）を済ませた後に送信ボタンを測ってから実クリックで押す（Enter は glue がボタンの click() を
+// 呼ぶため、ポインターで押せないボタンでも通ってしまう）。
 function measuringDriver(page, inner, record) {
+  const measure = async (sel) => {
+    const { id, kinds } = await targetFaults(page, sel);
+    for (const kind of kinds) record(id, kind);
+  };
   const before = (sels, fn) => async (...args) => {
-    for (const sel of sels(...args)) {
-      for (const kind of await targetFaults(page, sel)) record(sel, kind);
-    }
+    for (const sel of sels(...args)) await measure(sel);
     return fn(...args);
   };
-  const ensured = paneAware(page, {
+  const clickSubmit = async () => {
+    await measure(SUBMIT);
+    await page.click(SUBMIT, { timeout: T });
+  };
+  return paneAware(page, {
     ...inner,
     choose: before((id) => [choiceSel(id)], inner.choose),
     point: before((path) => [rowSel(path)], inner.point),
     decide: before((d) => [decideSel(d)], inner.decide),
     revise: before((t) => [reviseSel(t)], inner.revise),
-    send: before(() => [DRAFT, SUBMIT], inner.send),
-    sendMultiline: before(() => [DRAFT, SUBMIT], inner.sendMultiline),
-    completeAndSend: before(() => [DRAFT, SUBMIT], inner.completeAndSend),
+    async send(text) {
+      await measure(DRAFT);
+      await page.fill(DRAFT, text);
+      await clickSubmit();
+    },
+    async sendMultiline(first, second) {
+      await measure(DRAFT);
+      await page.fill(DRAFT, first);
+      await page.press(DRAFT, 'Shift+Enter');
+      await page.keyboard.type(second);
+      await clickSubmit();
+    },
+    async completeAndSend(prefix, completed) {
+      await measure(DRAFT);
+      await page.fill(DRAFT, prefix);
+      await page.press(DRAFT, 'Tab');
+      await page.waitForFunction(([sel, v]) => document.querySelector(sel)?.value === v, [DRAFT, completed], { timeout: T });
+      await clickSubmit();
+    },
     esc: before(() => [DRAFT], inner.esc),
     nextChapter: before(() => [NEXT], inner.nextChapter),
   }, { clicks: 0 });
-  return ensured;
 }
 
-// 1 回の通し。`tamper` はページを開いた直後に呼ぶ（負の対照の口）。欠けの組と台帳を返す。
-async function run(srv, tamper = null) {
+// 1 回の通し。欠けの組と台帳を返す。
+async function run(srv) {
   const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport: { width: WIDTH, height: HEIGHT } });
   const L = ledger();
+  // 欠けの組（Step, 要素, 種類）。測定元（target = (1)、screen = (2)）ごとにも残し、負の対照で別々に確かめる。
   const faults = new Set();
+  const bySource = { target: new Set(), screen: new Set() };
+  const add = (source, key) => {
+    faults.add(key);
+    bySource[source].add(key);
+  };
   const overflow = new Set();
   const small = new Set();
   let current = 'main/st-1-1';
   let points = 0;
   await page.goto(`${srv.url}${QUERY}`);
   await waitMounted(page);
-  if (tamper) await tamper(page);
   L.check('open', '開始点 s-1-1 の CH-1 の先頭で開く', (await engine(page)).current === 'main/st-1-1');
   const onStep = async (uid, status) => {
     current = uid;
     points += 1;
     const o = await screenFaults(page);
-    for (const f of o.faults) faults.add(`${uid} ${f}`);
+    for (const f of o.faults) add('screen', `${uid} ${f.id} ${f.kind}`);
     if (o.scrollWidth > WIDTH) overflow.add(`${uid}/${status}`);
     for (const s of o.small) small.add(`${uid} ${s}`);
   };
-  const record = (sel, kind) => faults.add(`${current} ${sel} ${kind}`);
+  const record = (id, kind) => add('target', `${current} ${id} ${kind}`);
   const d = measuringDriver(page, mouseDriver(page), record);
   await journey(page, d, '360px', L, 'main/st-2-1', { chaptered: true, onStep, from: 'main/st-1-1' });
   const e = await engine(page);
@@ -147,7 +189,9 @@ async function run(srv, tamper = null) {
   const s = summarize(rec);
   L.check('end', 'ページ内のエラー・CSP 違反が 0 件', s.pageErrors === 0 && s.csp === 0);
   await context.close();
-  return { L, faults: [...faults], overflow: [...overflow], small: [...small], points };
+  return {
+    L, faults: [...faults], target: [...bySource.target], screen: [...bySource.screen], overflow: [...overflow], small: [...small], points,
+  };
 }
 
 test('幅 360px で CH-1 を s-1-1 から模範解答で通すと、操作の欠けが 0 件で流れの確認がすべて通る', { timeout: 300000 }, async () => {
@@ -163,26 +207,45 @@ test('幅 360px で CH-1 を s-1-1 から模範解答で通すと、操作の欠
   });
 });
 
-// 負の対照: 数え方が素通りでないこと。幅 500px の要素は横スクロールを、送信ボタンを覆う要素は押せないを出す。
-test('対照: 幅 500px の要素と、送信ボタンを覆う要素を検出する', { timeout: 300000 }, async () => {
+// 負の対照: 数え方が素通りでないこと。開いた直後の画面に CSSOM（el.style）だけで手を入れ、(1)・(2)・(3) を別々に確かめる。
+// 送信ボタンを覆うと実クリックで通しが進まないため、通しは流さず、測る関数を直接呼ぶ。
+test('対照: 幅 500px の要素・送信ボタンの覆い・pointer-events の無いボタンを検出する', async () => {
   await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
-    const r = await run(srv, async (page) => {
-      await page.evaluate((sel) => {
-        const wide = document.createElement('div');
-        wide.style.width = '500px';
-        wide.style.height = '1px';
-        document.body.append(wide);
-        // 覆いは送信ボタンの位置に追従させず、ボタンの上に固定で重ねる（通しの間、ボタンの近くに居続ける）。
-        const btn = document.querySelector(sel);
-        const cover = document.createElement('div');
-        cover.style.position = 'absolute';
-        cover.style.zIndex = '10';
-        btn.parentElement.style.position = 'relative';
-        cover.style.inset = '0';
-        btn.parentElement.append(cover);
-      }, SUBMIT);
-    });
-    assert.ok(r.overflow.length >= 1, 'wide element is detected as horizontal scroll');
-    assert.ok(r.faults.some((f) => f.includes('submit-input') && f.endsWith('押せない')), 'covered submit button is detected');
+    const { page, context } = await openPage(browser, { origin: srv.origin, viewport: { width: WIDTH, height: HEIGHT } });
+    await page.goto(`${srv.url}${QUERY}`);
+    await waitMounted(page);
+    const clean = await screenFaults(page);
+    assert.deepEqual(clean.faults, [], 'baseline screen has no fault');
+    assert.ok(clean.scrollWidth <= WIDTH, 'baseline has no horizontal scroll');
+    assert.deepEqual((await targetFaults(page, SUBMIT)).kinds, [], 'baseline submit button is fine');
+
+    await page.evaluate((sel) => {
+      const wide = document.createElement('div');
+      wide.style.width = '500px';
+      wide.style.height = '1px';
+      document.body.append(wide);
+      const btn = document.querySelector(sel);
+      btn.parentElement.style.position = 'relative';
+      const cover = document.createElement('div');
+      cover.style.position = 'absolute';
+      cover.style.zIndex = '10';
+      cover.style.inset = '0';
+      btn.parentElement.append(cover);
+    }, SUBMIT);
+    const covered = (faults) => faults.some((f) => f.id.includes('[submit-input]') && f.kind === '押せない');
+    const t = await targetFaults(page, SUBMIT);
+    assert.ok(t.id.includes('[submit-input]') && t.kinds.includes('押せない'), '(1) covered submit button');
+    const o = await screenFaults(page);
+    assert.ok(covered(o.faults), '(2) covered submit button on the screen scan');
+    assert.ok(o.scrollWidth > WIDTH, '(3) wide element makes horizontal scroll');
+
+    // 祖先が返る形（pointer-events: none）も (2) で押せないに数える。
+    const reload = await openPage(browser, { origin: srv.origin, viewport: { width: WIDTH, height: HEIGHT } });
+    await reload.page.goto(`${srv.url}${QUERY}`);
+    await waitMounted(reload.page);
+    await reload.page.evaluate((sel) => { document.querySelector(sel).style.pointerEvents = 'none'; }, SUBMIT);
+    assert.ok(covered((await screenFaults(reload.page)).faults), '(2) submit button without pointer events');
+    await reload.context.close();
+    await context.close();
   });
 });
