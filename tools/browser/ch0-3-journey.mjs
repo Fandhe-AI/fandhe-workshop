@@ -234,7 +234,11 @@ export function keyPaneAware(page, d, counter) {
 // `stopAt` で止まれるのは main/st-1-3・main/st-1-4・main/st-2-1・main/st-2-6（承認と「直す」の対象が出る入力待ち。data-payload-tamper の配信する設定の場面 PS3）。
 // `chaptered` が真のとき（教材は `?fixture=ch0-3-chapters`）、章の境目は「次の章へ進む」のボタン 1 個を押して越える（TASK-526 2/2）。
 // 偽（既定）のときは、章の境目を無条件の `next` が越えるのを待つだけで、従来の経路から変わらない。
-export async function journey(page, d, scene, L, stopAt = null, { onStep = null, chaptered = false, observe = hookObserver } = {}) {
+// `from` が 'main/st-1-1' のとき（開始点 `s-1-1` の直接リンクで開いた画面。shell-narrow-ch1。TASK-518 2/2）は、CH-0 を飛ばして CH-1 の先頭から進める。
+export async function journey(page, d, scene, L, stopAt = null, {
+  onStep = null, chaptered = false, observe = hookObserver, from = null,
+} = {}) {
+  assert.ok(from === null || from === 'main/st-1-1', `journey: unsupported from ${from}`);
   const at = (pg, uid, status) => observe.at(pg, uid, status);
   let rejected = 0;
   let clarified = 0;
@@ -287,29 +291,32 @@ export async function journey(page, d, scene, L, stopAt = null, { onStep = null,
   };
 
   // CH-0: 選択肢（3 件）と、答える確認 3 つ。
-  await enter('main/st-0-1', [3, 0, 1, 1]);
-  await d.choose('opt-left');
-  await reject('main/st-0-1');
-  await d.choose('opt-top');
-  await reject('main/st-0-1');
-  await d.choose('opt-right');
-  await wait('main/st-0-1', plain);
-  await d.point('cards/notice');
-  for (const [uid, next, read, wrong, right] of [
-    ['main/st-0-2a', 'main/st-0-2b', 'opt-read-a', 'ans-a-ng', 'ans-a-ok'],
-    ['main/st-0-2b', 'main/st-0-2c', 'opt-read-b', null, 'ans-b-ok'],
-    ['main/st-0-2c', 'main/st-1-1', 'opt-read-c', null, 'ans-c-ok'],
-  ]) {
-    await enter(uid, [1, 0, 1, 1]);
-    await d.choose(read);
-    await wait(uid, [2, 0, 1, 1]);
-    if (wrong !== null) {
-      await d.choose(wrong);
-      await reject(uid);
+  if (from === null) await ch0();
+  async function ch0() {
+    await enter('main/st-0-1', [3, 0, 1, 1]);
+    await d.choose('opt-left');
+    await reject('main/st-0-1');
+    await d.choose('opt-top');
+    await reject('main/st-0-1');
+    await d.choose('opt-right');
+    await wait('main/st-0-1', plain);
+    await d.point('cards/notice');
+    for (const [uid, next, read, wrong, right] of [
+      ['main/st-0-2a', 'main/st-0-2b', 'opt-read-a', 'ans-a-ng', 'ans-a-ok'],
+      ['main/st-0-2b', 'main/st-0-2c', 'opt-read-b', null, 'ans-b-ok'],
+      ['main/st-0-2c', 'main/st-1-1', 'opt-read-c', null, 'ans-c-ok'],
+    ]) {
+      await enter(uid, [1, 0, 1, 1]);
+      await d.choose(read);
+      await wait(uid, [2, 0, 1, 1]);
+      if (wrong !== null) {
+        await d.choose(wrong);
+        await reject(uid);
+      }
+      await d.choose(right, uid === 'main/st-0-2b' ? 'Space' : 'Enter');
+      if (uid === 'main/st-0-2c') await cross(uid, next);
+      else await at(page, next, 'entered');
     }
-    await d.choose(right, uid === 'main/st-0-2b' ? 'Space' : 'Enter');
-    if (uid === 'main/st-0-2c') await cross(uid, next);
-    else await at(page, next, 'entered');
   }
 
   // CH-1: コマンド・補完・複数行・問い返しと取り消し・処理中・選択肢。
