@@ -14418,7 +14418,7 @@ Tab の回数の記録（2026-11-12）: 総数 174 回。内訳は st-1-1 が 49
 
 実行日: 2026-11-22。
 
-- 目的: `input: { kind: wait }`・`processing`・`confirm: none` の Step は、入ると処理中になり、最後の進行で受付・達成になって最初の無条件の `next` へ移る（#2205）。
+- 目的: `input: { kind: wait }`・`processing`・`confirm: none` の Step は、語彙 v1 の EP-1 の意味では、入ると処理中になり、最後の進行で受付・達成になって最初の無条件の `next` へ移る（core への実装は #2205・PR #2207。この PR の時点の main のエンジンはまだ処理中を始めず、そのような輪の Step は入力も受けずに止まる。どちらの版でも正しい教材には現れないため、先に断る）。
   そのような Step だけで戻る輪は、受講者の入力なしに進行が続いて止まらない（エンジンの遷移の上限〔SAFE-23〕は 1 操作の中だけを数え、進行の操作にまたがる輪は数えない）。教材を配る前に `validate` で断る。
 - 実装: `crates/pack/src/reach.rs` の `check_auto_cycles`（`validate` の展開の後の検査から呼ぶ）。展開の後の Step（モジュールの引数の置換の後）で、確認を省く `wait` の Step だけを最初の無条件の `next` でたどり、同じ Step に戻れば、その Step に `E-STRUCTURE`（「wait steps with confirm none form a cycle without learner input」）を 1 件出す。各 Step の自動の次は高々 1 本なので、たどり済みの印を付けて各 Step を 1 回ずつ見る（索引は BTreeMap で O(n log n)）。
   新しい診断コードは足さず、既存の `E-STRUCTURE`（構造の誤り）で出す（診断コードの一覧の版は変えない）。`use` の呼び出しをまたぐ輪は見ない。章をまたぐ辺は展開の前に `E-REF-STEP` で断られる。

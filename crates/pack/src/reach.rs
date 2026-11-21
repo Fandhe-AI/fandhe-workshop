@@ -17,7 +17,7 @@
 //! `tests/static_limits.rs` が限界パックで固定している。
 //!
 //! 確認を省く `wait` の Step の輪（`E-STRUCTURE`。#2209）: `wait` の Step（`input.kind: wait` で `processing` を持つ）に
-//! `confirm: none` を付けると、入ると処理中になり、最後の進行で受付・達成になって最初の無条件の `next` へ移る（エンジンの
+//! `confirm: none` を付けると、語彙 v1 の EP-1 の意味（#2205 で core に実装する）では、入ると処理中になり、最後の進行で受付・達成になって最初の無条件の `next` へ移る（エンジンの
 //! `transit::after_achieved` と同じ辺）。そのような Step だけをたどって同じ Step に戻る輪は、受講者の入力なしに進行が続き
 //! 止まらない（エンジンの遷移の上限は 1 操作の中だけを数える）。輪に入る Step ごとに 1 件出す。モジュールの引数の置換の後で
 //! 決まる値もあるため、展開の後の Step（[`check_auto_cycles`]。`validate` だけ）で判定する。章をまたぐ辺は展開の前に
