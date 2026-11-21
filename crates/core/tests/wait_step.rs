@@ -178,7 +178,8 @@ fn evt20_a_second_stop_on_the_same_wait_step_rewinds_again() {
 
 #[test]
 fn evt20_stop_works_after_restoring_a_save_made_during_the_wait() {
-    // 処理中に保存し、最後の進行で受付・達成になった後にその保存へ復帰する。復帰で消えた受付は停止を妨げない。
+    // 処理中に保存し、最後の進行で受付になった後にその保存へ復帰する。復帰で消えた受付は停止を妨げない。
+    // 受付の後に止まるよう、確認は承認にする（confirm: none だと達成して次の Step へ移る）。
     let mut ir = wait_ir();
     for n in &mut ir.nodes {
         if n.uid == "main/st-2" {
@@ -242,4 +243,27 @@ fn evt20_stop_keeps_the_effects_of_the_operation_that_entered_the_wait_step() {
         !s.state().run.world.contains_key("checks/w"),
         "入った後の進行の効果は戻る"
     );
+}
+
+#[test]
+fn evt20_stop_works_after_opening_a_hint_during_the_wait() {
+    // 処理中にヒントを開いても処理は続き、停止は入口へ戻す。
+    let mut s = at_wait(wait_ir());
+    tick(&mut s);
+    let opened = s.apply(Op::Control(Control::OpenHint)).to_vec();
+    assert!(
+        opened.iter().any(|e| matches!(e, Event::HintOpened { .. })),
+        "st-2 のヒント h-2-1 が開く: {opened:?}"
+    );
+    assert_eq!(
+        s.state().run.busy,
+        Some(Busy { done: 1, total: 2 }),
+        "ヒントで処理は止まらない"
+    );
+    let ev = s.apply(Op::Control(Control::Stop)).to_vec();
+    assert!(
+        ev.iter().any(|e| matches!(e, Event::Stopped { .. })),
+        "{ev:?}"
+    );
+    assert_eq!(s.state().run.busy, Some(Busy { done: 0, total: 2 }));
 }

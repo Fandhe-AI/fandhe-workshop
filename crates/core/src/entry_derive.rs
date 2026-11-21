@@ -19,7 +19,8 @@
 //! 1. `Changed` は、変更前の値を控える（後で戻す）。`apply` は操作 1 件につき経路ごと 1 件・変更前は操作前の値で
 //!    記録する（EVT-13）ので、新しい方から順に変更前の値を当てると、受付の直前の世界状態に一意に戻る
 //! 2. 処理中に起きても実行状態を変えないか、世代だけを変えるイベント（`Progress`・`Flag`・`Warning`・`Ignored`・
-//!    `InputReceived`・`Judged`・`Refused`・`CheckpointSaved`・`Reloaded`）は読み飛ばす。処理中に拒否された
+//!    `InputReceived`・`Judged`・`Refused`・`CheckpointSaved`・`Reloaded`・`HintOpened`）は読み飛ばす。処理中にヒントを開いても
+//!    処理は続き、`run` は変わらない。処理中に拒否された
 //!    再送は `InputReceived` と `Judged` だけなので、受付の時点を動かさない
 //! 3. `Restored` は、そのチェックポイントの `run` で起点を置き換え、位置を保存の時点（`log_len`）へ移す。
 //!    復帰は `run` を写しへ丸ごと戻すので、それより後の差分は捨てる。写しが無い・`log_len` が控えと合わない・
@@ -27,7 +28,11 @@
 //! 4. 現在の Step の `Accepted` に当たったら、そこが受付の時点である。控えた変更前の値を世界状態へ当て、Step の
 //!    状態を `Entered`、`busy` を空にする。受付は `Entered` で処理中でない Step でだけ起きる（`accept` の
 //!    `Phase::AwaitInput`）ので、この 2 つは一意に決まる。写しの `log_len` は受付の操作の先頭（`InputReceived`）の位置
-//! 5. それ以外のイベント（Step の出入り・達成・遷移・停止・移動・上限での停止・別の Step の受付・未知のもの）に
+//! 5. `wait` の Step（処理中なのに状態が `Entered`。入った時点から処理中で受付を持たない。EP-1）では、現在の Step の
+//!    `Entered`（入った操作）か `Stopped`（前の停止。停止の後も処理中を始め直す）に当たったら、そこが入口である。境目は
+//!    その操作の末尾にまとめて記録された変化（`changed::record_changes`）の後ろで、それらは戻さない。Step の状態は
+//!    `Entered`、`busy` は最初の進行から始め直す値にする（EVT-20 の今の動き。#981 の決定）
+//! 6. それ以外のイベント（Step の出入り・達成・遷移・停止・移動・上限での停止・別の Step の受付・未知のもの）に
 //!    当たる、ログの先頭まで受付が無い、のどちらかなら、受付の時点を一意に決められないので導かない（`None`）
 //!
 //! 導けないときの扱いは呼び出し元が決め、どちらも取り消しをしない側に倒す。停止は `Warning` だけで状態を変えず、
@@ -172,7 +177,8 @@ pub(crate) fn derive(
             | Event::Judged { .. }
             | Event::Refused { .. }
             | Event::CheckpointSaved { .. }
-            | Event::Reloaded { .. } => {}
+            | Event::Reloaded { .. }
+            | Event::HintOpened { .. } => {}
             Event::Restored { id, log_len, .. } => {
                 let cp = checkpoints.get(id)?;
                 let saved_at = usize::try_from(*log_len).ok().filter(|p| *p < at)?;
