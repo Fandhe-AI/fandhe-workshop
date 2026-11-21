@@ -20,6 +20,8 @@ const BASE = '/fandhe-log-copy/';
 const QUERY = '?fixture=ch0-3-chapters&start=s-1-1';
 const DRAFT = '[data-testid="draft-input"]';
 const ROWS = '[data-testid="part-log-list"] li';
+// 送ったコマンドの受付の行（コピーする対象）。
+const RECEIVED = '[data-testid="part-log-list"] li[data-kind="received"]';
 let browser;
 
 before(async () => {
@@ -45,29 +47,24 @@ for (const csp of [true, false]) {
         await page.press(DRAFT, 'Enter');
         await page.waitForFunction((s) => document.querySelectorAll(s).length >= 1, ROWS, { timeout: 30000 });
         const rowsBefore = await page.locator(ROWS).count();
-        // C1: 最後の行の文字を選択する。
-        const picked = await page.evaluate((s) => {
-          const rows = [...document.querySelectorAll(s)];
-          const row = rows[rows.length - 1];
-          const range = document.createRange();
-          range.selectNodeContents(row);
-          const sel = window.getSelection();
-          sel.removeAllRanges();
-          sel.addRange(range);
-          return {
-            userSelect: getComputedStyle(row).userSelect,
-            rowText: row.textContent ?? '',
-            selected: sel.toString(),
-          };
-        }, ROWS);
+        // C1: 受講者の操作（行の上での 3 回のクリック）で、送ったコマンドの受付の行の文字を選択する。
+        const row = page.locator(RECEIVED).last();
+        await row.click({ clickCount: 3 });
+        const picked = await row.evaluate((el) => ({
+          userSelect: getComputedStyle(el).userSelect,
+          rowText: (el.textContent ?? '').trim(),
+          selected: window.getSelection().toString().trim(),
+        }));
         assert.notEqual(picked.userSelect, 'none', 'log rows are selectable');
-        assert.ok(picked.selected.trim().length > 0, 'something is selected');
-        assert.equal(picked.selected.replace(/\s+/g, ' ').trim(), picked.rowText.replace(/\s+/g, ' ').trim(), 'selection equals the row text');
+        assert.equal(picked.rowText, '/help', 'the received row shows the sent command');
+        assert.equal(picked.selected, picked.rowText, 'selection equals the row text');
         const draftBefore = await page.inputValue(DRAFT);
+        // コピーの前にクリップボードを別の値にしておく（前の場面の値が残っていても見分けられるように）。
+        await page.evaluate(() => navigator.clipboard.writeText('sentinel-before-copy'));
         // C2: 受講者の操作（キー）でコピーする。
         await page.keyboard.press(process.platform === 'darwin' ? 'Meta+C' : 'Control+C');
         const copied = await page.evaluate(() => navigator.clipboard.readText());
-        assert.equal(copied.replace(/\s+/g, ' ').trim(), picked.selected.replace(/\s+/g, ' ').trim(), 'clipboard holds the selection');
+        assert.equal(copied.trim(), picked.selected, 'clipboard holds the selection');
         // C3: コピーは何も送らない。
         assert.equal(await page.inputValue(DRAFT), draftBefore, 'draft unchanged');
         assert.equal(await page.locator(ROWS).count(), rowsBefore, 'log unchanged');
