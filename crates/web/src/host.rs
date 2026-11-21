@@ -2416,6 +2416,13 @@ impl EngineHost {
             self.live_response = (0, String::new());
             self.dirty.push(LIVE_RESPONSE_FIELD.name);
         }
+        // タブの変化の印も前の履歴のもの（SHELL-5）。消したときだけ積む。
+        if !self.pane_changed.is_empty() {
+            self.pane_changed.clear();
+            if !self.dirty.contains(&PANE_TABS_FIELD.name) {
+                self.dirty.push(PANE_TABS_FIELD.name);
+            }
+        }
         // 変換して開いた通知は前の実行環境のものなので、持ち越さない（立て直すのは呼び出し側）。dirty の作り直しの後に消す。
         self.version_notice = false;
         self.refused_notice = None;

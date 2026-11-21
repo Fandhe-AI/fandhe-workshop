@@ -106,3 +106,37 @@ fn shell5_unseen_right_change_marks_the_ops_tab() {
     act(&mut h, "select-pane", "ops");
     assert!(marked(&h).is_empty());
 }
+
+#[test]
+fn shell5_marks_do_not_survive_a_history_swap() {
+    // 印が付いた状態で別の履歴を開くと、前の履歴の印は残らない。
+    let mut h = host();
+    act(&mut h, "draft", "/make-note first-note");
+    act(&mut h, "submit", "");
+    assert_eq!(marked(&h), vec!["pane-tab-artifacts".to_owned()]);
+    let sample = std::fs::read(testdata().join("contract/history/two-rounds.json")).unwrap();
+    let ir = load_ir(
+        &std::fs::read(testdata().join("engine-event-consistency/test-data/min-3step.json"))
+            .unwrap(),
+    )
+    .unwrap();
+    let env = fandhe_workshop_core::history_load::parse_history_envelope(
+        fandhe_workshop_core::history_load::parse_history_json(&sample).unwrap(),
+    )
+    .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(testdata().join("contract/event-sequence.json")).unwrap(),
+    )
+    .unwrap();
+    let initial: SessionState = serde_json::from_value(v["initial"].clone()).unwrap();
+    let state = fandhe_workshop_core::history_replay::replay(&ir, initial, &env.ops).unwrap();
+    let built =
+        fandhe_workshop_core::history_envelope::build_envelope(&ir, &env.start, env.ops, state)
+            .unwrap();
+    let bytes = fandhe_workshop_core::history_export::export_bytes(&built).unwrap();
+    assert_eq!(
+        h.open_history(&bytes),
+        fandhe_workshop_web::host::ImportOutcome::Open
+    );
+    assert!(marked(&h).is_empty(), "差し替えると印は消える");
+}

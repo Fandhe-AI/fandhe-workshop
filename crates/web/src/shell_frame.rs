@@ -79,7 +79,7 @@ pub fn pane_of(kind: PartKind) -> PaneMount {
 /// 見えていない側に変化があったタブの名前に足す文字（SHELL-5。#1013 の決定。色に頼らない）。
 pub const TAB_CHANGED_SUFFIX: &str = "（変化あり）";
 
-/// 変化の印のあるタブに付けるクラス（`static/app.css` が太字にする。文字に加えて見た目でも示す）。
+/// 変化の印のあるタブに付けるクラス（`static/app.css` が点線の下線を付ける。文字に加えて見た目でも示す。太字は選択中のタブの印）。
 pub const TAB_CHANGED_CLASS: &str = "sh-tab-changed";
 
 /// `tablist`。タブの順は `a11y::PaneTab::ALL`（操作→成果物）で、`selected` のタブが選択の状態になる。
