@@ -4,7 +4,7 @@
 //! - 処理中の段を持つ Step の受付から最後の進行までのイベント列で、`Progress` が 0 件になり、同じ経路の `Changed` が 1 件にまとまる
 //! - まとめた `Changed` を始めの世界状態に当てると、全部の `Changed` を当てた結果・セッションの最終の世界状態と一致する
 //!   （最終の状態は動きを抑えない場合と同じ）
-//! - 停止で世代が進むと、停止の前の変化と停止の巻き戻しの変化をまとめない
+//! - 停止で世代が進むと、停止の前の変化と停止の巻き戻しの変化をまとめない。同じ世代でも別の Step の変化を挟めばまとめない
 //! - 前後が同じになった変化は除く。`Progress`・`Changed` 以外のイベントは順のまま残る
 //!
 //! 試験では `unwrap`・`expect` を使ってよい。
@@ -28,20 +28,9 @@ fn ir() -> Ir {
     load_ir(&std::fs::read(p).expect("read testdata")).expect("load ir")
 }
 
-/// 世界状態に `Changed` を順に当てる。
+/// 世界状態に `Changed` を順に当てる（本番の再生規則 `changed::replay_changes` を使う）。
 fn replay_changes(mut world: World, events: &[Event]) -> World {
-    for e in events {
-        if let Event::Changed { path, after, .. } = e {
-            match after {
-                Some(el) => {
-                    world.insert(path.clone(), el.clone());
-                }
-                None => {
-                    world.remove(path);
-                }
-            }
-        }
-    }
+    fandhe_workshop_core::changed::replay_changes(&mut world, events);
     world
 }
 
@@ -153,4 +142,22 @@ fn evt19_a_change_that_returns_to_its_start_is_dropped() {
     let r = result_only(&events);
     assert_eq!(count(&r, |e| matches!(e, Event::Changed { .. })), 0);
     assert_eq!(r.len(), 1);
+}
+
+#[test]
+fn evt19_changes_are_not_merged_across_another_step_in_the_same_generation() {
+    // 同じ世代で S → T → S と変化が続く。S の 2 件を T を飛び越えてまとめると、最後の値が T の値になってしまう。
+    let s1 = stamp(1, "main/st-1");
+    let t = stamp(1, "main/st-2");
+    let events = vec![
+        changed(s1.clone(), None, Some(el("s")), Cause::Input),
+        changed(t, Some(el("s")), Some(el("t")), Cause::Input),
+        changed(s1, Some(el("t")), Some(el("s2")), Cause::Input),
+    ];
+    let r = result_only(&events);
+    assert_eq!(r, events, "区間が切れるので 3 件のまま");
+    assert_eq!(
+        replay_changes(World::new(), &r),
+        replay_changes(World::new(), &events)
+    );
 }
