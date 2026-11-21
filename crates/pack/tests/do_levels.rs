@@ -350,3 +350,47 @@ fn pack50_values_are_not_echoed() {
         assert_no_secret(&validate_dir(&t.0));
     }
 }
+
+/// `{{input_head}}` の限界の観察（TASK-301。GUIDE-14）。差し込みは、コマンドとして読める入力から教材の接頭辞とコマンド名を
+/// 組み立てて返すため、水準 B で伏せる種類（`hide_command_kinds`）の名前でも伏せない。ここでは受講者が打った flow の
+/// `/beta-cmd` が次の行動に戻る。一方 `{{step_do}}` は水準 B の `do_levels.B`（名前を含まない文）を選ぶので、skill の
+/// `alpha-cmd` は出ない。直す（伏せる）かは決めておらず、観察として固定する（`docs/known-gaps.md` の「GUIDE-14」）。
+#[test]
+fn task301_input_head_echoes_the_typed_hidden_command_even_at_level_b() {
+    let ws = std::fs::read_to_string(pack_dir().join("workshop.yaml")).unwrap();
+    let edits = [
+        // 次の行動に `{{input_head}}` を足す。
+        (
+            "    next_action: \"今の Step では、{{step_do}}。\"\n",
+            "    next_action: \"「{{input_head|そのコマンド}}」は、今は使いません。今の Step では、{{step_do}}。\"\n",
+        ),
+        // 水準 B で flow も伏せる（試作の掲示板教材と同じ `[skill, flow]`）。順序違いになるのは flow の beta-cmd。
+        (
+            "      hide_command_kinds: [\"skill\"]\n",
+            "      hide_command_kinds: [\"skill\", \"flow\"]\n",
+        ),
+    ];
+    let mut ws = ws;
+    for (from, to) in edits {
+        assert_eq!(ws.matches(from).count(), 1, "{from}");
+        ws = ws.replace(from, to);
+    }
+    let t = Tmp::new("task301");
+    common::copy_dir(&pack_dir(), &t.0);
+    t.put("workshop.yaml", ws.as_bytes());
+    let ir = ir_of(&t.0);
+    // 先頭の Step で、後の Step の flow（beta-cmd）を打つ（順序違い）。
+    let na = wrong_order_next_action(&ir, GuidanceLevel::B);
+    assert!(
+        na.contains("「/beta-cmd」"),
+        "打った伏せる種類の名前がそのまま戻る（限界）: {na}"
+    );
+    assert!(
+        na.contains("アイデアを書くコマンドを送る"),
+        "do は B の版が選ばれる: {na}"
+    );
+    assert!(
+        !na.contains("alpha-cmd"),
+        "do の skill 名は伏せたまま: {na}"
+    );
+}
