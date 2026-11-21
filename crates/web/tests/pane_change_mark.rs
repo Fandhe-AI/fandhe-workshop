@@ -140,3 +140,20 @@ fn shell5_marks_do_not_survive_a_history_swap() {
     );
     assert!(marked(&h).is_empty(), "差し替えると印は消える");
 }
+
+#[test]
+fn shell5_a_progress_line_alone_marks_the_ops_tab() {
+    // 成果物のタブを見ている間に、効果の無い進行（右のログの進行の行だけが増える）が届くと、操作のタブに印が付く。
+    let mut h = host();
+    act(&mut h, "draft", "/make-note first-note");
+    act(&mut h, "submit", "");
+    act(&mut h, "select-pane", "artifacts");
+    assert!(marked(&h).is_empty());
+    let t = h.next_tick().expect("処理中");
+    act(
+        &mut h,
+        "tick",
+        &format!("{} {} {}", t.generation.0, t.index, t.step.0),
+    );
+    assert_eq!(marked(&h), vec!["pane-tab-ops".to_owned()]);
+}

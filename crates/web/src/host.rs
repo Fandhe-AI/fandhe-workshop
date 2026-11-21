@@ -2616,17 +2616,17 @@ impl EngineHost {
             })
             .collect();
         // 見えていない側（選ばれていないタブ）に変化があれば、そのタブに印を付ける（SHELL-5。#1013 の決定）。
-        // 左は世界状態の変化（`Changed`）、右は数える行（契約 `a11y` の応答の行）が 1 つ以上ある操作で変化とみなす。
+        // 左は世界状態の変化（`Changed`）か、Step の移動（新しい Step の宣言で既定のビュー・指す行が替わる）、右はログに伸びた行
+        //（進行の行を含む）が 1 つ以上ある操作で変化とみなす。
         // 幅 960px 以上では両方が見えるが、web は幅を読まない（BUILD-6）ため区別しない（そのとき tablist は隠れている）。
         let left_changed = log[from_event..]
             .iter()
             .any(|e| matches!(e, fandhe_workshop_core::event::Event::Changed { .. }));
+        // Step が変わると、左は新しい Step の宣言（既定のビュー・指す行）で描き直される。
+        let view_changed = session.state().run.current != prev_step;
         for (tab, hit) in [
-            (
-                PaneTab::Ops,
-                crate::live_region::response_summary(&lines).is_some(),
-            ),
-            (PaneTab::Artifacts, left_changed),
+            (PaneTab::Ops, !lines.is_empty()),
+            (PaneTab::Artifacts, left_changed || view_changed),
         ] {
             if hit && self.pane != tab && !self.pane_changed.contains(&tab) {
                 self.pane_changed.push(tab);
