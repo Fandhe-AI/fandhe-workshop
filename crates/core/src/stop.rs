@@ -90,7 +90,8 @@ pub(crate) fn on_stop(ir: &Ir, state: &mut SessionState) -> Vec<Event> {
     // `revert_owner` は写しの水準へ戻すが、処理中の `SetGuidance` は取り消さない（復帰だけが写しへ戻す。MOD-9）。
     run.guidance_level = state.run.guidance_level;
     run.generation = next;
-    run.busy = None;
+    // 通常の Step は処理中を解く。`wait` の Step は入口の写しが処理中（最初の進行から）なので、そのまま始め直す（EVT-20）。
+    run.busy = entry.run.busy.clone();
     state.run = run;
     vec![Event::Stopped {
         at,

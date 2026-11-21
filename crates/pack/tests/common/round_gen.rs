@@ -957,10 +957,25 @@ fn entry_boundary(before: &SessionState, cur: &StepUid) -> Option<usize> {
                 at = usize::try_from(*log_len).ok().filter(|p| *p < at)?;
             }
             Event::Accepted { at: s } if &s.step == cur => return Some(at),
+            // `wait` の Step は入った時点から処理中で受付を持たない（状態は `Entered`）。入った時点を入口にする（EP-1・EVT-20）。
+            Event::Entered { at: s } if &s.step == cur && entered_while_busy(before, cur) => {
+                return Some(at);
+            }
             _ => {}
         }
     }
     None
+}
+
+/// 処理中で、現在の Step の状態が `Entered`（受付を経ずに処理中になった `wait` の Step）か。
+fn entered_while_busy(before: &SessionState, cur: &StepUid) -> bool {
+    before.run.busy.is_some()
+        && before
+            .run
+            .slices
+            .get(&cur.root())
+            .and_then(|s| s.status.get(cur))
+            == Some(&fandhe_workshop_core::step_status::StepStatus::Entered)
 }
 
 /// S-6: `Stopped` を伴う操作で、現在の Step の持ち主の分だけが入口の写しへ戻る。

@@ -189,16 +189,7 @@ pub(crate) fn derive(
             }
             Event::Accepted { at: stamp } if &stamp.step == current => {
                 let start = op_start(log, at)?;
-                for (path, before) in undo {
-                    match before {
-                        Some(el) => {
-                            base.world.insert(path.to_string(), el.clone());
-                        }
-                        None => {
-                            base.world.remove(path);
-                        }
-                    }
-                }
+                revert_world(&mut base.world, undo);
                 // 処理中（`busy`）の Step は呼び出しの Step にならないので、`owner_of` でなく `root_of` で足りる。
                 base.slices
                     .get_mut(&crate::instance::root_of(current))?
@@ -210,10 +201,69 @@ pub(crate) fn derive(
                     log_len: u32::try_from(start).unwrap_or(u32::MAX),
                 });
             }
+            // `wait` の Step は入った時点から処理中で、`Accepted` を持たず状態は `Entered` のまま。入った時点（`Entered`）を
+            // 入口にし、処理中は最初の進行から始め直す値にする（EVT-20 の今の動き。#981 の決定）。IR は読まないので、
+            // 処理中なのに状態が `Entered` であること（受付で処理中になった Step は `Accepted`）で `wait` を見分ける。
+            Event::Entered { at: stamp }
+                if &stamp.step == current
+                    && current_status(run, current) == Some(StepStatus::Entered)
+                    && waits(log, at) =>
+            {
+                revert_world(&mut base.world, undo);
+                base.slices
+                    .get_mut(&crate::instance::root_of(current))?
+                    .status
+                    .insert(current.clone(), StepStatus::Entered);
+                base.busy = run.busy.as_ref().map(|b| crate::session::Busy {
+                    done: 0,
+                    total: b.total,
+                });
+                return Some(EntryCopy {
+                    run: base,
+                    log_len: u32::try_from(at).unwrap_or(u32::MAX),
+                });
+            }
             _ => return None,
         }
     }
     None
+}
+
+/// 控えた変更前の値（新しいものから順）を世界状態に当てて、入口の時点の世界状態へ戻す。
+fn revert_world(
+    world: &mut crate::world::World,
+    undo: Vec<(&str, &Option<crate::world::Element>)>,
+) {
+    for (path, before) in undo {
+        match before {
+            Some(el) => {
+                world.insert(path.to_string(), el.clone());
+            }
+            None => {
+                world.remove(path);
+            }
+        }
+    }
+}
+
+/// 現在の Step の状態（`main` などの根の切り身から読む）。処理中の Step は呼び出しの Step にならないので `root_of` で足りる。
+fn current_status(run: &RunState, current: &crate::addr::StepUid) -> Option<StepStatus> {
+    run.slices
+        .get(&crate::instance::root_of(current))?
+        .status
+        .get(current)
+        .copied()
+}
+
+/// 位置 `entered` の `Entered` の後に、同じ Step の `Accepted` が無い（入ったまま処理中の `wait` の Step）か。
+/// 受付のある Step では `Accepted` の腕が先に当たるので、ここへは来ない。念のため、後ろに同じ Step の受付が無いことを確かめる。
+fn waits(log: &[Event], entered: usize) -> bool {
+    let Some(Event::Entered { at: stamp }) = log.get(entered) else {
+        return false;
+    };
+    !log.iter()
+        .skip(entered.saturating_add(1))
+        .any(|e| matches!(e, Event::Accepted { at } if at.step == stamp.step))
 }
 
 /// 位置 `accepted` の `Accepted` を出した受付の操作の先頭（`InputReceived`）の位置。

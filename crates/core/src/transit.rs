@@ -104,6 +104,22 @@ fn set_status(ir: &Ir, state: &mut SessionState, uid: &str, status: StepStatus) 
 /// [`crate::entry_derive`] がログから導くこと（SAFE-35）で、ここでは古い Step の写しを残さない。
 /// `go_to` の移動もこの着地の無効化に依る（移動の側では無効化しない。#1865）。
 /// 呼び出し元は [`land`] の通常の Step への着地と、[`after_achieved`] の呼び出し元への戻りだけである。
+/// `wait` の Step（`input.kind == "wait"` で `processing` を持つ）なら、最初の進行を待つ処理中の値を返す（EP-1・EVT-20）。
+/// それ以外の Step は `None`（入った時点では処理中でない）。総数が `u32` に収まらなければ最大値に倒す（`accept` と同じ）。
+pub(crate) fn wait_busy(step: &fandhe_workshop_contract::ir::Step) -> Option<crate::session::Busy> {
+    let is_wait = step
+        .input
+        .as_ref()
+        .and_then(|v| v.get("kind"))
+        .and_then(Value::as_str)
+        .and_then(fandhe_workshop_contract::input_spec::InputKind::from_str_opt)
+        == Some(fandhe_workshop_contract::input_spec::InputKind::Wait);
+    (is_wait && !step.processing.is_empty()).then(|| crate::session::Busy {
+        done: 0,
+        total: u32::try_from(step.processing.len()).unwrap_or(u32::MAX),
+    })
+}
+
 fn replace_entry_on_enter(state: &mut SessionState) {
     state.entry = None; // I-1: 入った Step の写しは導く
 }
@@ -322,6 +338,8 @@ fn land(
             state.run.current = Some(uid.clone());
             replace_entry_on_enter(state);
             set_status(ir, state, &node.uid, StepStatus::Entered);
+            // `wait` の Step は入った時点で処理中になる（EP-1）。受付は最後の進行で行う（`tick`）。
+            state.run.busy = wait_busy(&node.step);
             events.push(Event::Entered {
                 at: Stamp {
                     generation,
