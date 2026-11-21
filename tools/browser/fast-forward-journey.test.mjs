@@ -91,7 +91,8 @@ const watchActive = (page) => page.evaluate((a) => {
   window.__ffJourneySeen = false;
   if (!window.__ffJourneyObserver) {
     window.__ffJourneyObserver = new MutationObserver(() => {
-      if (document.querySelector(a)) window.__ffJourneySeen = true;
+      // 要素があり、文字が「早送り中」のときだけ出たとみなす（文字が消えた・違うときは数えない）。
+      if ((document.querySelector(a)?.textContent ?? '').trim() === '早送り中') window.__ffJourneySeen = true;
     });
     window.__ffJourneyObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
   }
