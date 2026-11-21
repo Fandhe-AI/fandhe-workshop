@@ -6,7 +6,7 @@
 //   N1  journey の台帳（入力待ち・確認待ちの口、拒否・問い返しで進まない、承認・差し戻し・対象つきの直す、章の境目）がすべて合格
 //   N2  確認待ちになった全 16 時点（Step の集合を照合）で、700ms（進行の間隔 300ms の 2 回分より長い）待っても確認待ちのまま・待機中
 //       （自動で達成・次の Step にならない）。入力待ちに入った全 20 時点でも、最初の入力（承認・差し戻しを含む）の前に同じく確かめる。
-//       拒否・問い返しの直後も、次の操作の前に 700ms 待って同じ Step・同じ状態・待機中で、測った 11 時点の Step と状態が期待の列と一致する
+//       拒否・問い返しの直後と、章の終わりで「次の章へ進む」を押す前も、700ms 待って同じ Step・同じ状態・待機中で、測った 14 時点の Step と状態が期待の列と一致する
 //   N3  処理中の段を持つ Step（st-1-5・st-2-5）で、進行がすべて適用されてから確認待ちになり（段が省かれない）、その処理で「早送り中」が出た
 //       （早送りが実際に効いた。数 ms しか出ないため MutationObserver で記録する）
 //   R   入のまま、st-1-5 に入った時点でチェックポイントを保存し、st-2-1 で復帰すると st-1-5 の入力待ちに戻り、700ms 待っても進まない。
@@ -36,10 +36,11 @@ const RESTORE = '[data-testid="checkpoint-restore"]';
 const RUN = '[data-testid="run-status"]';
 const ACTIVE = '[data-testid="fast-forward-active"]';
 // journey が拒否・問い返しを起こす 11 時点と、その時の Step の状態（試験用の教材の CH-0〜CH-3）。
+// 章の境目の 3 時点（`:chapter-end`）も同じ列に並ぶ。
 const REJECT_POINTS = [
-  'main/st-0-1:entered', 'main/st-0-1:entered', 'main/st-0-2a:accepted', 'main/st-1-1:entered', 'main/st-1-4:entered',
-  'main/st-1-4:entered', 'main/st-2-6:entered', 'main/st-2-6:entered', 'main/st-2-7:entered', 'main/st-2-7:accepted',
-  'main/st-3-1:entered',
+  'main/st-0-1:entered', 'main/st-0-1:entered', 'main/st-0-2a:accepted', 'main/st-0-2c:chapter-end', 'main/st-1-1:entered',
+  'main/st-1-4:entered', 'main/st-1-4:entered', 'main/st-1-6:chapter-end', 'main/st-2-6:entered', 'main/st-2-6:entered',
+  'main/st-2-7:entered', 'main/st-2-7:accepted', 'main/st-2-8:chapter-end', 'main/st-3-1:entered',
 ];
 const LOG_ROWS = '[data-testid="part-log-list"] li[data-kind="rejected"], [data-testid="part-log-list"] li[data-kind="clarified"]';
 // journey が確認待ちにする 16 時点（試験用の教材の CH-0〜CH-3）。
@@ -108,7 +109,16 @@ function holdingDriver(page, inner, L, held) {
     rows = now;
     return result;
   };
-  return Object.fromEntries(Object.entries(inner).map(([k, f]) => [k, wrap(f)]));
+  const wrapped = Object.fromEntries(Object.entries(inner).map(([k, f]) => [k, wrap(f)]));
+  // 章の終わり（最後の Step が達成で「次の章へ進む」が出ている）でも、押す前に 700ms 待って同じ Step の達成のまま・待機中であることを確かめる。
+  const next = wrapped.nextChapter;
+  wrapped.nextChapter = async (...args) => {
+    const uid = (await engine(page)).current;
+    held.push(`${uid}:chapter-end`);
+    L.check('N2', `${uid} 章の終わりで「次の章へ進む」を押すまで進まない`, await holds(page, uid, 'achieved'));
+    return next(...args);
+  };
+  return wrapped;
 }
 
 async function openOn(srv) {
@@ -157,7 +167,7 @@ test('早送りが入でも 20 Step の確認・承認・差し戻し・拒否�
     await journey(page, holdingDriver(page, mouseDriver(page), L, held), 'N1', L, null, { chaptered: true, onStep });
     L.check('N2', '確認待ちの 16 時点をすべて測った', JSON.stringify(waits) === JSON.stringify(ACCEPTED));
     L.check('N2', '入力待ちの 20 時点をすべて測った', entered.length === 20);
-    L.check('N2', `拒否・問い返しの後の 11 時点を期待の Step と状態で測った（${held.join(',')}）`, JSON.stringify(held) === JSON.stringify(REJECT_POINTS));
+    L.check('N2', `拒否・問い返しの後の 11 時点と章の境目の 3 時点を期待の Step と状態で測った（${held.join(',')}）`, JSON.stringify(held) === JSON.stringify(REJECT_POINTS));
     L.check('end', '早送りが最後まで入', (await ffState(page)) === 'on');
     finish(L, 'end', await engine(page), rec);
     console.log(`diagnostic fast-forward on: ledger=${L.summary()} accepted-points=${waits.length}`);
