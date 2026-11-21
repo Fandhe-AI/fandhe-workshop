@@ -335,6 +335,8 @@ button {
 [data-testid="view-select"] { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0 0 0.75rem; padding: 0; list-style: none; }
 [data-testid="view-select"] [data-selected="true"],
 [data-testid="pane-tab"][aria-selected="true"] { font-weight: bold; border-width: 2px; }
+/* 見えていない側に変化があったタブ（SHELL-5）。名前の「（変化あり）」に加え、点線の下線でも示す（色に頼らない）。 */
+[data-testid="pane-tab"].sh-tab-changed { text-decoration: underline dotted; text-underline-offset: 3px; }
 [data-testid="view-list"] > li { padding: 0.2rem 0; }
 [data-action="ui"] { cursor: pointer; border-radius: 0.25rem; }
 
