@@ -191,7 +191,7 @@ fn evt20_stop_works_after_restoring_a_save_made_during_the_wait() {
     let id = saved
         .iter()
         .find_map(|e| match e {
-            Event::CheckpointSaved { id, .. } => Some(id.clone()),
+            Event::CheckpointSaved { id, .. } => Some(*id),
             _ => None,
         })
         .expect("保存した");
